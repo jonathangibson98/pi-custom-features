@@ -1,5 +1,5 @@
 name: "Pi Health Monitor"
-version: "1.0.0"
+version: "1.1.0"
 slug: pi_health_monitor
 description: "Lightweight CPU, memory, temp, throttling and per-add-on usage dashboard"
 arch:

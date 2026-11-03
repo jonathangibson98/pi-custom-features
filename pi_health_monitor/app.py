@@ -1,10 +1,18 @@
-import json, os, time, threading, shutil, urllib.request
+import json, os, time, threading, shutil, socket, http.client, urllib.request
+from urllib.parse import urlparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from concurrent.futures import ThreadPoolExecutor
 
 TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 API = "http://supervisor"
 INTERVAL = 5
+PORT = int(os.environ.get("PORT", "8099"))
+
+# Runs as a Home Assistant add-on when a Supervisor token is present,
+# otherwise as a plain Docker / docker compose container.
+MODE = "supervisor" if TOKEN else "docker"
+DOCKER_HOST = os.environ.get("DOCKER_HOST", "unix:///var/run/docker.sock")
+DISK_PATH = os.environ.get("DISK_PATH", "/data" if MODE == "supervisor" else "/")
 cache = {"ready": False}
 prev = {"idle": None, "total": None}
 
@@ -19,6 +27,65 @@ def sup(path):
     req = urllib.request.Request(API + path, headers={"Authorization": "Bearer " + TOKEN})
     with urllib.request.urlopen(req, timeout=15) as r:
         return json.load(r).get("data", {})
+
+
+class UnixHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, path, timeout=20):
+        super().__init__("localhost", timeout=timeout)
+        self.unix_path = path
+
+    def connect(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.settimeout(self.timeout)
+        self.sock.connect(self.unix_path)
+
+
+def docker_get(path):
+    u = urlparse(DOCKER_HOST)
+    if u.scheme == "unix":
+        conn = UnixHTTPConnection(u.path)
+    else:  # tcp://host:port, e.g. a docker-socket-proxy
+        conn = http.client.HTTPConnection(u.hostname, u.port or 2375, timeout=20)
+    try:
+        conn.request("GET", path)
+        r = conn.getresponse()
+        data = r.read()
+        if r.status != 200:
+            raise RuntimeError(f"docker API {path} -> HTTP {r.status}")
+        return json.loads(data)
+    finally:
+        conn.close()
+
+
+def docker_row(c):
+    try:
+        s = docker_get(f"/containers/{c['Id']}/stats?stream=false")
+        cpu, pre = s.get("cpu_stats", {}), s.get("precpu_stats", {})
+        cpu_d = cpu.get("cpu_usage", {}).get("total_usage", 0) - pre.get("cpu_usage", {}).get("total_usage", 0)
+        sys_d = cpu.get("system_cpu_usage", 0) - pre.get("system_cpu_usage", 0)
+        # share of the whole host's CPU, same scale as the host CPU card
+        cpu_pct = 100.0 * cpu_d / sys_d if cpu_d > 0 and sys_d > 0 else 0.0
+        ms = s.get("memory_stats", {})
+        st = ms.get("stats", {})
+        cache = st.get("inactive_file", st.get("total_inactive_file", st.get("cache", 0)))
+        mem = max(ms.get("usage", 0) - cache, 0)
+        limit = ms.get("limit") or 0
+        net = s.get("networks") or {}
+        return {
+            "name": (c.get("Names") or [c["Id"][:12]])[0].lstrip("/"), "slug": c["Id"][:12],
+            "cpu": round(cpu_pct, 1), "mem": mem,
+            "mem_pct": round(100 * mem / limit, 1) if limit else 0,
+            "rx": sum(n.get("rx_bytes", 0) for n in net.values()),
+            "tx": sum(n.get("tx_bytes", 0) for n in net.values()),
+        }
+    except Exception:
+        return None
+
+
+def docker_rows():
+    containers = docker_get("/containers/json")  # running containers only
+    with ThreadPoolExecutor(16) as ex:  # each stats call blocks ~1s for its 2nd sample
+        return [r for r in ex.map(docker_row, containers) if r]
 
 
 def read(path, default=None):
@@ -89,29 +156,38 @@ def collect():
     freq = read("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq")
     load = (read("/proc/loadavg", "0 0 0").split()[:3])
     disk = {}
-    try:
-        h = sup("/host/info")
-        disk = {"total": h.get("disk_total"), "used": h.get("disk_used")}
-    except Exception:
-        pass
+    if MODE == "supervisor":
+        try:
+            h = sup("/host/info")
+            disk = {"total": h.get("disk_total"), "used": h.get("disk_used")}
+        except Exception:
+            pass
     if not disk.get("total"):
-        u = shutil.disk_usage("/data")
+        u = shutil.disk_usage(DISK_PATH)
         disk = {"total": round(u.total / 1e9, 1), "used": round(u.used / 1e9, 1)}
     disk["pct"] = round(100 * disk["used"] / disk["total"], 1) if disk["total"] else 0
 
-    jobs = [("Home Assistant Core", "core", "/core/stats"), ("Supervisor", "supervisor", "/supervisor/stats")]
-    try:
-        for a in sup("/addons").get("addons", []):
-            if a.get("state") == "started":
-                jobs.append((a["name"], a["slug"], f"/addons/{a['slug']}/stats"))
-    except Exception:
-        pass
-    with ThreadPoolExecutor(6) as ex:
-        rows = [r for r in ex.map(lambda j: one(*j), jobs) if r]
+    if MODE == "supervisor":
+        jobs = [("Home Assistant Core", "core", "/core/stats"), ("Supervisor", "supervisor", "/supervisor/stats")]
+        try:
+            for a in sup("/addons").get("addons", []):
+                if a.get("state") == "started":
+                    jobs.append((a["name"], a["slug"], f"/addons/{a['slug']}/stats"))
+        except Exception:
+            pass
+        with ThreadPoolExecutor(6) as ex:
+            rows = [r for r in ex.map(lambda j: one(*j), jobs) if r]
+    else:
+        try:
+            rows = docker_rows()
+            cache.pop("docker_error", None)
+        except Exception as e:  # keep host metrics working without the socket
+            rows = []
+            cache["docker_error"] = str(e)
     rows.sort(key=lambda r: r["cpu"], reverse=True)
 
     return {
-        "ready": True, "ts": time.time(),
+        "ready": True, "ts": time.time(), "mode": MODE,
         "cpu": cpu_percent(), "cores": os.cpu_count(),
         "freq_mhz": round(int(freq) / 1000) if freq else None,
         "temp_c": temp_c, "temp_f": round(temp_c * 9 / 5 + 32, 1) if temp_c is not None else None,
@@ -146,7 +222,7 @@ td{padding:7px 4px;border-top:1px solid #ffffff10}.r{text-align:right}.warn{colo
 </style></head><body><h1>&#10084;&#65039; Pi Health <span id="st" class="sub"></span></h1>
 <div class="grid" id="cards"></div>
 <h2>Throttling / power</h2><div class="card" id="thr"></div>
-<h2>Add-ons &amp; system (sorted by CPU)</h2>
+<h2 id="rt">Add-ons &amp; system (sorted by CPU)</h2>
 <div class="card wrap"><table><thead><tr><th>Name</th><th class="r">CPU</th><th class="r">RAM</th><th class="r">RAM %</th></tr></thead>
 <tbody id="rows"></tbody></table></div>
 <script>
@@ -167,7 +243,8 @@ function render(d){
  const t=d.throttle;
  document.getElementById('thr').innerHTML=!t.available?'<span class="sub">Not exposed on this hardware</span>':
   t.flags.length?t.flags.map(f=>`<div class="${f.includes('NOW')?'bad':'warn'}">&#9888; ${f}</div>`).join(''):'<span class="ok">&#10003; All clear, no throttling or under-voltage</span>';
- document.getElementById('rows').innerHTML=d.addons.map(a=>`<tr><td>${a.name}</td><td class="r" style="color:${col(a.cpu)}">${a.cpu}%</td><td class="r">${mb(a.mem)}</td><td class="r">${a.mem_pct}%</td></tr>`).join('');
+ if(d.mode==='docker')document.getElementById('rt').textContent='Containers (sorted by CPU)';
+ document.getElementById('rows').innerHTML=(d.addons.length?'':'<tr><td colspan="4" class="sub">'+(d.docker_error?'Docker API unavailable: '+d.docker_error:'No running containers')+'</td></tr>')+d.addons.map(a=>`<tr><td>${a.name}</td><td class="r" style="color:${col(a.cpu)}">${a.cpu}%</td><td class="r">${mb(a.mem)}</td><td class="r">${a.mem_pct}%</td></tr>`).join('');
  document.getElementById('st').textContent='updated '+new Date(d.ts*1000).toLocaleTimeString();
 }
 async function tick(){try{render(await (await fetch('api/stats')).json())}catch(e){document.getElementById('st').textContent='offline'}}
@@ -193,4 +270,4 @@ class H(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     threading.Thread(target=sampler, daemon=True).start()
-    ThreadingHTTPServer(("0.0.0.0", 8099), H).serve_forever()
+    ThreadingHTTPServer(("0.0.0.0", PORT), H).serve_forever()

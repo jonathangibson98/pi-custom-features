@@ -1,0 +1,13 @@
+# Standalone image for plain Docker / docker compose (no Home Assistant Supervisor).
+# The Home Assistant add-on keeps using ./Dockerfile.
+FROM python:3.13-alpine
+
+ENV PYTHONUNBUFFERED=1
+WORKDIR /app
+COPY app.py /app/app.py
+
+EXPOSE 8099
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD python -c "import os,urllib.request as u; u.urlopen('http://127.0.0.1:%s/api/stats' % os.environ.get('PORT','8099'), timeout=3)"
+
+CMD ["python", "-u", "/app/app.py"]
