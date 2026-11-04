@@ -38,6 +38,8 @@ jobs:
           context: sillytavern
           platforms: ${{ matrix.platform }}
           push: true
+          provenance: false
+          sbom: false
           tags: |
             ghcr.io/jonathangibson98/${{ matrix.arch }}-addon-sillytavern:${{ steps.v.outputs.version }}
             ghcr.io/jonathangibson98/${{ matrix.arch }}-addon-sillytavern:latest
