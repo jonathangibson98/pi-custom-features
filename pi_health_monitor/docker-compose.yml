@@ -1,0 +1,34 @@
+# Run Pi Health Monitor as a normal container (from this folder):  docker compose up -d --build
+# Dashboard: http://<host>:8099
+services:
+  pi-health-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile.standalone
+    image: pi-health-monitor:latest
+    container_name: pi-health-monitor
+    restart: unless-stopped
+    ports:
+      - "8099:8099"          # change the left side to use another host port
+    # environment:
+    #   DISK_PATH: /hostfs   # report disk usage for this path (pair with the /:/hostfs:ro volume below)
+    volumes:
+      # Per-container CPU/RAM table. Read-only mount does NOT limit the Docker API, see README
+      # for the safer docker-socket-proxy option.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Optional: report the real host disk instead of the Docker storage disk
+      # - /:/hostfs:ro
+    # Host CPU, memory, load, uptime, temperature and Pi throttling come from /proc and /sys,
+    # which Docker already shows from the host's point of view, so no privileged mode is needed.
+
+  # --- Optional, safer alternative to mounting the socket directly -------------------------
+  # 1. Uncomment this service, 2. remove the docker.sock volume above,
+  # 3. add to pi-health-monitor:  environment: { DOCKER_HOST: tcp://docker-proxy:2375 }
+  #    and depends_on: [docker-proxy]
+  # docker-proxy:
+  #   image: tecnativa/docker-socket-proxy
+  #   restart: unless-stopped
+  #   environment:
+  #     CONTAINERS: 1        # allows only read access to the containers endpoints
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock:ro
