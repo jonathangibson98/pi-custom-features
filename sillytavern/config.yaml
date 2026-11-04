@@ -10,6 +10,10 @@ startup: application
 boot: auto
 init: false
 
+# Prebuilt image from GitHub Actions: HA pulls it and shows download progress.
+# The tag must match "version" above.
+image: ghcr.io/jonathangibson98/{arch}-addon-sillytavern
+
 # Sidebar (ingress). The icon is read by Home Assistant from this file, not from
 # the options, so it can't be a runtime option. Change it here, reload the add-on
 # store and rebuild. Any https://pictogrammers.com/library/mdi/ icon works.
