@@ -4,7 +4,7 @@ FROM node:lts-alpine3.23
 ARG ST_REF=release
 ARG APP_HOME=/home/node/app
 
-RUN apk add --no-cache gcompat tini git git-lfs jq
+RUN apk add --no-cache gcompat tini git git-lfs jq nginx
 
 WORKDIR ${APP_HOME}
 ENV NODE_ENV=production
@@ -24,7 +24,10 @@ RUN node ./docker/build-lib.js
 RUN git config --global --add safe.directory "*"
 
 COPY run.sh /run.sh
-RUN chmod +x /run.sh && sed -i 's/\r$//' /run.sh
+COPY nginx.conf.tpl /etc/nginx/ingress.conf.tpl
+COPY ingress-shim.js /etc/nginx/ingress-shim.js
+RUN chmod +x /run.sh \
+ && sed -i 's/\r$//' /run.sh /etc/nginx/ingress.conf.tpl /etc/nginx/ingress-shim.js
 
-EXPOSE 8000
+EXPOSE 8000 8099
 ENTRYPOINT ["tini", "--", "/run.sh"]

@@ -1,5 +1,5 @@
 name: SillyTavern
-version: "1.19.0"
+version: "1.19.1"
 slug: sillytavern
 description: LLM frontend for power users - chat, characters, lorebooks, any AI backend
 url: https://github.com/SillyTavern/SillyTavern
@@ -9,15 +9,30 @@ arch:
 startup: application
 boot: auto
 init: false
+
+# Sidebar (ingress). The icon is read by Home Assistant from this file, not from
+# the options, so it can't be a runtime option. Change it here, reload the add-on
+# store and rebuild. Any https://pictogrammers.com/library/mdi/ icon works.
+ingress: true
+ingress_port: 8099
+ingress_stream: true
+panel_icon: mdi:drama-masks
+panel_title: SillyTavern
+
+# Direct access stays available on 8000 (clear it in the Network tab to close it).
 ports:
   8000/tcp: 8000
 ports_description:
-  8000/tcp: SillyTavern web UI
-webui: "http://[HOST]:[PORT:8000]"
+  8000/tcp: SillyTavern web UI (direct access, optional)
 watchdog: "tcp://[HOST]:[PORT:8000]"
 map:
   - addon_config:rw
+  - share:rw
 options:
   admin_password: ""
+  log_level: info
+  extensions_plugins_path: ""
 schema:
   admin_password: password
+  log_level: list(debug|info|warning|error)
+  extensions_plugins_path: str?
