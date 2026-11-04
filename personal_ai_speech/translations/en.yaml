@@ -1,1 +1,45 @@
-y
+configuration:
+  api_key:
+    name: API key
+    description: Optional password for the speech API. Leave blank on a trusted home network.
+  tts_engine:
+    name: Voice engine
+    description: kokoro runs on this Pi. proxy forwards to OpenAI or another server (real emotion acting).
+  kokoro_model:
+    name: Kokoro model size
+    description: int8 is fastest and smallest (best for a Pi). fp16/fp32 sound slightly better but are slower.
+  default_voice:
+    name: Default voice (Kokoro)
+    description: e.g. af_heart, af_bella, am_adam, bf_emma. Blend with + (af_heart+af_bella).
+  default_speed:
+    name: Default speed
+    description: 1.0 is normal.
+  upstream_url:
+    name: Upstream URL (proxy only)
+    description: e.g. https://api.openai.com/v1 or http://192.168.1.50:8000/v1
+  upstream_api_key:
+    name: Upstream API key (proxy only)
+    description: Key for the upstream server.
+  upstream_model:
+    name: Upstream model (proxy only)
+    description: e.g. gpt-4o-mini-tts
+  upstream_voice:
+    name: Upstream default voice (proxy only)
+    description: e.g. coral
+  upstream_send_instructions:
+    name: Send emotion instructions upstream
+    description: Turn off for models that reject instructions, like tts-1.
+  stt_enabled:
+    name: Enable speech-to-text
+    description: Local Whisper transcription.
+  stt_model:
+    name: Whisper model
+    description: base.en is a good Pi balance. tiny.en is faster, small.en is more accurate but slow.
+  stt_language:
+    name: Whisper language
+    description: Optional two-letter code. Leave blank to follow the voice assistant.
+  stt_preload:
+    name: Load Whisper at start
+    description: Uses RAM all the time but the first command isn't slow.
+  log_level:
+    name: Log level
