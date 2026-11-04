@@ -1,0 +1,50 @@
+name: Personal AI Speech
+version: "1.0.0"
+slug: personal_ai_speech
+description: Natural, emotional text-to-speech and local speech-to-text for the Personal AI integration
+url: https://github.com/jonathangibson98/ha-personal-ai
+arch:
+  - aarch64
+  - amd64
+startup: services
+boot: auto
+ingress: true
+ingress_port: 8880
+panel_icon: mdi:account-voice
+panel_title: Personal AI Speech
+ports:
+  8880/tcp: 8880
+ports_description:
+  8880/tcp: "Speech API (OpenAI-compatible). Use this for the Personal AI integration."
+options:
+  api_key: ""
+  tts_engine: kokoro
+  kokoro_model: int8
+  default_voice: af_heart
+  default_speed: 1.0
+  upstream_url: ""
+  upstream_api_key: ""
+  upstream_model: gpt-4o-mini-tts
+  upstream_voice: coral
+  upstream_send_instructions: true
+  stt_enabled: true
+  stt_model: base.en
+  stt_language: ""
+  stt_preload: true
+  log_level: info
+schema:
+  api_key: password?
+  tts_engine: list(kokoro|proxy)
+  kokoro_model: list(int8|fp16|fp32)
+  default_voice: str
+  default_speed: float(0.5,2.0)
+  upstream_url: str?
+  upstream_api_key: password?
+  upstream_model: str?
+  upstream_voice: str?
+  upstream_send_instructions: bool
+  stt_enabled: bool
+  stt_model: list(tiny.en|base.en|small.en|tiny|base|small)
+  stt_language: str?
+  stt_preload: bool
+  log_level: list(debug|info|warning|error)
