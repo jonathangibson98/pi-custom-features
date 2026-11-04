@@ -1,1 +1,120 @@
-y
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal AI Speech</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 20px; font: 15px/1.45 system-ui, sans-serif; color: #e8e8f0;
+         background: linear-gradient(160deg, #0d0d0d, #1a1a2e) fixed; min-height: 100vh; }
+  main { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 18px; color: #9a9ab0; }
+  .card { background: #16162299; border: 1px solid #2c2c44; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  label { display: block; font-size: 12px; color: #9a9ab0; margin: 12px 0 4px; text-transform: uppercase; letter-spacing: .05em; }
+  textarea, select, input[type=text], input[type=password] { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #35354f;
+         background: #0e0e18; color: inherit; font: inherit; }
+  textarea { min-height: 110px; resize: vertical; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { padding: 4px 10px; border-radius: 999px; border: 1px solid #3a3a5c; background: #1d1d30; color: #cfcfe6; cursor: pointer; font-size: 13px; }
+  .chip:hover { background: #2a2a47; }
+  button.go { margin-top: 14px; width: 100%; padding: 12px; border: 0; border-radius: 10px; background: #7c5cff; color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; }
+  button.go:disabled { opacity: .5; cursor: wait; }
+  audio { width: 100%; margin-top: 12px; }
+  .status { font-size: 13px; color: #9a9ab0; }
+  .ok { color: #5fe3a1; } .bad { color: #ff7a7a; }
+  #msg { margin-top: 10px; min-height: 18px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Personal AI Speech</h1>
+  <p class="sub">Type something, drop in emotion tags like <b>[happy]</b> or <b>[whisper]</b>, and listen.</p>
+
+  <div class="card">
+    <div class="status" id="status">Checking server...</div>
+  </div>
+
+  <div class="card">
+    <label for="text">Text</label>
+    <textarea id="text">[excited] Okay, you are not going to believe this! [whisper] The coffee is already made. [sad] But the milk ran out.</textarea>
+    <div class="chips" id="chips"></div>
+
+    <label for="voice">Voice</label>
+    <select id="voice"></select>
+
+    <label for="speed">Speed <span id="speedv">1.0</span></label>
+    <input id="speed" type="range" min="0.6" max="1.6" step="0.05" value="1.0">
+
+    <div id="keybox" style="display:none">
+      <label for="key">API key</label>
+      <input id="key" type="password" placeholder="Only needed when opened outside Home Assistant">
+    </div>
+
+    <button class="go" id="go">Speak</button>
+    <div id="msg" class="status"></div>
+    <audio id="player" controls hidden></audio>
+  </div>
+</main>
+<script>
+const base = location.pathname.endsWith('/') ? location.pathname : location.pathname + '/';
+const $ = id => document.getElementById(id);
+const headers = () => {
+  const h = {};
+  const k = $('key').value || localStorage.getItem('pas_key') || '';
+  if (k) h.Authorization = 'Bearer ' + k;
+  return h;
+};
+
+async function init() {
+  try {
+    const health = await (await fetch(base + 'health')).json();
+    const t = health.tts, s = health.stt;
+    const ttsOk = t.state === 'ready';
+    $('status').innerHTML =
+      'Speech: <b class="' + (ttsOk ? 'ok' : 'bad') + '">' + t.engine + ' - ' + t.state + '</b>' +
+      (t.error ? ' (' + t.error + ')' : '') +
+      ' &nbsp;|&nbsp; Transcription: <b class="' + (s.state === 'ready' || s.state === 'idle' ? 'ok' : (s.state === 'disabled' ? '' : 'bad')) + '">' +
+      (s.enabled ? s.model + ' - ' + s.state : 'off') + '</b>';
+    if (health.auth_required) $('keybox').style.display = 'block';
+    const v = await (await fetch(base + 'v1/audio/voices', { headers: headers() })).json();
+    $('voice').innerHTML = v.voices.length
+      ? v.voices.map(x => '<option' + (x === v.default ? ' selected' : '') + '>' + x + '</option>').join('')
+      : '<option value="">(server default)</option>';
+    $('chips').innerHTML = v.emotions.map(e => '<span class="chip" data-e="' + e + '">[' + e + ']</span>').join('');
+  } catch (e) {
+    $('status').innerHTML = '<span class="bad">Could not reach the server: ' + e + '</span>';
+  }
+}
+
+$('chips').addEventListener('click', ev => {
+  const e = ev.target.dataset.e; if (!e) return;
+  const box = $('text'), pos = box.selectionStart;
+  box.setRangeText('[' + e + '] ', pos, box.selectionEnd, 'end'); box.focus();
+});
+$('speed').addEventListener('input', () => $('speedv').textContent = Number($('speed').value).toFixed(2));
+
+$('go').addEventListener('click', async () => {
+  $('go').disabled = true; $('msg').textContent = 'Generating...'; $('msg').className = 'status';
+  if ($('key').value) localStorage.setItem('pas_key', $('key').value);
+  const t0 = performance.now();
+  try {
+    const r = await fetch(base + 'v1/audio/speech', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, headers()),
+      body: JSON.stringify({ input: $('text').value, voice: $('voice').value || undefined,
+                             speed: Number($('speed').value), response_format: 'wav' })
+    });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error((j.error && j.error.message) || r.status); }
+    const blob = await r.blob();
+    $('player').src = URL.createObjectURL(blob); $('player').hidden = false; $('player').play();
+    $('msg').textContent = 'Done in ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s';
+  } catch (e) { $('msg').textContent = 'Error: ' + e.message; $('msg').className = 'status bad'; }
+  $('go').disabled = false;
+});
+init();
+</script>
+</body>
+</html>
