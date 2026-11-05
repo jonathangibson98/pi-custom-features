@@ -1,1 +1,60 @@
-y
+configuration:
+  conversation_agent:
+    name: Conversation agent
+    description: The AI entity to talk to, for example conversation.home_assistant or conversation.ollama.
+  media_player:
+    name: Default speaker
+    description: The media player that speaks replies by default, for example media_player.kitchen_speaker. Leave empty to default to this device (browser). You can pick several speakers on the page.
+  tts_entity:
+    name: Text-to-speech engine
+    description: The TTS entity that turns replies into audio, for example tts.piper.
+  stt_entity:
+    name: Speech-to-text engine
+    description: The STT entity that transcribes your voice, for example stt.faster_whisper. Leave empty to use the browser's built-in recognition.
+  language:
+    name: Language
+    description: Optional language code such as en-US or de. Leave empty to use Home Assistant's language.
+  hands_free:
+    name: Hands-free
+    description: Keep listening after every reply. Turn off for one question per tap.
+  silence_ms:
+    name: Pause before sending (ms)
+    description: How long you must stay quiet before your sentence is sent. Default 1200.
+  volume:
+    name: Speaker volume
+    description: 0 leaves the speaker's volume alone. 0.1 to 1 sets it before each reply.
+  password:
+    name: Password for direct HTTPS page
+    description: Setting a password turns on the direct HTTPS page on port 8443. Leave empty to keep it off.
+  certfile:
+    name: Certificate file
+    description: Certificate name inside /ssl. A self-signed one is generated if it doesn't exist.
+  keyfile:
+    name: Private key file
+    description: Private key name inside /ssl.
+  wake_word:
+    name: Wake word
+    description: Optional. When set, hands-free mode only reacts to sentences that start with this phrase, for example "hey jarvis". After a reply you can keep talking for 20 seconds without repeating it. Needs an stt_entity for reliable results.
+  stop_words:
+    name: Stop phrases
+    description: Comma-separated phrases that end the hands-free session when you say them on their own.
+  sensitivity:
+    name: Microphone sensitivity
+    description: High picks up quiet voices but also noise. Low suits noisy rooms.
+  chimes:
+    name: Sound cues
+    description: Short beeps when listening starts, a message is sent, or something fails.
+  idle_timeout_s:
+    name: Stop listening after (seconds)
+    description: Ends the hands-free session when nobody has spoken for this long. 0 keeps it listening forever.
+  browser_playback:
+    name: Allow playing replies in the browser
+    description: Adds "This device" to the speaker list so replies play on the phone or PC that has the page open, no media player needed.
+  save_history:
+    name: Save chat history
+    description: Keeps past chats so you can reopen, export or delete them from the History button.
+  history_limit:
+    name: Chats to keep
+    description: Oldest chats are deleted beyond this number.
+network:
+  8443/tcp: Direct HTTPS page (only starts when a password is set)
