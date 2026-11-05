@@ -1,1 +1,585 @@
-h
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Voice Chat</title>
+<style>
+:root{
+  --bg:#eef2f5; --surface:#ffffff; --ink:#13202b; --muted:#5b6b78; --line:#d5dde3;
+  --idle:#5b6b78; --listen:#1f9d8f; --hear:#d9791a; --think:#6a5ae0; --speak:#2f7de1;
+  --warn-bg:#fff1e0; --warn-ink:#7a3d00; --danger:#c0392b;
+  --font:"Avenir Next","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0e161d; --surface:#16212a; --ink:#e6edf2; --muted:#93a4b1; --line:#263541;
+    --idle:#93a4b1; --listen:#3cc2b1; --hear:#ffab47; --think:#9d90ff; --speak:#6aaeff;
+    --warn-bg:#3a2a12; --warn-ink:#ffd9a3; --danger:#ff7b6b;
+  }
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  --c:var(--idle); --lvl:0;
+  display:flex;flex-direction:column;background:var(--bg);color:var(--ink);
+  font:16px/1.45 var(--font);
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+body[data-phase=listening]{--c:var(--listen)}
+body[data-phase=hearing]{--c:var(--hear)}
+body[data-phase=thinking]{--c:var(--think)}
+body[data-phase=speaking]{--c:var(--speak)}
+
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}
+h1{font-size:1.15rem;margin:0;font-weight:650;letter-spacing:.01em}
+.pick{display:flex;align-items:center;gap:8px;margin-top:6px;color:var(--muted);font-size:.85rem}
+.pick select,.pick button{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:4px 8px;max-width:58vw}
+.btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+button{font:inherit;color:inherit;cursor:pointer}
+.ghost{background:none;border:1px solid var(--line);border-radius:10px;padding:7px 12px;color:var(--muted)}
+.ghost:hover{color:var(--ink);border-color:var(--muted)}
+:focus-visible{outline:3px solid var(--c);outline-offset:3px}
+
+#banner{margin:12px 16px 0;padding:10px 14px;border-radius:10px;background:var(--warn-bg);color:var(--warn-ink);font-size:.9rem}
+#banner p{margin:0 0 6px}#banner p:last-child{margin:0}
+
+.panel{margin:10px 16px 0;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);max-height:42vh;overflow-y:auto}
+.panel h2{font-size:.95rem;margin:0 0 6px}
+.panel label{display:flex;align-items:center;gap:8px;padding:5px 0}
+.row{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.row .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .t small{display:block;color:var(--muted)}
+.row button,.row a{font-size:.85rem;color:var(--muted);background:none;border:1px solid var(--line);border-radius:8px;padding:4px 9px;text-decoration:none}
+.row .del{color:var(--danger)}
+
+#log{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
+.empty{margin:auto;max-width:30ch;text-align:center;color:var(--muted)}
+.msg{max-width:min(85%,60ch);padding:10px 14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.me{align-self:flex-end;background:color-mix(in srgb,var(--listen) 22%,var(--surface));border-radius:18px 18px 4px 18px}
+.msg.ai{align-self:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:18px 18px 18px 4px}
+.msg.note{align-self:center;background:none;color:var(--muted);font-size:.85rem;padding:2px}
+
+footer{display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px 16px 18px;border-top:1px solid var(--line)}
+#composer{display:flex;gap:8px;width:100%;max-width:560px}
+#composer input{flex:1;min-width:0;font:inherit;font-size:16px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+#composer input::placeholder{color:var(--muted)}
+#composer button{border:0;border-radius:12px;padding:0 16px;background:var(--listen);color:#fff;font-weight:600}
+#composer button:disabled{opacity:.45;cursor:default}
+.tog{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.85rem}
+.orb{position:relative;width:104px;height:104px;border-radius:50%;border:0;background:var(--c);color:#fff;display:grid;place-items:center;transition:background .25s}
+.orb::before{content:"";position:absolute;inset:-12px;border-radius:50%;border:3px solid var(--c);opacity:.4;transform:scale(calc(1 + var(--lvl)));transition:transform .09s linear}
+.orb svg{width:42px;height:42px;fill:currentColor}
+.ico-stop{display:none}
+body[data-phase=thinking] .ico-mic,body[data-phase=speaking] .ico-mic{display:none}
+body[data-phase=thinking] .ico-stop,body[data-phase=speaking] .ico-stop{display:block}
+body[data-phase=thinking] .orb::before{animation:breathe 1.6s ease-in-out infinite}
+@keyframes breathe{50%{transform:scale(1.18);opacity:.15}}
+@media (prefers-reduced-motion:reduce){body[data-phase=thinking] .orb::before{animation:none}.orb::before{transition:none}}
+#state{margin:0;min-height:1.4em;color:var(--muted);font-size:.95rem;text-align:center}
+</style>
+</head>
+<body data-phase="idle">
+<header>
+  <div>
+    <h1>Voice Chat</h1>
+    <div class="pick"><span>AI</span> <select id="agent" aria-label="AI agent"></select></div>
+    <div class="pick"><span>Speak on</span> <button id="spkBtn" type="button" aria-expanded="false">…</button></div>
+  </div>
+  <div class="btns">
+    <button id="hist" class="ghost" type="button">History</button>
+    <button id="new" class="ghost" type="button">New chat</button>
+  </div>
+</header>
+<div id="banner" hidden></div>
+<section id="spkPanel" class="panel" hidden aria-label="Speakers"></section>
+<section id="histPanel" class="panel" hidden aria-label="Past chats"></section>
+<main id="log" aria-live="polite"><p class="empty">Tap the mic and talk. Replies are spoken on your speakers.</p></main>
+<footer>
+  <form id="composer" autocomplete="off">
+    <input id="text" type="text" enterkeyhint="send" placeholder="Type a message" aria-label="Message">
+    <button id="send" type="submit" disabled>Send</button>
+  </form>
+  <label class="tog"><input id="speakToggle" type="checkbox" checked> Speak replies to typed messages</label>
+  <button id="orb" class="orb" type="button" aria-label="Voice control">
+    <svg class="ico-mic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+    <svg class="ico-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+  </button>
+  <p id="state"></p>
+</footer>
+<audio id="player" playsinline></audio>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const store = {
+    get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} },
+  };
+  const newId = () => (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Math.random().toString(16).slice(2).padEnd(24, '0')).slice(0, 24);
+
+  let cfg = null, phase = 'idle', session = false, listening = false, hearing = false;
+  let convId = null, chatId = newId(), epoch = 0, ctx = null, stream = null, proc = null, rec = null;
+  let buf = [], pre = [], noise = 0.008, lastVoice = 0, startT = 0, lastActivity = 0, awakeUntil = 0;
+  let speakers = [], chimeCtx = null;
+  const SENS = { low: 1.6, normal: 1, high: 0.65 };
+
+  // ---------- helpers
+  const token = () => sessionStorage.getItem('voice-token');
+  const withToken = url => token() ? url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token()) : url;
+  async function api(path, opts = {}) {
+    const headers = { ...(opts.headers || {}) };
+    if (token()) headers['X-Voice-Token'] = token();
+    const r = await fetch('api/' + path, { ...opts, headers });
+    if (r.status === 401) {
+      const t = prompt('Password for Voice Chat');
+      if (!t) throw new Error('Password required');
+      sessionStorage.setItem('voice-token', t);
+      return api(path, opts);
+    }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || r.statusText);
+    return j;
+  }
+  const players = () => speakers.filter(s => s !== 'browser');
+  const spkLabel = () => {
+    if (!speakers.length) return 'nowhere';
+    const names = speakers.map(s => s === 'browser' ? 'this device' : (cfg.speakers.find(x => x.entity_id === s)?.name || s));
+    return names.length > 2 ? `${names[0]} +${names.length - 1}` : names.join(' + ');
+  };
+
+  function setPhase(p) {
+    phase = p;
+    document.body.dataset.phase = p;
+    if (p !== 'listening' && p !== 'hearing') document.body.style.setProperty('--lvl', 0);
+    const wake = cfg && cfg.wake_word && Date.now() > awakeUntil ? ` Say “${cfg.wake_word}”.` : '';
+    $('#state').textContent = {
+      idle: 'Tap to talk (or press space)',
+      listening: 'Listening.' + wake + ' Tap to end',
+      hearing: 'Hearing you. Tap to send now',
+      thinking: 'Thinking. Tap to cancel',
+      speaking: `Speaking on ${cfg ? spkLabel() : '…'}. Tap to stop`,
+    }[p];
+  }
+
+  function banner(lines) {
+    const b = $('#banner');
+    b.replaceChildren(...lines.map(l => Object.assign(document.createElement('p'), { textContent: l })));
+    b.hidden = !lines.length;
+  }
+
+  function addMsg(who, text) {
+    const log = $('#log');
+    log.querySelector('.empty')?.remove();
+    const d = document.createElement('div');
+    d.className = 'msg ' + who;
+    d.textContent = text;
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  // ---------- sounds
+  function chime(kind) {
+    if (!cfg || !cfg.chimes) return;
+    try {
+      chimeCtx = chimeCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const notes = { listen: [660, 880], sent: [880], error: [300, 220], wake: [520, 780, 1040], end: [660, 440] }[kind] || [660];
+      let t = chimeCtx.currentTime;
+      for (const f of notes) {
+        const o = chimeCtx.createOscillator(), g = chimeCtx.createGain();
+        o.frequency.value = f; o.type = 'sine';
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.12, t + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+        o.connect(g); g.connect(chimeCtx.destination);
+        o.start(t); o.stop(t + 0.15);
+        t += 0.11;
+      }
+    } catch (e) {}
+  }
+
+  // Phones only let a page play audio after a tap, so unlock the player on the first one.
+  let unlocked = false;
+  function unlockAudio() {
+    if (unlocked) return;
+    unlocked = true;
+    const p = $('#player');
+    p.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAABErAAABAAgAZGF0YQAAAAA=';
+    p.play().catch(() => {});
+    if (chimeCtx) chimeCtx.resume().catch(() => {});
+  }
+
+  function playBrowserAudio(key) {
+    return new Promise(resolve => {
+      const p = $('#player');
+      p.onended = p.onerror = () => { p.onended = p.onerror = null; resolve(); };
+      p.src = withToken('api/audio/' + key);
+      p.play().catch(() => { p.onended = p.onerror = null; resolve(); });
+    });
+  }
+  function stopBrowserAudio() {
+    const p = $('#player');
+    p.onended = p.onerror = null;
+    p.pause();
+  }
+
+  // ---------- microphone + silence detection
+  async function openMic() {
+    if (stream) return;
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    await ctx.resume();
+    const src = ctx.createMediaStreamSource(stream);
+    proc = ctx.createScriptProcessor(4096, 1, 1);
+    proc.onaudioprocess = onAudio;
+    src.connect(proc);
+    proc.connect(ctx.destination);
+  }
+
+  function closeMic() {
+    proc && (proc.onaudioprocess = null, proc.disconnect());
+    stream && stream.getTracks().forEach(t => t.stop());
+    ctx && ctx.close();
+    proc = stream = ctx = null;
+  }
+
+  function onAudio(e) {
+    if (!listening) return;
+    const d = e.inputBuffer.getChannelData(0);
+    const copy = new Float32Array(d);
+    let sum = 0;
+    for (let i = 0; i < copy.length; i++) sum += copy[i] * copy[i];
+    const rms = Math.sqrt(sum / copy.length);
+    const now = performance.now();
+    const f = SENS[cfg.sensitivity] || 1;
+    document.body.style.setProperty('--lvl', Math.min(rms * 8, 0.6).toFixed(2));
+
+    if (!hearing) {
+      noise = Math.min(0.04, noise * 0.97 + rms * 0.03);
+      pre.push(copy);
+      if (pre.length > 3) pre.shift();
+      if (rms > Math.max(0.02 * f, noise * 3 * f)) {
+        hearing = true; buf = pre; pre = [];
+        startT = lastVoice = lastActivity = now;
+        setPhase('hearing');
+      }
+    } else {
+      buf.push(copy);
+      if (rms > Math.max(0.015 * f, noise * 2 * f)) lastVoice = lastActivity = now;
+      if (now - lastVoice > cfg.silence_ms || now - startT > 30000) finishUtterance();
+    }
+  }
+
+  function toPCM16(chunks, inRate) {
+    const n = chunks.reduce((a, c) => a + c.length, 0);
+    const f = new Float32Array(n);
+    let o = 0;
+    for (const c of chunks) { f.set(c, o); o += c.length; }
+    const ratio = inRate / 16000;
+    const out = new Int16Array(Math.floor(n / ratio));
+    for (let i = 0; i < out.length; i++) {
+      const a = Math.floor(i * ratio), b = Math.min(n, Math.max(a + 1, Math.floor((i + 1) * ratio)));
+      let s = 0;
+      for (let j = a; j < b; j++) s += f[j];
+      s /= (b - a);
+      out[i] = Math.max(-1, Math.min(1, s)) * 0x7fff;
+    }
+    return out;
+  }
+
+  function finishUtterance() {
+    if (!hearing) return;
+    const chunks = buf, voiced = lastVoice - startT;
+    listening = false; hearing = false; buf = []; pre = [];
+    if (voiced < 350) return listen();
+    turn(toPCM16(chunks, ctx.sampleRate));
+  }
+
+  // ---------- wake word and stop words
+  const norm = s => s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+
+  // Returns the text to send, or null to ignore what was heard.
+  function gate(text, my) {
+    const heard = norm(text);
+    if (!heard) return null;
+    if (cfg.stop_words.some(w => heard === norm(w))) {
+      addMsg('note', 'Stopped listening.');
+      chime('end');
+      end();
+      return null;
+    }
+    const wake = norm(cfg.wake_word || '');
+    if (!wake || !session || Date.now() < awakeUntil) return text;
+    const at = heard.indexOf(wake);
+    if (at === -1 || at > 12) return null; // not for me
+    awakeUntil = Date.now() + 20000;
+    const rest = heard.slice(at + wake.length).trim();
+    if (!rest) { chime('wake'); return ''; }
+    return rest;
+  }
+
+  // ---------- browser speech recognition (used when no stt_entity is set)
+  function listenBrowser() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      session = false; setPhase('idle');
+      return banner(['This browser has no built-in speech recognition. Set stt_entity in the configuration.']);
+    }
+    setPhase('listening');
+    rec = new SR();
+    rec.lang = cfg.language;
+    let got = false;
+    rec.onspeechstart = () => { lastActivity = performance.now(); setPhase('hearing'); };
+    rec.onresult = ev => {
+      got = true;
+      const my = ++epoch;
+      const text = gate(ev.results[0][0].transcript, my);
+      if (text === null) return afterTurn(my);
+      if (text === '') return afterTurn(my);
+      respond(text, my).catch(err => fail(err, my));
+    };
+    rec.onerror = ev => {
+      if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
+        session = false; setPhase('idle');
+        banner(['Microphone blocked. Allow it for this page, or open the HTTPS address (see the Documentation).']);
+      }
+    };
+    rec.onend = () => { if (!got && session && phase !== 'thinking' && phase !== 'speaking') listenBrowser(); };
+    rec.start();
+  }
+
+  // ---------- conversation
+  function listen() {
+    lastActivity = performance.now();
+    if (!cfg.stt_entity) return listenBrowser();
+    buf = []; pre = []; hearing = false; listening = true;
+    setPhase('listening');
+  }
+
+  function fail(err, my) {
+    if (my !== epoch) return;
+    chime('error');
+    banner([err.message]);
+    afterTurn(my);
+  }
+
+  function afterTurn(my) {
+    if (my !== epoch) return;
+    if (session && cfg.hands_free) listen(); else end();
+  }
+
+  async function turn(pcm) {
+    const my = ++epoch;
+    try {
+      setPhase('thinking');
+      const { text } = await api('stt', {
+        method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: pcm.buffer,
+      });
+      if (my !== epoch) return;
+      const out = gate(text, my);
+      if (out === null || out === '') return afterTurn(my);
+      await respond(out, my);
+    } catch (err) { fail(err, my); }
+  }
+
+  async function respond(text, my, speak = true) {
+    banner([]);
+    addMsg('me', text);
+    chime('sent');
+    setPhase('thinking');
+    const r = await api('chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, conversation_id: convId, chat_id: chatId, agent: $('#agent').value, speakers, speak }),
+    });
+    if (my !== epoch) return;
+    convId = r.conversation_id || convId;
+    addMsg('ai', r.text);
+    if (!speak || !speakers.length) return afterTurn(my);
+    setPhase('speaking');
+    const waits = [];
+    if (r.audio) waits.push(playBrowserAudio(r.audio));
+    if (players().length) waits.push(api('wait?mp=' + encodeURIComponent(players()[0]), { method: 'POST' }));
+    await Promise.all(waits);
+    if (my !== epoch) return;
+    awakeUntil = Date.now() + 20000; // follow-ups need no wake word for a while
+    await sleep(800);
+    afterTurn(my);
+  }
+
+  async function start() {
+    if (cfg.problems.length) return banner(cfg.problems);
+    banner([]);
+    unlockAudio();
+    session = true; epoch++;
+    if (cfg.stt_entity) {
+      try { await openMic(); }
+      catch (e) {
+        session = false;
+        return banner(['Microphone unavailable: ' + e.message + '. Open the HTTPS address instead (see the Documentation).']);
+      }
+    }
+    chime('listen');
+    listen();
+  }
+
+  function end() {
+    session = false; listening = false; hearing = false; epoch++;
+    rec && (rec.onend = null, rec.abort(), rec = null);
+    stopBrowserAudio();
+    closeMic();
+    setPhase('idle');
+  }
+
+  function stopSpeakers() {
+    stopBrowserAudio();
+    for (const mp of players()) api('stop?mp=' + encodeURIComponent(mp), { method: 'POST' }).catch(() => {});
+  }
+
+  function interrupt() {
+    epoch++;
+    stopSpeakers();
+    if (session && cfg.hands_free) listen(); else end();
+  }
+
+  function orbPress() {
+    if (!cfg) return;
+    if (phase === 'idle') return start();
+    if (phase === 'hearing' && cfg.stt_entity) return finishUtterance();
+    if (phase === 'thinking' || phase === 'speaking') return interrupt();
+    end();
+  }
+  $('#orb').onclick = orbPress;
+  document.addEventListener('keydown', e => {
+    if (e.target.matches('input,select,textarea') || e.metaKey || e.ctrlKey) return;
+    if (e.code === 'Space') { e.preventDefault(); orbPress(); }
+    if (e.code === 'Escape' && session) end();
+  });
+
+  // Hands-free sessions end by themselves if nobody speaks for a while.
+  setInterval(() => {
+    if (cfg && session && phase === 'listening' && cfg.idle_timeout_s > 0 &&
+        performance.now() - lastActivity > cfg.idle_timeout_s * 1000) {
+      addMsg('note', 'Stopped listening after a quiet spell.');
+      chime('end');
+      end();
+    }
+  }, 1000);
+
+  function sendText(text) {
+    if (cfg.problems.length) return banner(cfg.problems);
+    unlockAudio();
+    stopSpeakers();
+    listening = false; hearing = false; buf = []; pre = [];
+    rec && (rec.onend = null, rec.abort(), rec = null);
+    const my = ++epoch;
+    respond(text, my, $('#speakToggle').checked).catch(err => fail(err, my));
+  }
+
+  const input = $('#text');
+  input.oninput = () => { $('#send').disabled = !input.value.trim(); };
+  $('#composer').onsubmit = e => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text || !cfg) return;
+    input.value = ''; $('#send').disabled = true;
+    sendText(text);
+  };
+  $('#speakToggle').checked = store.get('voice-speak-typed') !== '0';
+  $('#speakToggle').onchange = e => store.set('voice-speak-typed', e.target.checked ? '1' : '0');
+
+  // ---------- new chat, speakers, history
+  function resetChat(msg) {
+    convId = null; chatId = newId();
+    $('#log').replaceChildren(Object.assign(document.createElement('p'), { className: 'empty', textContent: msg }));
+  }
+  $('#new').onclick = () => { if (session) end(); resetChat('New conversation. Tap the mic and talk.'); };
+
+  function renderSpeakers() {
+    const panel = $('#spkPanel');
+    const items = [{ id: 'browser', name: 'This device (play in this browser)' }]
+      .filter(() => cfg.browser_playback)
+      .concat(cfg.speakers.map(s => ({ id: s.entity_id, name: s.name })));
+    panel.replaceChildren(Object.assign(document.createElement('h2'), { textContent: 'Speak replies on' }));
+    for (const it of items) {
+      const l = document.createElement('label');
+      const c = Object.assign(document.createElement('input'), { type: 'checkbox', checked: speakers.includes(it.id) });
+      c.onchange = () => {
+        speakers = c.checked ? [...speakers, it.id] : speakers.filter(x => x !== it.id);
+        store.set('voice-speakers', JSON.stringify(speakers));
+        $('#spkBtn').textContent = spkLabel();
+        stopSpeakers();
+        setPhase(phase);
+      };
+      l.append(c, document.createTextNode(it.name));
+      panel.append(l);
+    }
+  }
+  $('#spkBtn').onclick = () => {
+    const p = $('#spkPanel');
+    p.hidden = !p.hidden;
+    $('#spkBtn').setAttribute('aria-expanded', String(!p.hidden));
+    $('#histPanel').hidden = true;
+  };
+
+  async function openHistory() {
+    const p = $('#histPanel');
+    if (!p.hidden) { p.hidden = true; return; }
+    $('#spkPanel').hidden = true;
+    const { items } = await api('history').catch(e => (banner([e.message]), { items: [] }));
+    p.replaceChildren(Object.assign(document.createElement('h2'), { textContent: 'Past chats' }));
+    if (!items.length) p.append(Object.assign(document.createElement('p'), { className: 'empty', textContent: 'Nothing saved yet.' }));
+    for (const it of items) {
+      const row = document.createElement('div'); row.className = 'row';
+      const t = document.createElement('div'); t.className = 't';
+      t.textContent = it.title;
+      t.append(Object.assign(document.createElement('small'), {
+        textContent: `${new Date(it.updated * 1000).toLocaleString()} · ${it.count} exchange${it.count === 1 ? '' : 's'}` }));
+      const open = Object.assign(document.createElement('button'), { type: 'button', textContent: 'Open' });
+      open.onclick = async () => {
+        const c = await api('history/' + it.id);
+        if (session) end();
+        chatId = c.id; convId = c.conversation_id || null;
+        if (c.agent && [...$('#agent').options].some(o => o.value === c.agent)) $('#agent').value = c.agent;
+        $('#log').replaceChildren();
+        for (const m of c.messages) addMsg(m.role, m.text);
+        p.hidden = true;
+      };
+      const exp = Object.assign(document.createElement('a'), { textContent: 'Export', href: withToken('api/history/' + it.id + '/export') });
+      const del = Object.assign(document.createElement('button'), { type: 'button', textContent: 'Delete', className: 'del' });
+      del.onclick = async () => { await api('history/' + it.id, { method: 'DELETE' }); row.remove(); };
+      row.append(t, open, exp, del);
+      p.append(row);
+    }
+    p.hidden = false;
+  }
+  $('#hist').onclick = () => openHistory();
+
+  // ---------- boot
+  (async () => {
+    try { cfg = await api('status'); }
+    catch (e) { $('#spkBtn').textContent = 'not connected'; return banner([e.message]); }
+    const agentSel = $('#agent');
+    for (const a of cfg.agents) agentSel.add(new Option(a.name, a.entity_id));
+    const savedAgent = store.get('voice-agent');
+    agentSel.value = cfg.agents.some(a => a.entity_id === savedAgent) ? savedAgent : cfg.conversation_agent;
+    agentSel.onchange = () => { store.set('voice-agent', agentSel.value); convId = null; };
+
+    let saved = null;
+    try { saved = JSON.parse(store.get('voice-speakers')); } catch (e) {}
+    const valid = new Set(['browser', ...cfg.speakers.map(s => s.entity_id)]);
+    speakers = Array.isArray(saved) ? saved.filter(s => valid.has(s)) : [];
+    if (!speakers.length) speakers = cfg.media_player ? [cfg.media_player] : (cfg.browser_playback ? ['browser'] : []);
+    renderSpeakers();
+    $('#spkBtn').textContent = spkLabel();
+    banner(cfg.problems);
+    if (!cfg.save_history) $('#hist').hidden = true;
+    setPhase('idle');
+  })();
+})();
+</script>
+</body>
+</html>
