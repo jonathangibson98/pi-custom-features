@@ -1,0 +1,22 @@
+# Voice Chat, standalone. Works with any Home Assistant (Container, Core, OS, Supervised).
+#   1. cp .env.example .env   and fill in HA_URL, HA_TOKEN and your entity IDs
+#   2. docker compose up -d --build
+#   3. open https://<this-machine>:8443  (accept the certificate warning once)
+services:
+  voice-chat:
+    build:
+      context: .
+      dockerfile: Dockerfile.standalone
+    image: voice-chat:2.0.0
+    container_name: voice_chat
+    restart: unless-stopped
+    ports:
+      - "8443:8443"   # HTTPS page (needed for the microphone on phones and other PCs)
+      - "8099:8099"   # plain HTTP, fine for http://localhost only
+    env_file: .env
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/data  # chat history, generated certificate, generated password
+      # Use your own certificate instead of the self-signed one:
+      # - /path/to/certs:/ssl:ro

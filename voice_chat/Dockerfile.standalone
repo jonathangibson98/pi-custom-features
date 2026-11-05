@@ -1,0 +1,9 @@
+# Voice Chat as a normal Docker container (no Home Assistant add-on / Supervisor needed).
+FROM python:3.12-alpine
+RUN apk add --no-cache openssl && pip install --no-cache-dir "aiohttp>=3.9,<4"
+COPY app /app
+ENV DATA_DIR=/data PYTHONUNBUFFERED=1
+VOLUME /data
+EXPOSE 8099 8443
+HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://127.0.0.1:8099/ >/dev/null || exit 1
+CMD ["python", "/app/server.py"]
