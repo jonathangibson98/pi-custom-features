@@ -2,9 +2,10 @@ import asyncio
 import json
 import os
 import re
+import socket
 import time
 
-from aiohttp import ClientSession, ClientTimeout, WSMsgType, web
+from aiohttp import ClientSession, ClientTimeout, TCPConnector, WSMsgType, web
 
 TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 HA = "http://supervisor/core"
@@ -53,40 +54,90 @@ async def config(request):
     return web.json_response({"ai": bool(AI_ENTITY), "default_radius": DEFAULT_RADIUS})
 
 
-async def search(request):
+def http(total=12):
+    # IPv4 only: IPv6 lookups hang in some Docker/HAOS setups
+    return ClientSession(
+        timeout=ClientTimeout(total=total),
+        connector=TCPConnector(family=socket.AF_INET),
+        headers={"User-Agent": UA},
+    )
+
+
+async def geo_census(q):
+    async with http() as s:
+        async with s.get(
+            "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress",
+            params={"address": q, "benchmark": "Public_AR_Current", "format": "json"},
+        ) as r:
+            r.raise_for_status()
+            data = await r.json(content_type=None)
+    out = []
+    for m in data.get("result", {}).get("addressMatches", []):
+        name = m["matchedAddress"].title()
+        name = re.sub(r",\s*([A-Za-z]{2}),", lambda x: ", " + x.group(1).upper() + ",", name)
+        out.append({"display_name": name, "name": name.split(",")[0],
+                    "category": "place", "type": "address",
+                    "lat": float(m["coordinates"]["y"]), "lon": float(m["coordinates"]["x"])})
+    return out
+
+
+async def geo_nominatim(q):
     global _last_geo
-    q = request.query.get("q", "").strip()
-    if not q:
-        return web.json_response([])
-    # Nominatim policy: max 1 request per second
-    async with _geo_lock:
+    async with _geo_lock:  # policy: max 1 request per second
         wait = 1.1 - (time.time() - _last_geo)
         if wait > 0:
             await asyncio.sleep(wait)
         _last_geo = time.time()
-        params = {"q": q, "format": "jsonv2", "addressdetails": "1", "limit": "6"}
-        try:
-            async with ClientSession(timeout=ClientTimeout(total=15)) as s:
-                async with s.get(
-                    "https://nominatim.openstreetmap.org/search",
-                    params=params,
-                    headers={"User-Agent": UA},
-                ) as r:
-                    data = await r.json()
-        except Exception as e:
-            return web.json_response({"error": f"Search failed: {e}"}, status=502)
-    out = [
-        {
-            "display_name": d.get("display_name", ""),
-            "name": d.get("name", ""),
-            "category": d.get("category", ""),
-            "type": d.get("type", ""),
-            "lat": float(d["lat"]),
-            "lon": float(d["lon"]),
-        }
-        for d in data
-    ]
-    return web.json_response(out)
+        async with http() as s:
+            async with s.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={"q": q, "format": "jsonv2", "addressdetails": "1", "limit": "6"},
+            ) as r:
+                r.raise_for_status()
+                data = await r.json(content_type=None)
+    return [{"display_name": d.get("display_name", ""), "name": d.get("name", ""),
+             "category": d.get("category", ""), "type": d.get("type", ""),
+             "lat": float(d["lat"]), "lon": float(d["lon"])} for d in data]
+
+
+async def geo_photon(q):
+    async with http() as s:
+        async with s.get("https://photon.komoot.io/api/", params={"q": q, "limit": "6"}) as r:
+            r.raise_for_status()
+            data = await r.json(content_type=None)
+    out = []
+    for f in data.get("features", []):
+        p = f.get("properties", {})
+        street = " ".join(x for x in [p.get("housenumber"), p.get("street")] if x)
+        parts = [p.get("name"), street, p.get("city") or p.get("town") or p.get("county"),
+                 p.get("state"), p.get("postcode")]
+        label = ", ".join(dict.fromkeys(x for x in parts if x))
+        lon, lat = f["geometry"]["coordinates"]
+        out.append({"display_name": label, "name": p.get("name", ""),
+                    "category": p.get("osm_key", ""), "type": p.get("osm_value", ""),
+                    "lat": float(lat), "lon": float(lon)})
+    return out
+
+
+async def search(request):
+    q = request.query.get("q", "").strip()
+    if not q:
+        return web.json_response({"results": [], "errors": []})
+    providers = [("Census", geo_census), ("OpenStreetMap", geo_nominatim), ("Photon", geo_photon)]
+    replies = await asyncio.gather(*(fn(q) for _, fn in providers), return_exceptions=True)
+    results, errors, seen = [], [], set()
+    for (name, _), rep in zip(providers, replies):
+        if isinstance(rep, Exception):
+            errors.append(f"{name}: {type(rep).__name__} {rep}")
+            print(f"[search] {name} failed: {rep!r}", flush=True)
+            continue
+        for r in rep:
+            key = (round(r["lat"], 4), round(r["lon"], 4))
+            if key in seen:
+                continue
+            seen.add(key)
+            results.append(r)
+    return web.json_response({"results": results[:10], "errors": errors})
 
 
 async def suggest(request):

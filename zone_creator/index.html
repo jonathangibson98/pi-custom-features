@@ -40,7 +40,7 @@
 <div class="wrap">
   <h1>📍 Zone Creator</h1>
   <div class="row">
-    <input id="q" placeholder="Search an address or place" enterkeyhint="search">
+    <input id="q" placeholder="Address, place, or paste lat, lon" enterkeyhint="search">
     <button id="sbtn">Search</button>
   </div>
   <div class="res" id="res"></div>
@@ -110,13 +110,24 @@ $('#icon').addEventListener('input', () => {
 
 async function doSearch() {
   const q = $('#q').value.trim(); if (!q) return;
-  $('#res').innerHTML = 'Searching…';
-  const r = await fetch('api/search?q=' + encodeURIComponent(q));
-  const data = await r.json();
-  const box = $('#res'); box.innerHTML = '';
-  if (data.error) return say(data.error, false);
-  if (!data.length) { box.textContent = 'Nothing found. Try adding city and state.'; return; }
-  data.forEach(d => {
+  const box = $('#res');
+  // Pasted coordinates like "34.5230, -82.4940" skip the search
+  const c = q.match(/^(-?\d{1,2}(?:\.\d+)?)\s*[, ]\s*(-?\d{1,3}(?:\.\d+)?)$/);
+  if (c) { picked = null; box.innerHTML = ''; return setPoint(+c[1], +c[2], true); }
+  box.textContent = 'Searching…';
+  let data;
+  try {
+    const r = await fetch('api/search?q=' + encodeURIComponent(q));
+    data = await r.json();
+  } catch (e) { box.textContent = ''; return say('Search request failed: ' + e, false); }
+  box.innerHTML = '';
+  if (!data.results || !data.results.length) {
+    box.textContent = 'No match. Try "street, city, state" or just tap the map.';
+    if (data.errors && data.errors.length) say('Lookup errors: ' + data.errors.join(' | '), false);
+    return;
+  }
+  $('#msg').className = '';
+  data.results.forEach(d => {
     const el = document.createElement('div');
     el.textContent = d.display_name;
     el.onclick = () => pick(d, el);
