@@ -1,1 +1,9 @@
-y
+configuration:
+  ai_task_entity:
+    name: AI Task entity (optional)
+    description: >-
+      An ai_task entity used to suggest a zone name and icon, for example
+      ai_task.gemini_pro_ai_task. Leave blank to turn AI suggestions off.
+  default_radius:
+    name: Default radius (meters)
+    description: Starting radius for new zones. You can still change it per zone in the UI.
