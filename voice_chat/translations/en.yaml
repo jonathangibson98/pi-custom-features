@@ -56,5 +56,23 @@ configuration:
   history_limit:
     name: Chats to keep
     description: Oldest chats are deleted beyond this number.
+  context_enabled:
+    name: Give the AI my household info
+    description: Sends the background from your combined info sensor to the AI with the first message of each conversation, so it knows who everyone is. Not shown in chat or saved in history.
+  context_entity:
+    name: Household info sensor
+    description: The sensor that holds your household info, for example sensor.combined_info.
+  context_attributes:
+    name: Sensor attributes to send
+    description: Comma-separated attributes of that sensor. Default household_text,friends_text,notable_people,places covers everyone. Text and nested data are both fine.
+  context_skip_agents:
+    name: Agents that should not get it
+    description: Comma-separated agents that only match fixed sentences and would break with extra text. Default conversation.home_assistant.
+  context_max_chars:
+    name: Maximum characters
+    description: Safety cap on how much household info is sent. 0 means no cap.
+  speaker_name:
+    name: Who is talking
+    description: Your name, for example Jon, so the AI knows who "I", "me" and "my" mean. Leave empty if several people use the page.
 network:
   8443/tcp: Direct HTTPS page (only starts when a password is set)
