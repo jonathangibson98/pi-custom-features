@@ -7,7 +7,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.standalone
-    image: voice-chat:2.0.0
+    image: voice-chat:2.2.0
     container_name: voice_chat
     restart: unless-stopped
     ports:

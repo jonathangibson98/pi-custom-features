@@ -25,6 +25,12 @@ mic (phone/browser) → speech-to-text → conversation agent → text-to-speech
 | `idle_timeout_s` | End the hands-free session after this many quiet seconds (0 = never). |
 | `browser_playback` | Offer "This device" as a speaker. |
 | `save_history` / `history_limit` | Keep past chats (and how many). |
+| `context_enabled` | On: the AI gets your household info (below). |
+| `context_entity` | Sensor that holds it, default `sensor.combined_info`. |
+| `context_attributes` | Which attributes to send, default `household_text,friends_text,notable_people,places`. |
+| `context_skip_agents` | Agents that must not get it, default `conversation.home_assistant` (the built-in one matches fixed sentences only). |
+| `context_max_chars` | Safety cap, default 40000. |
+| `speaker_name` | Who is talking, e.g. `Jon`, so "I" and "my" make sense to the AI. |
 | `password` | Turns on the direct HTTPS page (below). |
 | `certfile` / `keyfile` | Certificate names in `/ssl`. A self-signed one is generated if missing. |
 
@@ -37,6 +43,18 @@ Open **Voice Chat** in the sidebar. Choose the **AI** and where it should **Spea
 - **Wake word:** with `wake_word` set, say "hey jarvis, what's the weather" or just "hey jarvis" and wait for the chime. After each reply there's a 20-second window with no wake word needed.
 - **History:** the History button lists saved chats. Open continues the same conversation with the agent, Export downloads Markdown, Delete removes it.
 - **New chat** starts a fresh conversation.
+
+## Household info
+
+With `context_enabled` on, the first message of each conversation carries the text from `context_entity` (people, nicknames, relationships, places, music) in front of what you said. The AI uses it quietly and doesn't read it back. It is not shown in the chat or saved in History. If Home Assistant forgets the conversation after about five quiet minutes, it is sent again with your next message. Turn it off for one browser with the **AI knows my household info** switch.
+
+### Live info (locations and anything else that changes)
+
+Tap **Live info** on the page, search for an entity (for example `sensor.everybodys_locations`), tap it to add it, rename it if you like, and press **Save**. Each entry can also list the attributes to send (for example `jon,mj,von`); leave it blank to send the state and every attribute. Add the word `state` to the list to include the state too. Up to 40 entities.
+
+Their current values are read from Home Assistant at the moment you send a message. The AI gets them with the first message of a conversation and again whenever they have changed since it last saw them. Press **Preview what the AI sees** to check the text. The list lives in `/data/live_entities.json`.
+
+It only works with AI agents that understand free text (Google Generative AI, Ollama, OpenAI, ...). The built-in Home Assistant agent is skipped.
 
 ## Which device listens, which device speaks
 

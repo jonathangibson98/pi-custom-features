@@ -1,5 +1,5 @@
 name: Voice Chat
-version: "2.0.0"
+version: "2.2.0"
 slug: voice_chat
 image: "ghcr.io/jonathangibson98/{arch}-addon-voice_chat"
 description: Hands-free voice conversation with any Home Assistant AI agent, answered out loud on the speaker you choose
@@ -40,6 +40,12 @@ options:
   browser_playback: true
   save_history: true
   history_limit: 100
+  context_enabled: true
+  context_entity: sensor.combined_info
+  context_attributes: "household_text,friends_text,notable_people,places"
+  context_skip_agents: conversation.home_assistant
+  context_max_chars: 40000
+  speaker_name: ""
 schema:
   conversation_agent: str
   media_player: str?
@@ -60,3 +66,9 @@ schema:
   browser_playback: bool
   save_history: bool
   history_limit: int(10,1000)
+  context_enabled: bool?
+  context_entity: str?
+  context_attributes: str?
+  context_skip_agents: str?
+  context_max_chars: int(0,200000)?
+  speaker_name: str?
