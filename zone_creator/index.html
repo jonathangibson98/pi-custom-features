@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zone Creator</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/MaterialDesign-Webfont/7.4.47/css/materialdesignicons.min.css">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, sans-serif; color:#eee;
+         background: linear-gradient(160deg,#0d0d0d,#1a1a2e); min-height:100vh; }
+  .wrap { max-width: 640px; margin:0 auto; padding:14px; }
+  h1 { font-size:20px; margin:4px 0 12px; }
+  .row { display:flex; gap:8px; }
+  input { width:100%; padding:11px; border-radius:10px; border:1px solid #333;
+          background:#14141f; color:#eee; font-size:16px; }
+  button { padding:11px 14px; border-radius:10px; border:0; background:#4f7cff;
+           color:#fff; font-size:15px; font-weight:600; white-space:nowrap; }
+  button.alt { background:#2a2a3d; }
+  button.go { width:100%; margin-top:12px; background:#2fbf71; font-size:17px; }
+  button:disabled { opacity:.5; }
+  .res { margin:10px 0; }
+  .res div { padding:10px; border:1px solid #2a2a3d; border-radius:10px; margin-bottom:6px;
+             background:#14141f; font-size:14px; }
+  .res div.on { border-color:#4f7cff; }
+  #map { height:260px; border-radius:12px; margin:10px 0; background:#14141f; }
+  label { display:block; font-size:12px; color:#aaa; margin:10px 0 4px; }
+  .ico { font-size:28px; width:40px; text-align:center; }
+  #msg { margin-top:12px; padding:10px; border-radius:10px; display:none; font-size:14px; }
+  #msg.ok { display:block; background:#173d28; }
+  #msg.err { display:block; background:#4a1f1f; }
+  .coords { font-size:12px; color:#888; margin-top:6px; }
+  .chk { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:14px; }
+  .chk input { width:auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📍 Zone Creator</h1>
+  <div class="row">
+    <input id="q" placeholder="Search an address or place" enterkeyhint="search">
+    <button id="sbtn">Search</button>
+  </div>
+  <div class="res" id="res"></div>
+  <div id="map"></div>
+  <div class="coords" id="coords">Search above, or tap the map to drop a pin. Drag the pin to fine tune.</div>
+
+  <label>Zone name</label>
+  <div class="row">
+    <input id="name" placeholder="e.g. Work">
+    <button class="alt" id="aibtn">✨ AI</button>
+  </div>
+
+  <label>Icon</label>
+  <div class="row" style="align-items:center">
+    <div class="ico"><i id="ico" class="mdi"></i></div>
+    <input id="icon" placeholder="mdi:home">
+  </div>
+
+  <label>Radius (meters)</label>
+  <input id="radius" type="number" min="10" max="5000" value="100">
+
+  <div class="chk"><input id="passive" type="checkbox"><span>Passive zone (doesn't show as a person's location)</span></div>
+
+  <button class="go" id="create">Create zone</button>
+  <div id="msg"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+let map, marker, circle, cfg = {}, picked = null, lat = null, lng = null;
+
+function say(text, ok) {
+  const m = $('#msg'); m.textContent = text; m.className = ok ? 'ok' : 'err';
+}
+
+async function init() {
+  cfg = await (await fetch('api/config')).json();
+  $('#radius').value = cfg.default_radius;
+  if (!cfg.ai) $('#aibtn').style.display = 'none';
+  L.Icon.Default.imagePath = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/';
+  map = L.map('map').setView([34.5, -82.5], 5);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+  map.on('click', e => setPoint(e.latlng.lat, e.latlng.lng, false));
+}
+
+function setPoint(la, lo, zoom) {
+  lat = la; lng = lo;
+  const r = +$('#radius').value || 100;
+  if (!marker) {
+    marker = L.marker([la, lo], { draggable: true }).addTo(map);
+    marker.on('dragend', () => { const p = marker.getLatLng(); setPoint(p.lat, p.lng, false); });
+    circle = L.circle([la, lo], { radius: r }).addTo(map);
+  }
+  marker.setLatLng([la, lo]); circle.setLatLng([la, lo]); circle.setRadius(r);
+  $('#coords').textContent = `Lat ${la.toFixed(6)}, Lon ${lo.toFixed(6)}`;
+  if (zoom) map.setView([la, lo], 17);
+}
+
+$('#radius').addEventListener('input', () => { if (circle) circle.setRadius(+$('#radius').value || 100); });
+
+$('#icon').addEventListener('input', () => {
+  const v = $('#icon').value.trim().replace(/^mdi:/, '');
+  $('#ico').className = v ? `mdi mdi-${v}` : 'mdi';
+});
+
+async function doSearch() {
+  const q = $('#q').value.trim(); if (!q) return;
+  $('#res').innerHTML = 'Searching…';
+  const r = await fetch('api/search?q=' + encodeURIComponent(q));
+  const data = await r.json();
+  const box = $('#res'); box.innerHTML = '';
+  if (data.error) return say(data.error, false);
+  if (!data.length) { box.textContent = 'Nothing found. Try adding city and state.'; return; }
+  data.forEach(d => {
+    const el = document.createElement('div');
+    el.textContent = d.display_name;
+    el.onclick = () => pick(d, el);
+    box.appendChild(el);
+  });
+}
+$('#sbtn').onclick = doSearch;
+$('#q').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+function pick(d, el) {
+  document.querySelectorAll('.res div').forEach(x => x.classList.remove('on'));
+  el.classList.add('on');
+  picked = d;
+  setPoint(d.lat, d.lon, true);
+  $('#name').value = d.name || d.display_name.split(',')[0];
+  if (cfg.ai) suggest();
+}
+
+async function suggest() {
+  if (!picked) return say('Pick a search result first.', false);
+  const b = $('#aibtn'); b.disabled = true; b.textContent = '…';
+  try {
+    const r = await fetch('api/suggest', { method: 'POST', body: JSON.stringify(picked) });
+    const d = await r.json();
+    if (d.error) say(d.error, false);
+    else {
+      if (d.name) $('#name').value = d.name;
+      if (d.icon) { $('#icon').value = d.icon; $('#icon').dispatchEvent(new Event('input')); }
+      $('#msg').className = '';
+    }
+  } catch (e) { say('AI request failed: ' + e, false); }
+  b.disabled = false; b.textContent = '✨ AI';
+}
+$('#aibtn').onclick = suggest;
+
+$('#create').onclick = async () => {
+  if (lat === null) return say('Search an address or tap the map first.', false);
+  if (!$('#name').value.trim()) return say('Give it a name.', false);
+  const b = $('#create'); b.disabled = true;
+  const r = await fetch('api/create', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: $('#name').value, latitude: lat, longitude: lng,
+      radius: +$('#radius').value, icon: $('#icon').value.trim(),
+      passive: $('#passive').checked,
+    }),
+  });
+  const d = await r.json();
+  b.disabled = false;
+  if (d.ok) say(`✅ "${$('#name').value}" created. Find it in Settings → Areas, labels & zones → Zones.`, true);
+  else say(d.error || 'Failed', false);
+};
+
+init();
+</script>
+</body>
+</html>
