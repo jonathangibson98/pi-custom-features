@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Voice Chat 2.0 - hands-free voice conversation with a Home Assistant AI agent.
+"""Voice Chat 2.2 - hands-free voice conversation with a Home Assistant AI agent.
 
 Runs two ways from the same code:
   * Home Assistant add-on (Supervisor token, ingress, /data/options.json)
@@ -9,6 +9,7 @@ Browser mic -> (HA speech-to-text) -> HA conversation agent -> HA text-to-speech
 -> media player(s) and/or the browser itself.
 """
 import asyncio
+import hashlib
 import hmac
 import json
 import logging
@@ -57,6 +58,13 @@ DEFAULTS = {
     "browser_playback": (bool, True),
     "save_history": (bool, True),
     "history_limit": (int, 100),
+    # 2.1 - household context (who is who, nicknames, places, music...)
+    "context_enabled": (bool, True),
+    "context_entity": (str, "sensor.combined_info"),
+    "context_attributes": (str, "household_text,friends_text,notable_people,places"),
+    "context_skip_agents": (str, "conversation.home_assistant"),
+    "context_max_chars": (int, 40000),
+    "speaker_name": (str, ""),
 }
 
 
@@ -246,6 +254,209 @@ async def wait_playback(mp: str) -> None:
         await asyncio.sleep(0.4)
 
 
+# ------------------------------------------------------------- household context
+#
+# Reads your combined info sensor (sensor.combined_info) and hands it to the AI
+# agent with the first message of a conversation, so it knows who Jon, MJ, Von,
+# Justin... are when you mention them. The text is NOT stored in chat history and
+# NOT shown on the page.
+
+CONTEXT_CACHE: dict = {"ts": 0.0, "text": "", "facts": ""}
+CONV_SEEN: dict[str, float] = {}  # conversation_id -> last time we talked in it
+CONTEXT_RESEND_S = 240  # Home Assistant forgets a conversation after ~5 idle minutes
+CONTEXT_CACHE_S = 60
+
+
+def render(value, depth: int = 0) -> str:
+    """Turn a sensor attribute (text, list or dict) into plain indented text."""
+    pad = "  " * depth
+    if isinstance(value, dict):
+        lines = []
+        for k, v in value.items():
+            if isinstance(v, (dict, list)):
+                if v:
+                    lines += [f"{pad}{k}:", render(v, depth + 1)]
+            elif v not in (None, ""):
+                lines.append(f"{pad}{k}: {v}")
+        return "\n".join(lines)
+    if isinstance(value, list):
+        out = []
+        for v in value:
+            if isinstance(v, (dict, list)):
+                out += [f"{pad}-", render(v, depth + 1)]
+            else:
+                out.append(f"{pad}- {v}")
+        return "\n".join(out)
+    return f"{pad}{value}"
+
+
+def context_agent_ok(agent: str) -> bool:
+    """The built-in Home Assistant agent matches fixed sentences, so extra text would break it."""
+    skip = {a.strip() for a in opt("context_skip_agents").split(",") if a.strip()}
+    return agent not in skip
+
+
+async def load_context() -> str:
+    if not OPTIONS["context_enabled"] or not opt("context_entity"):
+        return ""
+    now = time.time()
+    if CONTEXT_CACHE["text"] and now - CONTEXT_CACHE["ts"] < CONTEXT_CACHE_S:
+        return CONTEXT_CACHE["text"]
+    try:
+        state = await ha("GET", f"/states/{opt('context_entity')}")
+    except HAError as e:
+        log.warning("Household context unavailable: %s", e)
+        return CONTEXT_CACHE["text"]  # an old copy beats none
+    attrs = (state or {}).get("attributes") or {}
+    sections = []
+    for name in (a.strip() for a in opt("context_attributes").split(",") if a.strip()):
+        value = attrs.get(name)
+        if value in (None, "", [], {}):
+            log.warning("Context attribute %r not found on %s", name, opt("context_entity"))
+            continue
+        title = name.removesuffix("_text").replace("_", " ").upper()
+        sections.append(f"=== {title} ===\n{render(value)}")
+    text = "\n\n".join(sections)
+    limit = OPTIONS["context_max_chars"]
+    if limit > 0 and len(text) > limit:
+        log.warning("Household context is %d characters, cutting it to %d", len(text), limit)
+        text = text[:limit].rsplit("\n", 1)[0]
+    CONTEXT_CACHE.update(ts=now, text=text, facts=str((state or {}).get("state") or ""))
+    log.info("Household context loaded: %d characters (%s)", len(text), CONTEXT_CACHE["facts"])
+    return text
+
+
+def with_context(background: str, live: str, message: str) -> str:
+    parts = []
+    if background:
+        who = f"The person talking to you right now is {opt('speaker_name')}. " if opt("speaker_name") else ""
+        parts.append(
+            "[Background on the household and their friends, loaded automatically. "
+            "Use it quietly so you know who people are: names, nicknames, relationships, "
+            "jobs, places and music taste. "
+            f"{who}"
+            "Do not read it back or mention it unless asked.]\n"
+            f"{background}\n"
+            "[End of background]")
+    if live:
+        parts.append(
+            "[Live info from Home Assistant, current right now. Use it to answer questions about "
+            "where people are or what is going on, and prefer it over older details. "
+            "Do not read it back unless asked.]\n"
+            f"{live}\n"
+            "[End of live info]")
+    return "\n\n".join(parts + [message])
+
+
+def context_due(conv_id: str) -> bool:
+    last = CONV_SEEN.get(conv_id or "", 0)
+    return time.time() - last > CONTEXT_RESEND_S
+
+
+def remember_conversation(conv_id, live_hash: str = "") -> None:
+    if not conv_id:
+        return
+    now = time.time()
+    CONV_SEEN[conv_id] = now
+    if live_hash:
+        CONV_LIVE[conv_id] = live_hash
+    for k in [k for k, t in CONV_SEEN.items() if now - t > 3600]:
+        CONV_SEEN.pop(k, None)
+        CONV_LIVE.pop(k, None)
+
+
+# ------------------------------------------------------------- live entities
+#
+# Entities you pick on the page (Live info button). Their current values are read
+# fresh from Home Assistant and sent with your message, but only when they changed
+# since the last time the AI was told in that conversation.
+
+LIVE_FILE = DATA_DIR / "live_entities.json"
+ENTITY_ID = re.compile(r"[a-z0-9_]+\.[a-z0-9_]+")
+LIVE_SKIP_ATTRS = {"friendly_name", "icon", "entity_picture", "supported_features", "attribution",
+                   "editable", "restored", "device_class", "state_class"}
+LIVE_ENTITY_CHARS = 4000
+LIVE_TOTAL_CHARS = 15000
+LIVE_MAX_ITEMS = 40
+DEFAULT_LIVE = [{"entity_id": "sensor.everybodys_locations", "label": "Where everyone is right now",
+                 "attributes": ""}]
+CONV_LIVE: dict[str, str] = {}  # conversation_id -> hash of the live info the AI last saw
+
+
+def clean_live_items(raw) -> list[dict]:
+    out, seen = [], set()
+    for it in raw if isinstance(raw, list) else []:
+        if not isinstance(it, dict):
+            continue
+        eid = str(it.get("entity_id") or "").strip().lower()
+        if not ENTITY_ID.fullmatch(eid) or eid in seen:
+            continue
+        seen.add(eid)
+        out.append({"entity_id": eid,
+                    "label": str(it.get("label") or "").strip()[:80],
+                    "attributes": str(it.get("attributes") or "").strip()[:300]})
+        if len(out) >= LIVE_MAX_ITEMS:
+            break
+    return out
+
+
+def load_live_items() -> list[dict]:
+    if LIVE_FILE.is_file():
+        try:
+            return clean_live_items(json.loads(LIVE_FILE.read_text()))
+        except ValueError:
+            log.warning("Could not read %s", LIVE_FILE)
+    return [dict(i) for i in DEFAULT_LIVE]
+
+
+def save_live_items(items: list[dict]) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    LIVE_FILE.write_text(json.dumps(items, indent=1))
+
+
+def format_live(item: dict, state) -> str:
+    eid = item["entity_id"]
+    attrs = (state or {}).get("attributes") or {}
+    label = item.get("label") or attrs.get("friendly_name") or eid
+    head = f"{label} ({eid}):"
+    if not state:
+        return f"{head}\n  not found in Home Assistant"
+    wanted = [a.strip() for a in (item.get("attributes") or "").split(",") if a.strip()]
+    lines = []
+    if wanted:
+        for a in wanted:
+            if a == "state":
+                lines.append(f"  state: {state.get('state')}")
+            elif a in attrs:
+                lines.append(render({a: attrs[a]}, 1))
+    else:
+        lines.append(f"  state: {state.get('state')}")
+        lines += [render({k: v}, 1) for k, v in attrs.items()
+                  if k not in LIVE_SKIP_ATTRS and v not in (None, "", [], {})]
+    text = head + "\n" + "\n".join(l for l in lines if l)
+    if len(text) > LIVE_ENTITY_CHARS:
+        text = text[:LIVE_ENTITY_CHARS].rsplit("\n", 1)[0] + "\n  (cut, too long)"
+    return text
+
+
+async def load_live() -> str:
+    items = load_live_items()
+    if not items:
+        return ""
+
+    async def one(item):
+        try:
+            return await ha("GET", f"/states/{item['entity_id']}")
+        except HAError:
+            return None
+
+    states = await asyncio.gather(*(one(i) for i in items))
+    text = "\n\n".join(format_live(i, st) for i, st in zip(items, states))
+    if len(text) > LIVE_TOTAL_CHARS:
+        text = text[:LIVE_TOTAL_CHARS].rsplit("\n", 1)[0]
+    return text
+
+
 # ------------------------------------------------------------- history
 
 def history_dir() -> Path:
@@ -314,9 +525,17 @@ async def compute_status() -> dict:
     if stt and stt not in by_id:
         problems.append(f"“{stt}” (stt_entity) doesn’t exist. Available: {available('stt')}")
 
+    ctx_entity = opt("context_entity")
+    if OPTIONS["context_enabled"] and ctx_entity and ctx_entity not in by_id:
+        problems.append(f"“{ctx_entity}” (context_entity) doesn’t exist, so the AI won’t know your household. "
+                        "Set context_entity to your combined info sensor or turn off context_enabled.")
+
     return {
         "problems": problems,
-        "version": "2.0.0",
+        "context": {"enabled": bool(OPTIONS["context_enabled"] and ctx_entity and ctx_entity in by_id),
+                    "entity": ctx_entity},
+        "context_skip_agents": [a.strip() for a in opt("context_skip_agents").split(",") if a.strip()],
+        "version": "2.2.0",
         "media_player": opt("media_player"),
         "conversation_agent": opt("conversation_agent"),
         "speakers": listing("media_player"),
@@ -367,12 +586,29 @@ async def chat(request):
     if not text:
         return web.json_response({"error": "Empty message"}, status=400)
     agent = chosen_agent(body)
-    payload = {"text": text, "language": await language(), "agent_id": agent}
-    if body.get("conversation_id"):
-        payload["conversation_id"] = body["conversation_id"]
+    sent_id = body.get("conversation_id") or ""
+    send_text, eligible, live, live_hash = text, False, "", ""
+    # Give the AI the household background on the first message (and again if Home
+    # Assistant forgot the conversation after a few quiet minutes). Live entity values
+    # go along whenever they differ from what the AI was last told.
+    if body.get("context", True) and context_agent_ok(agent):
+        eligible = True
+        first = context_due(sent_id)
+        background = await load_context() if first else ""
+        live = await load_live()
+        live_hash = hashlib.md5(live.encode()).hexdigest() if live else ""
+        if not first and CONV_LIVE.get(sent_id) == live_hash:
+            live = ""  # unchanged since the AI last saw it
+        if background or live:
+            send_text = with_context(background, live, text)
+    payload = {"text": send_text, "language": await language(), "agent_id": agent}
+    if sent_id:
+        payload["conversation_id"] = sent_id
     result = await ha("POST", "/conversation/process", json=payload)
     reply = reply_text(result) or "I didn’t get a reply from the agent."
     conv_id = (result or {}).get("conversation_id")
+    if eligible:
+        remember_conversation(conv_id, live_hash if live else "")
     log.info("You: %s | Agent: %s", text, reply[:120])
     record_exchange(str(body.get("chat_id") or ""), agent, conv_id, text, reply)
     out = {"text": reply, "conversation_id": conv_id, "audio": None}
@@ -400,6 +636,37 @@ async def audio(request):
     if not item or item[0] < time.time():
         raise web.HTTPNotFound()
     return web.Response(body=item[1], content_type=item[2].split(";")[0], headers={"Cache-Control": "no-store"})
+
+
+async def live_get(request):
+    return web.json_response({"items": load_live_items()})
+
+
+async def live_save(request):
+    body = await request.json()
+    items = clean_live_items(body.get("items"))
+    save_live_items(items)
+    CONV_LIVE.clear()  # tell the AI the new list at the next message
+    return web.json_response({"items": items})
+
+
+async def live_preview(request):
+    return web.json_response({"text": await load_live() or "Nothing selected yet."})
+
+
+async def entity_search(request):
+    q = request.query.get("q", "").strip().lower()
+    if len(q) < 2:
+        return web.json_response({"items": []})
+    states = await ha("GET", "/states") or []
+    out = []
+    for st in states:
+        eid = st["entity_id"]
+        name = (st.get("attributes") or {}).get("friendly_name") or eid
+        if q in eid.lower() or q in str(name).lower():
+            out.append({"entity_id": eid, "name": str(name), "state": str(st.get("state"))[:40]})
+    out.sort(key=lambda x: (not x["entity_id"].lower().startswith(q), x["entity_id"]))
+    return web.json_response({"items": out[:25]})
 
 
 async def history_list(request):
@@ -509,6 +776,10 @@ async def main():
         web.post("/api/wait", wait),
         web.post("/api/stop", stop),
         web.get("/api/audio/{key}", audio),
+        web.get("/api/live", live_get),
+        web.post("/api/live", live_save),
+        web.get("/api/live/preview", live_preview),
+        web.get("/api/entities", entity_search),
         web.get("/api/history", history_list),
         web.get("/api/history/{id}", history_get),
         web.delete("/api/history/{id}", history_delete),
@@ -522,7 +793,7 @@ async def main():
         log.info("HTTPS page listening on port 8443")
     else:
         log.info("Direct HTTPS page is off. Set a password in Configuration to turn it on.")
-    log.info("Voice Chat 2.0 ready (%s mode)", "add-on" if ADDON else "standalone")
+    log.info("Voice Chat 2.2 ready (%s mode)", "add-on" if ADDON else "standalone")
     try:
         for problem in (await compute_status())["problems"]:
             log.warning("Config problem: %s", problem)

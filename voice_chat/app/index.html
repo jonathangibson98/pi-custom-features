@@ -68,6 +68,20 @@ footer{display:flex;flex-direction:column;align-items:center;gap:10px;padding:12
 #composer button{border:0;border-radius:12px;padding:0 16px;background:var(--listen);color:#fff;font-weight:600}
 #composer button:disabled{opacity:.45;cursor:default}
 .tog{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.85rem}
+.tog[hidden]{display:none}
+.panel .hint{margin:0 0 8px;color:var(--muted);font-size:.85rem}
+.panel input[type=text]{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;width:100%}
+.live-item{display:grid;grid-template-columns:1fr auto;gap:6px;padding:8px 0;border-top:1px solid var(--line)}
+.live-item.first{border-top:0}
+.live-item small{grid-column:1/-1;color:var(--muted);overflow-wrap:anywhere}
+.panel button.sm{font:inherit;font-size:.85rem;color:var(--ink);background:none;border:1px solid var(--line);border-radius:8px;padding:5px 10px}
+.panel button.sm.primary{background:var(--listen);color:#fff;border-color:transparent}
+.panel button.sm.del{color:var(--danger)}
+.bar{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
+.sug{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.sug button{text-align:left}
+.sug small{color:var(--muted)}
+.panel pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.8rem;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;max-height:30vh;overflow:auto;margin:8px 0 0}
 .orb{position:relative;width:104px;height:104px;border-radius:50%;border:0;background:var(--c);color:#fff;display:grid;place-items:center;transition:background .25s}
 .orb::before{content:"";position:absolute;inset:-12px;border-radius:50%;border:3px solid var(--c);opacity:.4;transform:scale(calc(1 + var(--lvl)));transition:transform .09s linear}
 .orb svg{width:42px;height:42px;fill:currentColor}
@@ -86,14 +100,17 @@ body[data-phase=thinking] .orb::before{animation:breathe 1.6s ease-in-out infini
     <h1>Voice Chat</h1>
     <div class="pick"><span>AI</span> <select id="agent" aria-label="AI agent"></select></div>
     <div class="pick"><span>Speak on</span> <button id="spkBtn" type="button" aria-expanded="false">…</button></div>
+    <label class="tog" id="ctxRow" hidden><input id="ctxToggle" type="checkbox" checked> Give the AI my household &amp; live info</label>
   </div>
   <div class="btns">
+    <button id="live" class="ghost" type="button">Live info</button>
     <button id="hist" class="ghost" type="button">History</button>
     <button id="new" class="ghost" type="button">New chat</button>
   </div>
 </header>
 <div id="banner" hidden></div>
 <section id="spkPanel" class="panel" hidden aria-label="Speakers"></section>
+<section id="livePanel" class="panel" hidden aria-label="Live info"></section>
 <section id="histPanel" class="panel" hidden aria-label="Past chats"></section>
 <main id="log" aria-live="polite"><p class="empty">Tap the mic and talk. Replies are spoken on your speakers.</p></main>
 <footer>
@@ -393,7 +410,8 @@ body[data-phase=thinking] .orb::before{animation:breathe 1.6s ease-in-out infini
     setPhase('thinking');
     const r = await api('chat', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, conversation_id: convId, chat_id: chatId, agent: $('#agent').value, speakers, speak }),
+      body: JSON.stringify({ text, conversation_id: convId, chat_id: chatId, agent: $('#agent').value, speakers, speak,
+        context: $('#ctxToggle').checked }),
     });
     if (my !== epoch) return;
     convId = r.conversation_id || convId;
@@ -522,13 +540,13 @@ body[data-phase=thinking] .orb::before{animation:breathe 1.6s ease-in-out infini
     const p = $('#spkPanel');
     p.hidden = !p.hidden;
     $('#spkBtn').setAttribute('aria-expanded', String(!p.hidden));
-    $('#histPanel').hidden = true;
+    $('#histPanel').hidden = true; $('#livePanel').hidden = true;
   };
 
   async function openHistory() {
     const p = $('#histPanel');
     if (!p.hidden) { p.hidden = true; return; }
-    $('#spkPanel').hidden = true;
+    $('#spkPanel').hidden = true; $('#livePanel').hidden = true;
     const { items } = await api('history').catch(e => (banner([e.message]), { items: [] }));
     p.replaceChildren(Object.assign(document.createElement('h2'), { textContent: 'Past chats' }));
     if (!items.length) p.append(Object.assign(document.createElement('p'), { className: 'empty', textContent: 'Nothing saved yet.' }));
@@ -556,6 +574,88 @@ body[data-phase=thinking] .orb::before{animation:breathe 1.6s ease-in-out infini
     }
     p.hidden = false;
   }
+  // ---------- live info: entities the AI reads fresh from Home Assistant
+  let liveItems = [];
+  function el(tag, props = {}, ...kids) {
+    const n = Object.assign(document.createElement(tag), props);
+    n.append(...kids);
+    return n;
+  }
+  async function openLive() {
+    const p = $('#livePanel');
+    if (!p.hidden) { p.hidden = true; return; }
+    $('#spkPanel').hidden = true; $('#histPanel').hidden = true;
+    try { liveItems = (await api('live')).items; } catch (e) { return banner([e.message]); }
+    renderLive();
+    p.hidden = false;
+  }
+  function renderLive(note) {
+    const p = $('#livePanel');
+    const list = el('div');
+    liveItems.forEach((it, i) => {
+      const label = el('input', { type: 'text', value: it.label, placeholder: 'Name the AI sees, e.g. Where everyone is' });
+      label.oninput = () => { it.label = label.value; };
+      const del = el('button', { type: 'button', className: 'sm del', textContent: 'Remove' });
+      del.onclick = () => { liveItems.splice(i, 1); renderLive(); };
+      const attrs = el('input', { type: 'text', value: it.attributes, placeholder: 'Attributes to send, blank = state + all (add "state" to include it)' });
+      attrs.oninput = () => { it.attributes = attrs.value; };
+      list.append(el('div', { className: 'live-item' + (i ? '' : ' first') },
+        label, del, el('small', { textContent: it.entity_id }), attrs));
+    });
+    if (!liveItems.length) list.append(el('p', { className: 'hint', textContent: 'Nothing selected. The AI only gets your household info.' }));
+
+    const search = el('input', { type: 'text', placeholder: 'Search to add an entity (name or sensor.xxx)', autocomplete: 'off' });
+    const sug = el('div', { className: 'sug' });
+    let timer = null;
+    search.oninput = () => {
+      clearTimeout(timer);
+      const q = search.value.trim();
+      if (q.length < 2) return sug.replaceChildren();
+      timer = setTimeout(async () => {
+        try {
+          const { items } = await api('entities?q=' + encodeURIComponent(q));
+          sug.replaceChildren(...items.map(e => {
+            const b = el('button', { type: 'button', className: 'sm' }, e.name, el('small', { textContent: ` ${e.entity_id} · ${e.state}` }));
+            b.onclick = () => {
+              if (!liveItems.some(x => x.entity_id === e.entity_id))
+                liveItems.push({ entity_id: e.entity_id, label: e.name, attributes: '' });
+              renderLive();
+            };
+            return b;
+          }));
+          if (!items.length) sug.replaceChildren(el('small', { textContent: 'No matches.' }));
+        } catch (err) { banner([err.message]); }
+      }, 250);
+    };
+
+    const pre = el('pre', { hidden: true });
+    const save = el('button', { type: 'button', className: 'sm primary', textContent: 'Save' });
+    const prev = el('button', { type: 'button', className: 'sm', textContent: 'Preview what the AI sees' });
+    const status = el('small', { textContent: note || '' });
+    save.onclick = async () => {
+      try {
+        liveItems = (await api('live', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: liveItems }) })).items;
+        renderLive('Saved. The AI gets the new list with your next message.');
+      } catch (err) { banner([err.message]); }
+    };
+    prev.onclick = async () => {
+      try {
+        await api('live', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: liveItems }) });
+        pre.textContent = (await api('live/preview')).text;
+        pre.hidden = false;
+        status.textContent = 'Saved.';
+      } catch (err) { banner([err.message]); }
+    };
+    p.replaceChildren(
+      el('h2', { textContent: 'Live info the AI can see' }),
+      el('p', { className: 'hint', textContent: 'Pick any entities, like a location sensor. Their current values are read fresh from Home Assistant and sent with your message whenever they have changed.' }),
+      list, search, sug,
+      el('div', { className: 'bar' }, save, prev, status), pre);
+  }
+  $('#live').onclick = () => openLive();
+
   $('#hist').onclick = () => openHistory();
 
   // ---------- boot
@@ -566,7 +666,13 @@ body[data-phase=thinking] .orb::before{animation:breathe 1.6s ease-in-out infini
     for (const a of cfg.agents) agentSel.add(new Option(a.name, a.entity_id));
     const savedAgent = store.get('voice-agent');
     agentSel.value = cfg.agents.some(a => a.entity_id === savedAgent) ? savedAgent : cfg.conversation_agent;
-    agentSel.onchange = () => { store.set('voice-agent', agentSel.value); convId = null; };
+    // Household info toggle: only offered for AI agents that can use it (not the built-in sentence matcher).
+    const ctxRow = $('#ctxRow'), ctxBox = $('#ctxToggle');
+    const showCtx = () => { ctxRow.hidden = cfg.context_skip_agents.includes(agentSel.value); };
+    ctxBox.checked = store.get('voice-context') !== 'off';
+    ctxBox.onchange = () => store.set('voice-context', ctxBox.checked ? 'on' : 'off');
+    agentSel.onchange = () => { store.set('voice-agent', agentSel.value); convId = null; showCtx(); };
+    showCtx();
 
     let saved = null;
     try { saved = JSON.parse(store.get('voice-speakers')); } catch (e) {}
