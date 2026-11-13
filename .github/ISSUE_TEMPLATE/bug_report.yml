@@ -1,0 +1,52 @@
+name: Bug report
+description: Something in an add-on is broken or behaves wrong
+labels: [bug]
+body:
+  - type: dropdown
+    id: addon
+    attributes:
+      label: Add-on
+      options:
+        - Creator & AI Builder (ai_builder)
+        - File Reader (file_reader)
+        - iCloud Lite (ha-icloud-lite)
+        - Location Hub (location_hub)
+        - Person Profiles (person_profiles)
+        - Personalized Info (personalized_info)
+        - Photo Hub (photo_shuffle)
+        - Release Tracker (release-tracker)
+        - SVG Maker (svg_maker)
+        - Team Tracker Lite (team_tracker_lite)
+        - Work Hours Tracker (work_hours)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Add-on version
+      placeholder: "1.2.3"
+    validations:
+      required: true
+  - type: input
+    id: ha
+    attributes:
+      label: Home Assistant version and install type
+      placeholder: "2026.11.0, Home Assistant OS on Raspberry Pi"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected and what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+  - type: textarea
+    id: logs
+    attributes:
+      label: Add-on log
+      description: Paste the log from the add-on's Log tab. Remove tokens, keys and passwords first.
+      render: text

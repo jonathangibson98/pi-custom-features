@@ -1,0 +1,21 @@
+name: Feature request
+description: Suggest an improvement or a new add-on
+labels: [enhancement]
+body:
+  - type: input
+    id: addon
+    attributes:
+      label: Add-on
+      description: Which add-on is this for? Write "new add-on" for a new idea.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it helps
