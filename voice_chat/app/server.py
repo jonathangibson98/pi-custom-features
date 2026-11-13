@@ -535,7 +535,7 @@ async def compute_status() -> dict:
         "context": {"enabled": bool(OPTIONS["context_enabled"] and ctx_entity and ctx_entity in by_id),
                     "entity": ctx_entity},
         "context_skip_agents": [a.strip() for a in opt("context_skip_agents").split(",") if a.strip()],
-        "version": "2.2.0",
+        "version": "2.2.1",
         "media_player": opt("media_player"),
         "conversation_agent": opt("conversation_agent"),
         "speakers": listing("media_player"),
@@ -793,7 +793,7 @@ async def main():
         log.info("HTTPS page listening on port 8443")
     else:
         log.info("Direct HTTPS page is off. Set a password in Configuration to turn it on.")
-    log.info("Voice Chat 2.2 ready (%s mode)", "add-on" if ADDON else "standalone")
+    log.info("Voice Chat 2.2.1 ready (%s mode)", "add-on" if ADDON else "standalone")
     try:
         for problem in (await compute_status())["problems"]:
             log.warning("Config problem: %s", problem)

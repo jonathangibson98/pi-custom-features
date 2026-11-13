@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1
+- Now published as a prebuilt image (`ghcr.io/jonathangibson98/{arch}-addon-zone_creator`), so it installs without building on the Pi.
+- The add-on page link now points at the repository that actually exists.
+
 ## 1.1.0
 - Fixed "can't find address" searches. Search now asks three geocoders at once
   (US Census, OpenStreetMap Nominatim, Photon) and merges the results.

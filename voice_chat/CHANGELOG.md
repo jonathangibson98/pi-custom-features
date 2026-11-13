@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.1
+
+- Fix: the standalone Docker setup now ships the `.env.example` that the docs and `docker-compose.yml` tell you to copy. Without it `docker compose up` failed on the missing `.env`.
+- `docker-compose.yml` now names the prebuilt image (`ghcr.io/jonathangibson98/voice-chat`) published by the GitHub workflow.
+- The add-on Dockerfile has a default base image, so it also builds outside the Supervisor.
+- Health check uses the exec form, which the Dockerfile linter requires.
+
 ## 2.2.0
 
 - **Live info.** New **Live info** button on the page. Search for any Home Assistant entity (for example `sensor.everybodys_locations`), give it a name, optionally pick which attributes to send, and save. The AI reads their current values fresh from Home Assistant, so it knows where everyone is right now.

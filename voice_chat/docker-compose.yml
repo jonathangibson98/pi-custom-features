@@ -7,7 +7,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.standalone
-    image: voice-chat:2.2.0
+    # Prebuilt image from this repo's workflow: `docker compose pull` fetches it, `up --build` builds locally.
+    image: ghcr.io/jonathangibson98/voice-chat:latest
     container_name: voice_chat
     restart: unless-stopped
     ports:

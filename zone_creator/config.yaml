@@ -1,8 +1,9 @@
 name: "Zone Creator"
-version: "1.1.0"
+version: "1.1.1"
 slug: zone_creator
+image: "ghcr.io/jonathangibson98/{arch}-addon-zone_creator"
 description: "Search an address, drop a pin, and create a Home Assistant zone. Optional AI name and icon suggestions."
-url: "https://github.com/jonathangibson98/ha-zone-creator"
+url: "https://github.com/jonathangibson98/pi-custom-features"
 arch:
   - aarch64
   - amd64

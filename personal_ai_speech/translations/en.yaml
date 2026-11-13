@@ -43,3 +43,6 @@ configuration:
     description: Uses RAM all the time but the first command isn't slow.
   log_level:
     name: Log level
+    description: How chatty the add-on log is. Use debug when troubleshooting.
+network:
+  8880/tcp: Speech API (OpenAI-compatible). Use this for the Personal AI integration.

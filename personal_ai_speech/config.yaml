@@ -1,6 +1,7 @@
 name: Personal AI Speech
-version: "1.0.0"
+version: "1.0.1"
 slug: personal_ai_speech
+image: "ghcr.io/jonathangibson98/{arch}-addon-personal_ai_speech"
 description: Natural, emotional text-to-speech and local speech-to-text for the Personal AI integration
 url: https://github.com/jonathangibson98/ha-personal-ai
 arch:

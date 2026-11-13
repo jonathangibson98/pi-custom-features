@@ -201,6 +201,7 @@ def sampler():
     while True:
         try:
             cache.update(collect())
+            cache.pop("error", None)
         except Exception as e:
             cache["error"] = str(e)
         time.sleep(INTERVAL)
@@ -255,7 +256,7 @@ tick();setInterval(tick,5000);
 class H(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.split("?")[0].endswith("api/stats"):
-            body, ctype = json.dumps(cache).encode(), "application/json"
+            body, ctype = json.dumps(dict(cache)).encode(), "application/json"
         else:
             body, ctype = HTML.encode(), "text/html; charset=utf-8"
         self.send_response(200)

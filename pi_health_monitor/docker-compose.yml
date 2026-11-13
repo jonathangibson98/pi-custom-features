@@ -5,7 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.standalone
-    image: pi-health-monitor:latest
+    # Prebuilt image from this repo's workflow: `docker compose pull` fetches it, `up --build` builds locally.
+    image: ghcr.io/jonathangibson98/pi-health-monitor:latest
     container_name: pi-health-monitor
     restart: unless-stopped
     ports:
