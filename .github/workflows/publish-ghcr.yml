@@ -222,7 +222,7 @@ jobs:
       - name: Metadata (plain Docker)
         id: meta_docker
         if: matrix.kind == 'docker'
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ matrix.image }}
           tags: |
@@ -235,7 +235,7 @@ jobs:
       - name: Metadata (Home Assistant add-on)
         id: meta_addon
         if: matrix.kind == 'addon'
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ matrix.image }}
           tags: |
