@@ -10,7 +10,6 @@ arch:
 init: false
 homeassistant_api: true
 ingress: true
-ingress_port: 8099
 panel_icon: mdi:map-marker-plus
 panel_title: "Zone Creator"
 options:
