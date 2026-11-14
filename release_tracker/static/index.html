@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Release Tracker</title>
+<style>
+  :root {
+    --bg1: #0d0d0d; --bg2: #1a1a2e; --card: #20203a; --line: #33335a;
+    --text: #ececf4; --dim: #9a9ab8; --accent: #ff6b81; --ok: #5be3a4;
+    --font: "Avenir Next", "Segoe UI", Roboto, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; color: var(--text); font-family: var(--font);
+    background: linear-gradient(180deg, var(--bg1), var(--bg2)) fixed;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 16px 14px 60px; }
+  h1 { font-size: 1.5rem; margin: 6px 0 14px; letter-spacing: -0.01em; }
+  nav { display: flex; gap: 6px; margin-bottom: 16px; }
+  nav button {
+    flex: 1; padding: 10px; border: 1px solid var(--line); background: transparent;
+    color: var(--dim); border-radius: 10px; font: inherit; cursor: pointer;
+  }
+  nav button.on { background: var(--accent); color: #1a0f14; border-color: var(--accent); font-weight: 600; }
+  nav button:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .item {
+    display: flex; gap: 12px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 10px; margin-bottom: 10px; align-items: stretch;
+  }
+  .poster { width: 56px; height: 84px; border-radius: 6px; object-fit: cover; background: #14142a; flex: none; }
+  .body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+  .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  a.title { color: var(--text); text-decoration: underline dotted var(--dim); text-underline-offset: 3px; }
+  .sub { color: var(--dim); font-size: 0.85rem; }
+  .note { color: var(--dim); font-size: 0.82rem; font-style: italic; }
+  .err { color: var(--accent); font-size: 0.8rem; }
+  .when { text-align: right; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; min-width: 74px; gap: 6px; }
+  .big { font-size: 1.9rem; font-weight: 700; line-height: 1; }
+  .big.soon { color: var(--accent); }
+  .unit { font-size: 0.75rem; color: var(--dim); }
+  .quiet { color: var(--dim); font-size: 0.85rem; }
+  .x { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 0.8rem; padding: 2px 0; }
+  .x:hover { color: var(--accent); }
+  .row { display: flex; gap: 8px; margin-bottom: 14px; }
+  input, select {
+    width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: #14142a; color: var(--text); font: inherit;
+  }
+  input[type="date"] { color-scheme: dark; }
+  input[type="checkbox"] { width: auto; margin: 0; accent-color: var(--accent); }
+  .btn { padding: 11px 16px; border-radius: 10px; border: none; background: var(--accent); color: #1a0f14; font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); }
+  .btn.small { padding: 6px 12px; font-size: 0.85rem; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  label { display: block; margin: 12px 0 5px; color: var(--dim); font-size: 0.85rem; }
+  .hint { color: var(--dim); font-size: 0.8rem; margin-top: 4px; }
+  h2 { font-size: 1rem; margin: 22px 0 4px; }
+  .empty { text-align: center; color: var(--dim); padding: 36px 10px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+  .chip { padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--dim); font: inherit; font-size: 0.78rem; cursor: pointer; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #1a0f14; font-weight: 600; }
+  .who { margin-bottom: 14px; }
+  .kind { margin: 0 0 12px; }
+  .kind .chip, .filters .chip { padding: 7px 14px; font-size: 0.85rem; }
+  .filters { margin: 0 0 14px; }
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--ok); color: #08261a; padding: 10px 16px; border-radius: 10px; font-weight: 600; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+
+  /* add-anything form and inline editor */
+  .formcard { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px 14px 14px; margin-bottom: 14px; }
+  .formcard > :first-child { margin-top: 12px; }
+  .formcard .actions { margin-top: 14px; }
+
+  /* settings cards */
+  details.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; }
+  details.card > summary {
+    list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px;
+    padding: 14px; font-weight: 600;
+  }
+  details.card > summary::-webkit-details-marker { display: none; }
+  details.card > summary::after { content: "\25B8"; color: var(--dim); margin-left: 2px; }
+  details.card[open] > summary::after { content: "\25BE"; }
+  .ct { flex: 1; }
+  .badge { font-size: 0.72rem; font-weight: 600; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); }
+  .badge.ok { color: var(--ok); border-color: var(--ok); }
+  .badge.warn { color: var(--accent); border-color: var(--accent); }
+  .cbody { padding: 0 14px 14px; border-top: 1px solid var(--line); }
+  .cbody > :first-child { margin-top: 12px; }
+  .cbody label:first-child { margin-top: 12px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .check { display: flex; align-items: flex-start; gap: 10px; margin: 14px 0 0; color: var(--text); font-size: 0.9rem; }
+  .check input { margin-top: 3px; }
+  .path { display: flex; align-items: center; }
+  .path span { padding: 11px 0 11px 12px; border: 1px solid var(--line); border-right: none; border-radius: 10px 0 0 10px; background: #14142a; color: var(--dim); }
+  .path input { border-radius: 0 10px 10px 0; }
+
+  /* people manager */
+  .prow { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .prow:last-child { border-bottom: none; }
+  .pname { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .pname b { overflow: hidden; text-overflow: ellipsis; }
+  .addrow { display: flex; gap: 8px; margin-top: 12px; }
+
+  /* backup list */
+  .bk { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .bk:last-child { border-bottom: none; }
+  .bkinfo { flex: 1; min-width: 0; }
+  .bklist { max-height: 300px; overflow-y: auto; }
+  @media (max-width: 420px) { .grid2 { grid-template-columns: 1fr; } }
+  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Release Tracker</h1>
+  <nav>
+    <button data-tab="tracking" class="on">Tracking</button>
+    <button data-tab="add">Add</button>
+    <button data-tab="settings">Settings</button>
+  </nav>
+
+  <section id="tab-tracking">
+    <div class="chips filters" id="filters" hidden></div>
+    <div id="list"></div>
+    <button class="btn ghost" id="refresh">Refresh now</button>
+  </section>
+
+  <section id="tab-add" hidden>
+    <div class="chips kind" id="kind">
+      <button class="chip on" data-kind="video" aria-pressed="true">TV &amp; Movies</button>
+      <button class="chip" data-kind="games" aria-pressed="false">Games &amp; DLC</button>
+      <button class="chip" data-kind="music" aria-pressed="false">Music</button>
+      <button class="chip" data-kind="people" aria-pressed="false">Celebrities</button>
+      <button class="chip" data-kind="custom" aria-pressed="false">Anything else</button>
+    </div>
+
+    <div id="search-box">
+      <div class="row">
+        <input id="q" placeholder="Search a show or movie" enterkeyhint="search" aria-label="Search">
+        <button class="btn" id="go">Search</button>
+      </div>
+    </div>
+
+    <div class="formcard" id="custom-form" hidden>
+      <div class="hint">For anything that does not come from a search: a tech launch, a merch drop, a tour, a sale. Leave the date empty if it has not been announced. You can edit it later.</div>
+      <label for="c-cat">What kind of thing is it?</label>
+      <select id="c-cat"></select>
+      <label for="c-title">Name</label>
+      <input id="c-title" maxlength="100" placeholder="Example: Pixel 11 launch" autocomplete="off">
+      <div class="grid2">
+        <div><label for="c-date">Date</label><input id="c-date" type="date"></div>
+        <div><label for="c-time">Time (optional)</label><input id="c-time" maxlength="20" placeholder="10 AM ET" autocomplete="off"></div>
+      </div>
+      <label for="c-notes">Note (optional)</label>
+      <input id="c-notes" maxlength="300" placeholder="Where to buy, drop code, anything you want to remember" autocomplete="off">
+      <label for="c-url">Link (optional)</label>
+      <input id="c-url" type="url" maxlength="500" placeholder="https://" autocomplete="off">
+      <label for="c-image">Picture link (optional)</label>
+      <input id="c-image" type="url" maxlength="500" placeholder="https://" autocomplete="off">
+      <div class="actions"><button class="btn" id="c-add">Track it</button></div>
+    </div>
+
+    <div class="who">
+      <div class="quiet">Who is tracking it?</div>
+      <div class="chips" id="who"></div>
+    </div>
+    <div id="results"></div>
+  </section>
+
+  <section id="tab-settings" hidden>
+
+    <details class="card" id="c-people" open>
+      <summary><span class="ct">People</span><span class="badge" id="bd-people"></span></summary>
+      <div class="cbody">
+        <div class="hint">Everyone here can be tagged on anything you track. Home Assistant sees who tracks what in the <code>by_person</code> attribute of the release sensor. Changes here save right away.</div>
+        <div id="people-list"></div>
+        <div class="addrow">
+          <input id="p-new" placeholder="Add a person" maxlength="30" autocomplete="off" aria-label="Name of the person to add">
+          <button class="btn" id="p-add">Add</button>
+        </div>
+      </div>
+    </details>
+
+    <details class="card" id="c-tmdb">
+      <summary><span class="ct">Movies, TV &amp; Celebrities</span><span class="badge" id="bd-tmdb"></span></summary>
+      <div class="cbody">
+        <div class="hint">One TMDB key covers shows, movies, and celebrity searches.</div>
+        <label for="s-key">TMDB API key or read access token</label>
+        <input id="s-key" type="password" autocomplete="off">
+        <div class="hint" id="key-hint"></div>
+        <label for="s-region">Region for movie release dates</label>
+        <input id="s-region" maxlength="2" placeholder="US">
+        <div class="hint">Two-letter country code, like US, GB, or CA.</div>
+        <div class="actions"><button class="btn" id="save-tmdb">Save</button></div>
+      </div>
+    </details>
+
+    <details class="card" id="c-games">
+      <summary><span class="ct">Games (IGDB)</span><span class="badge" id="bd-games"></span></summary>
+      <div class="cbody">
+        <div class="hint">Free. Log in at dev.twitch.tv/console, register an app, and paste its Client ID and a new Client Secret here. Only needed for games and DLC.</div>
+        <label for="s-gid">Twitch Client ID</label>
+        <input id="s-gid" autocomplete="off">
+        <label for="s-gsec">Twitch Client Secret</label>
+        <input id="s-gsec" type="password" autocomplete="off">
+        <div class="hint" id="games-hint"></div>
+        <div class="actions"><button class="btn" id="save-games">Save</button></div>
+      </div>
+    </details>
+
+    <details class="card" id="c-more">
+      <summary><span class="ct">Music &amp; custom items</span><span class="badge" id="bd-more"></span></summary>
+      <div class="cbody">
+        <div class="hint">Nothing to set up. Music comes from MusicBrainz, which is free and needs no key. Follow an artist to see their next announced album, EP, or single, or track one album. Custom items (tech, merch drops, events, sales) use the dates you type in.</div>
+        <div class="hint">MusicBrainz only lists releases once someone has added them, so a brand new announcement can take a while to show up. For those, add it under Anything else.</div>
+      </div>
+    </details>
+
+    <details class="card" id="c-updates">
+      <summary><span class="ct">Updates</span><span class="badge" id="bd-updates"></span></summary>
+      <div class="cbody">
+        <div class="grid2">
+          <div>
+            <label for="s-hours">Check for changes every (hours)</label>
+            <input id="s-hours" type="number" min="1">
+          </div>
+          <div>
+            <label for="s-window">Show releases in the next (days)</label>
+            <input id="s-window" type="number" min="1">
+          </div>
+        </div>
+        <div class="actions"><button class="btn" id="save-updates">Save</button></div>
+      </div>
+    </details>
+
+    <details class="card" id="c-mqtt">
+      <summary><span class="ct">Home Assistant (MQTT)</span><span class="badge" id="bd-mqtt"></span></summary>
+      <div class="cbody">
+        <div class="hint">Leave blank to use the Mosquitto add-on in Home Assistant. Fill in only if your broker is somewhere else.</div>
+        <div class="grid2">
+          <div><label for="s-mhost">Host</label><input id="s-mhost"></div>
+          <div><label for="s-mport">Port</label><input id="s-mport" type="number"></div>
+          <div><label for="s-muser">Username</label><input id="s-muser" autocomplete="off"></div>
+          <div><label for="s-mpass">Password</label><input id="s-mpass" type="password" autocomplete="off"></div>
+        </div>
+        <div class="hint" id="mqtt-hint"></div>
+        <div class="actions"><button class="btn" id="save-mqtt">Save</button></div>
+      </div>
+    </details>
+
+    <details class="card" id="c-backup">
+      <summary><span class="ct">Backup</span><span class="badge" id="bd-backup"></span></summary>
+      <div class="cbody">
+        <div class="hint">Saves your tracked list, tags, and settings as a file in the Home Assistant share folder.</div>
+        <label for="b-dir">Save to folder</label>
+        <div class="path"><span>/share/</span><input id="b-dir" placeholder="release_tracker" autocomplete="off"></div>
+        <div class="hint" id="b-share-hint"></div>
+        <div class="grid2">
+          <div>
+            <label for="b-every">Automatic backups</label>
+            <select id="b-every">
+              <option value="off">Off</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+            </select>
+          </div>
+          <div>
+            <label for="b-keep">Keep the newest</label>
+            <input id="b-keep" type="number" min="1" max="100">
+          </div>
+        </div>
+        <label class="check" for="b-keys">
+          <input type="checkbox" id="b-keys">
+          <span>Include API keys and passwords<span class="hint" style="display:block">Off by default. Anything with access to the share folder can read these files.</span></span>
+        </label>
+        <div class="actions">
+          <button class="btn" id="save-backup">Save</button>
+          <button class="btn ghost" id="backup-now">Back up now</button>
+        </div>
+        <div class="hint" id="b-status"></div>
+        <h2>Saved backups</h2>
+        <div class="bklist" id="b-list"></div>
+      </div>
+    </details>
+
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const IMG = "https://image.tmdb.org/t/p/w154";
+const GROUPS = ["TV & Movies", "Games & DLC", "Music", "Celebrities", "Tech releases", "Merch drops", "Events", "Sales & deals", "Other"];
+const CUSTOM_GROUP = { "Tech release": "Tech releases", "Merch drop": "Merch drops", "Music": "Music", "Celebrity": "Celebrities", "Event": "Events", "Sale / deal": "Sales & deals", "Other": "Other" };
+const PLACEHOLDER = {
+  video: "Search a show or movie",
+  games: "Search a game or DLC",
+  music: "Search an artist or album",
+  people: "Search an actor, musician, or other celebrity",
+};
+let state = null;
+let backups = null;
+let chosen = new Set();
+let kind = "video";
+let filter = "all";     // group shown on the Tracking tab
+let editingItem = null; // custom item being edited
+let editing = null;     // person being renamed
+let removing = null;    // person awaiting remove confirmation
+let restoring = null;   // backup file awaiting restore confirmation
+let firstLoad = true;
+
+async function api(path, opts) {
+  const r = await fetch("api/" + path, opts);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+const send = (path, method, body) => api(path, { method, body: JSON.stringify(body || {}) });
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2200);
+}
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function poster(path) {
+  const i = el("img", "poster");
+  i.alt = ""; i.loading = "lazy";
+  i.onerror = () => { i.style.visibility = "hidden"; };
+  if (path) i.src = path.startsWith("http") ? path : IMG + path;
+  return i;
+}
+function prettyDate(s) {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+}
+function stamp(sec) {
+  return new Date(sec * 1000).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
+function kb(n) { return n < 1024 ? n + " B" : (n / 1024).toFixed(1) + " KB"; }
+function badge(id, text, cls) {
+  const b = $(id); b.textContent = text; b.className = "badge" + (cls ? " " + cls : "");
+}
+function groupOf(it) {
+  if (it.type === "game") return "Games & DLC";
+  if (it.type === "album" || it.type === "artist") return "Music";
+  if (it.type === "person") return "Celebrities";
+  if (it.type === "custom") return CUSTOM_GROUP[it.category] || "Other";
+  return "TV & Movies";
+}
+function typeLabel(it) {
+  return { tv: "TV", game: "Game", movie: "Movie", album: "Album", artist: "Artist", person: "Celebrity", custom: it.category || "Other" }[it.type] || "Item";
+}
+function groupRank(g) { const i = GROUPS.indexOf(g); return i < 0 ? 99 : i; }
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
+  ["tracking", "add", "settings"].forEach(t => $("#tab-" + t).hidden = (t !== b.dataset.tab));
+});
+
+function byDays(a, b) {
+  const da = a.days_until, db = b.days_until;
+  if (da === null && db === null) return (a.title || "").localeCompare(b.title || "");
+  if (da === null) return 1; if (db === null) return -1;
+  return da - db;
+}
+
+// ---------- tracking ----------
+function editCard(it) {
+  const c = el("div", "item");
+  const f = el("div", "body");
+  const field = (id, label, type, val, max) => {
+    const l = el("label", null, label); l.htmlFor = id;
+    const i = el("input"); i.id = id; i.type = type; i.value = val || "";
+    if (max) i.maxLength = max;
+    f.append(l, i);
+    return i;
+  };
+  const lc = el("label", null, "Kind"); lc.htmlFor = "e-cat";
+  const cat = el("select"); cat.id = "e-cat";
+  for (const name of state.cats) { const o = el("option", null, name); o.value = name; cat.append(o); }
+  cat.value = it.category || "Other";
+  f.append(lc, cat);
+  const title = field("e-title", "Name", "text", it.title, 100);
+  const date = field("e-date", "Date (empty if not announced)", "date", it.date);
+  const time = field("e-time", "Time (optional)", "text", it.time, 20);
+  const notes = field("e-notes", "Note (optional)", "text", it.notes, 300);
+  const url = field("e-url", "Link (optional)", "url", it.url, 500);
+  const image = field("e-image", "Picture link (optional)", "url", it.poster, 500);
+  const actions = el("div", "actions");
+  const ok = el("button", "btn small", "Save");
+  const no = el("button", "btn ghost small", "Cancel");
+  ok.onclick = async () => {
+    ok.disabled = true;
+    try {
+      await send(`custom/${it.id}`, "PUT", { category: cat.value, title: title.value, date: date.value, time: time.value, notes: notes.value, url: url.value, image: image.value });
+      editingItem = null; await load(); toast("Saved");
+    } catch (e) { toast(e.message); ok.disabled = false; }
+  };
+  no.onclick = () => { editingItem = null; render(); };
+  actions.append(ok, no);
+  f.append(actions);
+  c.append(f);
+  return c;
+}
+
+function card(it) {
+  if (editingItem === it.id && it.type === "custom") return editCard(it);
+  const info = it.info || {};
+  const c = el("div", "item");
+  c.append(poster(info.poster || it.poster));
+  const body = el("div", "body");
+  if (it.type === "custom" && it.url) {
+    const a = el("a", "title", info.title || it.title);
+    a.href = it.url; a.target = "_blank"; a.rel = "noopener noreferrer";
+    body.append(a);
+  } else {
+    body.append(el("div", "title", info.title || it.title));
+  }
+  body.append(el("div", "sub", info.label || "Not checked yet"));
+  if (info.next_date) body.append(el("div", "sub", prettyDate(info.next_date) + (info.time ? " at " + info.time : "")));
+  if (it.notes) body.append(el("div", "note", it.notes));
+  if (state.settings.people.length) {
+    const chips = el("div", "chips");
+    for (const name of state.settings.people) {
+      const on = (it.people || []).includes(name);
+      const b = el("button", "chip" + (on ? " on" : ""), name);
+      b.setAttribute("aria-pressed", on);
+      b.onclick = async () => {
+        const next = on ? it.people.filter(p => p !== name) : [...(it.people || []), name];
+        await send(`track/${it.type}/${it.id}/people`, "PUT", { people: next });
+        await load();
+      };
+      chips.append(b);
+    }
+    body.append(chips);
+  }
+  if (it.error) body.append(el("div", "err", it.error));
+  c.append(body);
+
+  const when = el("div", "when");
+  if (it.days_until === null || it.days_until === undefined) {
+    when.append(el("div", "quiet", it.type === "custom" ? "TBA" : typeLabel(it)));
+  } else if (it.days_until === 0) {
+    when.append(el("div", "big soon", "Today"));
+  } else if (it.days_until < 0) {
+    when.append(el("div", "quiet", "Out"));
+  } else {
+    when.append(el("div", "big" + (it.days_until <= 7 ? " soon" : ""), String(it.days_until)));
+    when.append(el("div", "unit", it.days_until === 1 ? "day" : "days"));
+  }
+  if (it.type === "custom") {
+    const ed = el("button", "x", "Edit");
+    ed.onclick = () => { editingItem = it.id; render(); };
+    when.append(ed);
+  }
+  const rm = el("button", "x", "Remove");
+  rm.onclick = async () => {
+    await api(`track/${it.type}/${it.id}`, { method: "DELETE" });
+    await load();
+  };
+  when.append(rm);
+  c.append(when);
+  return c;
+}
+
+function render() {
+  const list = $("#list"); list.replaceChildren();
+  const bar = $("#filters"); bar.replaceChildren();
+  if (!state.tracked.length) {
+    bar.hidden = true;
+    list.append(el("div", "empty", "Nothing tracked yet. Head to Add and pick something."));
+    return;
+  }
+  const buckets = new Map();
+  for (const it of state.tracked) {
+    const g = groupOf(it);
+    if (!buckets.has(g)) buckets.set(g, []);
+    buckets.get(g).push(it);
+  }
+  const names = [...buckets.keys()].sort((a, b) => groupRank(a) - groupRank(b));
+  if (filter !== "all" && !buckets.has(filter)) filter = "all";
+  bar.hidden = names.length < 2;
+  if (names.length >= 2) {
+    const mk = (key, text) => {
+      const b = el("button", "chip" + (filter === key ? " on" : ""), text);
+      b.setAttribute("aria-pressed", filter === key);
+      b.onclick = () => { filter = key; render(); };
+      bar.append(b);
+    };
+    mk("all", "All (" + state.tracked.length + ")");
+    for (const g of names) mk(g, g + " (" + buckets.get(g).length + ")");
+  }
+  for (const g of names) {
+    if (filter !== "all" && filter !== g) continue;
+    const h = el("h2", null, g);
+    h.style.marginTop = list.children.length ? "22px" : "4px";
+    list.append(h);
+    for (const it of [...buckets.get(g)].sort(byDays)) list.append(card(it));
+  }
+}
+
+// ---------- who is tracking (Add tab) ----------
+function renderWho() {
+  const people = state.settings.people;
+  chosen = new Set([...chosen].filter(n => people.includes(n)));
+  const who = $("#who"); who.replaceChildren();
+  if (!people.length) {
+    who.append(el("div", "hint", "No one on the list yet. Add people under Settings, People."));
+    return;
+  }
+  for (const name of people) {
+    const c = el("button", "chip" + (chosen.has(name) ? " on" : ""), name);
+    c.setAttribute("aria-pressed", chosen.has(name));
+    c.onclick = () => { chosen.has(name) ? chosen.delete(name) : chosen.add(name); c.classList.toggle("on"); c.setAttribute("aria-pressed", chosen.has(name)); };
+    who.append(c);
+  }
+}
+
+// ---------- people manager ----------
+function renderPeople() {
+  const box = $("#people-list"); box.replaceChildren();
+  const people = state.settings.people;
+  badge("#bd-people", people.length ? people.length + (people.length === 1 ? " person" : " people") : "None yet", people.length ? "" : "warn");
+  if (!people.length) box.append(el("div", "quiet", "No one yet. Add a name below."));
+  for (const name of people) {
+    const n = state.tracked.filter(t => (t.people || []).includes(name)).length;
+    const row = el("div", "prow");
+    if (editing === name) {
+      const inp = el("input"); inp.value = name; inp.maxLength = 30;
+      inp.setAttribute("aria-label", "New name for " + name);
+      const ok = el("button", "btn small", "Save");
+      const no = el("button", "btn ghost small", "Cancel");
+      ok.onclick = async () => {
+        try { await send("people", "PUT", { old: name, new: inp.value }); editing = null; await load(); toast("Renamed"); }
+        catch (e) { toast(e.message); }
+      };
+      no.onclick = () => { editing = null; renderPeople(); };
+      inp.addEventListener("keydown", e => { if (e.key === "Enter") ok.click(); if (e.key === "Escape") no.click(); });
+      row.append(inp, ok, no);
+      box.append(row);
+      inp.focus(); inp.select();
+      continue;
+    }
+    const info = el("div", "pname");
+    info.append(el("b", null, name), el("span", "sub", n === 1 ? "1 item tagged" : n + " items tagged"));
+    row.append(info);
+    if (removing === name) {
+      row.append(el("span", "sub", "Remove?"));
+      const yes = el("button", "btn small", "Yes");
+      const no = el("button", "btn ghost small", "No");
+      yes.onclick = async () => {
+        try { await send("people/remove", "POST", { name }); removing = null; await load(); toast("Removed " + name); }
+        catch (e) { toast(e.message); }
+      };
+      no.onclick = () => { removing = null; renderPeople(); };
+      row.append(yes, no);
+    } else {
+      const rn = el("button", "btn ghost small", "Rename");
+      rn.onclick = () => { editing = name; removing = null; renderPeople(); };
+      const rm = el("button", "btn ghost small", "Remove");
+      rm.setAttribute("aria-label", "Remove " + name);
+      rm.onclick = () => { removing = name; editing = null; renderPeople(); };
+      row.append(rn, rm);
+    }
+    box.append(row);
+  }
+  if (removing) {
+    const h = el("div", "hint", "Removing someone also takes their tag off tracked items.");
+    box.append(h);
+  }
+}
+async function addPerson() {
+  const inp = $("#p-new");
+  try { await send("people", "POST", { name: inp.value }); inp.value = ""; await load(); toast("Added"); inp.focus(); }
+  catch (e) { toast(e.message); }
+}
+$("#p-add").onclick = addPerson;
+$("#p-new").addEventListener("keydown", e => { if (e.key === "Enter") addPerson(); });
+
+// ---------- settings ----------
+function fillSettings() {
+  const s = state.settings;
+  $("#s-region").value = s.region;
+  $("#s-hours").value = s.refresh_hours;
+  $("#s-window").value = s.window_days;
+  $("#s-gid").value = s.igdb_id || "";
+  $("#s-mhost").value = s.mqtt_host;
+  $("#s-mport").value = s.mqtt_port;
+  $("#s-muser").value = s.mqtt_user;
+  $("#b-dir").value = s.backup_dir || "";
+  $("#b-every").value = s.backup_every || "off";
+  $("#b-keep").value = s.backup_keep || 10;
+  $("#b-keys").checked = !!s.backup_keys;
+}
+function renderSettingsStatus() {
+  const s = state.settings;
+  badge("#bd-tmdb", s.has_key ? "Ready" : "Needs key", s.has_key ? "ok" : "warn");
+  $("#key-hint").textContent = s.has_key ? "A key is saved. Leave blank to keep it." : "Free at themoviedb.org: Settings, then API.";
+  badge("#bd-games", s.has_games_key ? "Ready" : "Not set up", s.has_games_key ? "ok" : "");
+  $("#games-hint").textContent = s.has_games_key ? "Games are set up. Leave the secret blank to keep it." : "Not set up yet. Games search will not work until you add both.";
+  badge("#bd-more", "No setup needed", "ok");
+  badge("#bd-updates", "Every " + s.refresh_hours + "h");
+  badge("#bd-mqtt", state.mqtt ? "Connected" : "Not connected", state.mqtt ? "ok" : "warn");
+  $("#mqtt-hint").textContent = state.mqtt ? "Connected to a broker." : "Not connected to a broker yet.";
+}
+
+async function saveSection(body, button, delayed) {
+  button.disabled = true;
+  try {
+    await send("settings", "POST", body);
+    ["#s-key", "#s-gsec", "#s-mpass"].forEach(i => $(i).value = "");
+    toast("Saved");
+    const go = async () => { await load(true); };
+    delayed ? setTimeout(go, 2500) : await go();
+  } catch (e) { toast(e.message); }
+  button.disabled = false;
+}
+$("#save-tmdb").onclick = e => saveSection({ tmdb_key: $("#s-key").value, region: $("#s-region").value.trim().toUpperCase() || "US" }, e.target);
+$("#save-games").onclick = e => saveSection({ igdb_id: $("#s-gid").value.trim(), igdb_secret: $("#s-gsec").value }, e.target);
+$("#save-updates").onclick = e => saveSection({ refresh_hours: Number($("#s-hours").value) || 6, window_days: Number($("#s-window").value) || 60 }, e.target);
+$("#save-mqtt").onclick = e => saveSection({
+  mqtt_host: $("#s-mhost").value.trim(), mqtt_port: Number($("#s-mport").value) || 1883,
+  mqtt_user: $("#s-muser").value.trim(), mqtt_pass: $("#s-mpass").value,
+}, e.target, true);
+
+// ---------- backup ----------
+function backupBody() {
+  return {
+    backup_dir: $("#b-dir").value, backup_every: $("#b-every").value,
+    backup_keep: Number($("#b-keep").value) || 10, backup_keys: $("#b-keys").checked,
+  };
+}
+async function loadBackups() {
+  try { backups = await api("backups"); } catch (e) { backups = { files: [], last: {}, error: e.message, share_ok: true, folder: "/share" }; }
+  renderBackups();
+}
+function renderBackups() {
+  const b = backups; if (!b || !state) return;
+  const every = state.settings.backup_every;
+  badge("#bd-backup", b.error || !b.share_ok ? "Problem" : every === "off" ? "Manual" : every === "daily" ? "Daily" : "Weekly", b.error || !b.share_ok ? "warn" : every === "off" ? "" : "ok");
+  $("#b-share-hint").textContent = !b.share_ok ? "The share folder is not available to this add-on yet. Restart or reinstall the add-on after updating." : "Saved in " + b.folder;
+  const st = $("#b-status");
+  const last = b.last || {};
+  st.textContent = b.error || (last.error ? "Last backup failed: " + last.error : last.ts ? "Last backup: " + stamp(last.ts) : "No backups yet.");
+  st.className = b.error || last.error ? "err" : "hint";
+
+  const box = $("#b-list"); box.replaceChildren();
+  if (!b.files.length) { box.append(el("div", "quiet", "Nothing saved in this folder yet.")); return; }
+  for (const f of b.files) {
+    const row = el("div", "bk");
+    const info = el("div", "bkinfo");
+    info.append(el("div", "title", stamp(f.time)));
+    info.append(el("div", "sub", kb(f.size) + (f.safety ? " - safety copy from a restore" : "")));
+    row.append(info);
+    if (restoring === f.name) {
+      row.append(el("span", "sub", "Replace your list and settings?"));
+      const yes = el("button", "btn small", "Restore");
+      const no = el("button", "btn ghost small", "Cancel");
+      yes.onclick = async () => {
+        yes.disabled = true;
+        try {
+          const r = await send("backups/restore", "POST", { file: f.name });
+          restoring = null; toast("Restored " + r.count + " items");
+          await load(true);
+        } catch (e) { toast(e.message); yes.disabled = false; }
+      };
+      no.onclick = () => { restoring = null; renderBackups(); };
+      row.append(yes, no);
+    } else {
+      const rs = el("button", "btn ghost small", "Restore");
+      rs.onclick = () => { restoring = f.name; renderBackups(); };
+      row.append(rs);
+    }
+    box.append(row);
+  }
+  if (restoring) box.append(el("div", "hint", "A safety copy of what you have now is saved first."));
+}
+$("#save-backup").onclick = e => saveSection(backupBody(), e.target);
+$("#backup-now").onclick = async e => {
+  const btn = e.target; btn.disabled = true; btn.textContent = "Backing up...";
+  try {
+    await send("settings", "POST", backupBody());
+    await send("backups", "POST");
+    toast("Backup saved");
+  } catch (err) { toast(err.message); }
+  btn.disabled = false; btn.textContent = "Back up now";
+  await load(true);
+};
+
+// ---------- loading ----------
+function fillCategories() {
+  const sel = $("#c-cat");
+  if (sel.options.length) return;
+  for (const name of state.cats) { const o = el("option", null, name); o.value = name; sel.append(o); }
+}
+async function load(fillForm) {
+  state = await api("state");
+  fillCategories();
+  render(); renderWho(); renderPeople(); renderSettingsStatus();
+  if (fillForm || firstLoad) fillSettings();
+  await loadBackups();
+  firstLoad = false;
+}
+
+// ---------- search / add ----------
+function resultLabel(r) {
+  if (r.type === "tv") return "TV";
+  if (r.type === "movie") return "Movie";
+  return r.kind || r.type;
+}
+function needsKey(k) {
+  if ((k === "video" || k === "people") && !state.settings.has_key) return "Add your TMDB key in Settings first.";
+  if (k === "games" && !state.settings.has_games_key) return "Add your Twitch Client ID and Secret in Settings first.";
+  return "";
+}
+async function search() {
+  const q = $("#q").value.trim();
+  if (!q) return;
+  const box = $("#results"); box.replaceChildren(el("div", "quiet", "Searching..."));
+  try {
+    const res = await api("search?q=" + encodeURIComponent(q) + (kind === "video" ? "" : "&kind=" + kind));
+    box.replaceChildren();
+    if (!res.length) { box.append(el("div", "empty", "No matches. Try different words.")); return; }
+    for (const r of res) {
+      const tracked = state.tracked.some(t => t.id === r.id && t.type === r.type);
+      const card = el("div", "item");
+      card.append(poster(r.poster));
+      const body = el("div", "body");
+      body.append(el("div", "title", r.title));
+      body.append(el("div", "sub", resultLabel(r) + (r.year ? " (" + r.year + ")" : "")));
+      if (r.overview) body.append(el("div", "sub", r.overview));
+      card.append(body);
+      const when = el("div", "when");
+      const b = el("button", "btn", tracked ? "Tracking" : "Track");
+      b.disabled = tracked;
+      b.onclick = async () => {
+        b.disabled = true; b.textContent = "Adding...";
+        try { await send("track", "POST", { ...r, people: [...chosen] }); b.textContent = "Tracking"; await load(); toast("Added " + r.title); }
+        catch (e) { b.disabled = false; b.textContent = "Track"; toast(e.message); }
+      };
+      when.append(b); card.append(when); box.append(card);
+    }
+  } catch (e) {
+    box.replaceChildren(el("div", "err", e.message));
+  }
+}
+function setKind(k) {
+  kind = k;
+  document.querySelectorAll("#kind .chip").forEach(x => { const on = x.dataset.kind === k; x.classList.toggle("on", on); x.setAttribute("aria-pressed", on); });
+  const custom = k === "custom";
+  $("#search-box").hidden = custom;
+  $("#custom-form").hidden = !custom;
+  $("#q").placeholder = PLACEHOLDER[k] || "";
+  const box = $("#results"); box.replaceChildren();
+  const msg = custom ? "" : needsKey(k);
+  if (msg) box.append(el("div", "err", msg));
+}
+document.querySelectorAll("#kind .chip").forEach(b => b.onclick = () => setKind(b.dataset.kind));
+
+async function addCustom() {
+  const btn = $("#c-add"); btn.disabled = true;
+  const body = {
+    category: $("#c-cat").value, title: $("#c-title").value, date: $("#c-date").value, time: $("#c-time").value,
+    notes: $("#c-notes").value, url: $("#c-url").value, image: $("#c-image").value, people: [...chosen],
+  };
+  try {
+    await send("custom", "POST", body);
+    ["#c-title", "#c-date", "#c-time", "#c-notes", "#c-url", "#c-image"].forEach(i => $(i).value = "");
+    await load(); toast("Added " + body.title.trim());
+    $("#c-title").focus();
+  } catch (e) { toast(e.message); }
+  btn.disabled = false;
+}
+$("#c-add").onclick = addCustom;
+$("#c-title").addEventListener("keydown", e => { if (e.key === "Enter") addCustom(); });
+$("#go").onclick = search;
+$("#q").addEventListener("keydown", e => { if (e.key === "Enter") search(); });
+
+$("#refresh").onclick = async () => {
+  const b = $("#refresh"); b.disabled = true; b.textContent = "Refreshing...";
+  try { await api("refresh", { method: "POST" }); await load(); toast("Refreshed"); }
+  catch (e) { toast(e.message); }
+  b.disabled = false; b.textContent = "Refresh now";
+};
+
+load();
+</script>
+</body>
+</html>
