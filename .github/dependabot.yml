@@ -1,16 +1,21 @@
 version: 2
 updates:
+  # Workflow files in .github/workflows
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
 
+  # Any top-level folder with a requirements.txt (new add-ons are picked up automatically)
   - package-ecosystem: pip
-    directory: "/release-tracker"
+    directories:
+      - "/*"
     schedule:
       interval: weekly
 
-  - package-ecosystem: pip
-    directory: "/ha-icloud-lite"
+  # Any top-level folder with a Dockerfile (new add-ons are picked up automatically)
+  - package-ecosystem: docker
+    directories:
+      - "/*"
     schedule:
       interval: weekly
