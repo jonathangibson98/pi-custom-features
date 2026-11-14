@@ -1,0 +1,17 @@
+name: Release Tracker
+version: "1.5.0"
+slug: release_tracker
+description: Track anything with a release date, like shows, movies, games, albums, celebrities, tech launches, and merch drops
+url: https://github.com/jonathangibson98/pi-custom-features
+arch:
+  - aarch64
+  - amd64
+init: false
+ingress: true
+panel_icon: mdi:calendar-star
+panel_title: Releases
+hassio_api: true
+map:
+  - share:rw
+services:
+  - mqtt:want
