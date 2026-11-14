@@ -1,5 +1,6 @@
 # Debian (glibc) base on purpose: the ONNX / CTranslate2 wheels do not work on Alpine (musl).
-FROM python:3.15-slim-bookworm
+# Python 3.13: kokoro-onnx 0.6.1 requires Python <3.14, so 3.15 cannot install it.
+FROM python:3.13-slim-bookworm
 
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
