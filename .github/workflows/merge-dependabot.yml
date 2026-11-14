@@ -1,0 +1,53 @@
+name: Merge Dependabot PRs
+
+on:
+  workflow_dispatch:
+    inputs:
+      only_approved:
+        description: Only merge PRs that have an approving review
+        type: boolean
+        default: true
+      merge_method:
+        description: How to merge
+        type: choice
+        options: [squash, merge, rebase]
+        default: squash
+      dry_run:
+        description: Just list what would be merged
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge Dependabot PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ONLY_APPROVED: ${{ inputs.only_approved }}
+          METHOD: ${{ inputs.merge_method }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          gh pr list --author "app/dependabot" --state open --limit 100 \
+            --json number,title,reviewDecision \
+            --jq '.[] | [.number, .reviewDecision, .title] | @tsv' |
+          while IFS=$'\t' read -r num decision title; do
+            if [ "$ONLY_APPROVED" = "true" ] && [ "$decision" != "APPROVED" ]; then
+              echo "Skipping #$num (not approved): $title"
+              continue
+            fi
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "Would merge #$num: $title"
+              continue
+            fi
+            if gh pr merge "$num" "--$METHOD"; then
+              echo "Merged #$num: $title"
+            else
+              echo "::warning::Could not merge #$num: $title"
+            fi
+          done
