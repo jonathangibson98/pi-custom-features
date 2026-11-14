@@ -3,9 +3,6 @@
 Custom Home Assistant add-ons. Each folder is a self-contained add-on, and the ones marked
 below can also run as a plain Docker container.
 
-> More add-ons (Location Hub, Creator & AI Builder, Release Tracker and others) live in the companion
-> repository [my-home-assistant-apps](https://github.com/jonathangibson98/my-home-assistant-apps).
-
 ## Add-ons
 
 | Add-on | What it does | Runs as |
