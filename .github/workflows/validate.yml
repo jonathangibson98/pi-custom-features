@@ -34,7 +34,7 @@ jobs:
       has_addons: ${{ steps.find.outputs.has_addons }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Find add-ons
         id: find
@@ -85,7 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check repository and add-on files
         env:
@@ -163,7 +163,7 @@ jobs:
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Run Home Assistant add-on linter
         uses: frenck/action-addon-linter@v2
@@ -180,7 +180,7 @@ jobs:
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Lint Dockerfile
         uses: hadolint/hadolint-action@v3.1.0
@@ -193,7 +193,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Lint YAML files
         uses: ibiqlik/action-yamllint@v3
@@ -207,7 +207,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -236,7 +236,7 @@ jobs:
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
