@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.1.0
+
+- **Backups.** New options `backup_enabled`, `backup_path` (default `/share/photo_shuffle_backups`), `backup_keep` (default 20) and `backup_interval_hours` (default 24). Your folder shuffles, Unsplash collections and settings are saved to a zip a minute after the add-on starts and then on that schedule. No new file is made when nothing changed. Your photos themselves are not copied.
+- **Restore.** Put a backup's file name in the new `restore_backup` option and restart. A safety copy of the current settings is saved first, and the option clears itself afterwards.
+- Each zip also holds `options_reference.json`, a copy of your settings with the Unsplash key and MQTT password hidden.
+- The `share` folder is now mounted read-write (it was read-only) so backups can be saved there. Photo Hub still only reads your photo folders.
+
 ## 4.0.3
 
 - Fix: Photo Hub could lose its MQTT connection and never get it back, leaving every image entity unavailable until the add-on was restarted by hand. It now watches its own connection and, if it is down for more than a minute or stops answering, throws the connection away and rebuilds it with freshly fetched broker settings (this also covers a changed Mosquitto login).

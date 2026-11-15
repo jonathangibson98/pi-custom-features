@@ -32,3 +32,18 @@ configuration:
   mqtt_password:
     name: MQTT password (optional)
     description: Only needed with a manual MQTT broker.
+  backup_enabled:
+    name: Backups on
+    description: Save your shuffles, collections and settings to a zip file automatically. Your photos are not copied.
+  backup_path:
+    name: Backup folder
+    description: Where the backup zip files are saved. Default /share/photo_shuffle_backups. Use a folder inside /share.
+  backup_keep:
+    name: Backups to keep
+    description: How many zip files to keep. Older ones are deleted. Default 20.
+  backup_interval_hours:
+    name: Hours between backups
+    description: How often to back up. 0 means only when the add-on starts. No file is made if nothing changed.
+  restore_backup:
+    name: Restore this backup
+    description: File name of a zip in the backup folder, for example photo_shuffle-20261115-021500.zip. Save, then restart the add-on. The option clears itself after the restore.

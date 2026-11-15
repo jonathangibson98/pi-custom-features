@@ -1,5 +1,5 @@
 name: Photo Hub
-version: "4.0.3"
+version: "4.1.0"
 slug: photo_shuffle
 image: "ghcr.io/jonathangibson98/{arch}-addon-photo_shuffle"
 description: Turn folders of photos and Unsplash collections into Home Assistant image entities over MQTT
@@ -15,7 +15,7 @@ services:
   - mqtt:want
 map:
   - media:ro
-  - share:ro
+  - share:rw
   - homeassistant_config:ro
   - addon_config:ro
 options:
@@ -29,6 +29,11 @@ options:
   jpeg_quality: 85
   unsplash_interval_minutes: 60
   unsplash_image_size: regular
+  backup_enabled: true
+  backup_path: /share/photo_shuffle_backups
+  backup_keep: 20
+  backup_interval_hours: 24
+  restore_backup: ""
 schema:
   photo_paths:
     - str
@@ -43,3 +48,8 @@ schema:
   mqtt_port: port?
   mqtt_username: str?
   mqtt_password: password?
+  backup_enabled: bool
+  backup_path: str
+  backup_keep: int(1,200)
+  backup_interval_hours: int(0,720)
+  restore_backup: str?
