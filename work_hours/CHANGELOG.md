@@ -2,6 +2,12 @@
 
 All notable changes to this add-on are documented here.
 
+## 1.5.0
+
+- **Backups.** New **Backups** page (link at the bottom of the add-on page) to back up now, download, restore, or restore from an uploaded file. Backups go to `backup_path` (a folder, or one `.zip` file) automatically on the `backup_every` schedule, and the newest `backup_keep` are kept
+- A backup holds your people, zones and pay periods, open sessions and history, plus the hours CSV files in your save folder, plus the Configuration tab settings. Restoring saves a safety copy first, puts the settings back and restarts the add-on to put the data back
+- The add-on now has Supervisor access (`hassio_api`, to restore its settings and restart itself) and `/share` access for the backup folder
+
 ## 1.4.0
 
 - Pay period is now set per person instead of one setting for everybody, so people on different pay schedules each get their own totals, resets and history

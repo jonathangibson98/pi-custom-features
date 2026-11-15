@@ -1,5 +1,5 @@
 name: Sleep Tracker
-version: "1.0.0"
+version: "1.1.0"
 slug: sleep_tracker
 description: Tracks whether chosen people are asleep from several signals at once (phone, Focus, lights, TV, motion), with MQTT sensors and sleep history
 url: https://github.com/jonathangibson98/pi-custom-features
@@ -9,13 +9,19 @@ arch:
 init: false
 homeassistant_api: true
 ingress: true
+hassio_api: true
 panel_icon: mdi:sleep
 panel_title: Sleep Tracker
 services:
   - mqtt:want
+map:
+  - share:rw
 options:
   check_seconds: 30
   keep_days: 90
+  backup_path: /share/addon_backups/sleep_tracker
+  backup_every: daily
+  backup_keep: 10
 schema:
   check_seconds: int(10,300)
   keep_days: int(0,3650)
@@ -23,3 +29,6 @@ schema:
   mqtt_port: port?
   mqtt_username: str?
   mqtt_password: password?
+  backup_path: str
+  backup_every: list(off|daily|weekly)
+  backup_keep: int(1,100)

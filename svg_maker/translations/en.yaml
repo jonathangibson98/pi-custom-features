@@ -77,3 +77,15 @@ configuration:
   ha_token:
     name: Home Assistant long-lived token (optional)
     description: Leave empty to use the add-on's built-in access. Only fill this in if the AI logo tab says Home Assistant refused the add-on.
+  backup_path:
+    name: Backup folder
+    description: >-
+      Where backups are saved, inside /share, /media or /homeassistant. A folder keeps several dated backups.
+      A path ending in .zip keeps one file that is replaced each time. Open Backups in the add-on page to back up,
+      download or restore.
+  backup_every:
+    name: Automatic backups
+    description: How often a backup is made by itself (off, daily or weekly).
+  backup_keep:
+    name: Backups to keep
+    description: The newest this many backups are kept in the folder, older ones are deleted.

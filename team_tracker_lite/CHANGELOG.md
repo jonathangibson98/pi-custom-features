@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0
+
+- **Backups.** New **Backups** page (link at the bottom of the add-on page) to back up now, download, restore, or restore from an uploaded file. Backups go to `backup_path` (a folder, or one `.zip` file) automatically on the `backup_every` schedule, and the newest `backup_keep` are kept
+- A backup holds your saved teams, the tracked team and the calendar settings, plus the Configuration tab settings. Restoring saves a safety copy first, puts the settings back and restarts the add-on to put the data back
+- The add-on now has Supervisor access (`hassio_api`, to restore its settings and restart itself) and `/share` access for the backup folder
+
 ## 0.3.2
 - Real fix: the live game's select state was published as "FSU vs CLEM (NCAAF)" instead of "Live game: FSU vs CLEM (NCAAF)", so Home Assistant rejected it and the dropdown snapped back.
 - Fix: picking a live game could snap the Home Assistant team dropdown back to the previously tracked team. The add-on now re-sends the dropdown's current choice a couple of seconds after any change, and on every refresh.

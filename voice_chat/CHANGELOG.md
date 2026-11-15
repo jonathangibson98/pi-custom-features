@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.0
+
+- **Backups.** New **Backups** page (link at the top, next to History) to back up now, download, restore, or restore from an uploaded file. Backups go to `backup_path` (a folder, or one `.zip` file) automatically on the `backup_every` schedule, and the newest `backup_keep` are kept
+- A backup holds your live info entities and chat history (the self-signed certificate is left out, a new one is made), plus the Configuration tab settings. Restoring saves a safety copy first, puts the settings back and restarts the add-on to put the data back
+- The add-on now has Supervisor access (`hassio_api`, to restore its settings and restart itself) and `/share` access for the backup folder
+
 ## 2.2.1
 
 - Fix: the standalone Docker setup now ships the `.env.example` that the docs and `docker-compose.yml` tell you to copy. Without it `docker compose up` failed on the missing `.env`.

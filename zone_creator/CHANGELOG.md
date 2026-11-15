@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0
+
+- **Backups.** New **Backups** page (link at the bottom of the add-on page) to back up now, download, restore, or restore from an uploaded file. Backups go to `backup_path` (a folder, or one `.zip` file) automatically on the `backup_every` schedule, and the newest `backup_keep` are kept
+- A backup holds its settings (zones themselves live in Home Assistant, so a Home Assistant backup covers them), plus the Configuration tab settings. Restoring saves a safety copy first, puts the settings back and restarts the add-on to put the data back
+- The add-on now has Supervisor access (`hassio_api`, to restore its settings and restart itself) and `/share` access for the backup folder
+
 ## 1.1.1
 - Now published as a prebuilt image (`ghcr.io/jonathangibson98/{arch}-addon-zone_creator`), so it installs without building on the Pi.
 - The add-on page link now points at the repository that actually exists.

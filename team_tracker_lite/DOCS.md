@@ -32,3 +32,19 @@ Refresh speeds and the calendar time are set in the panel, not here.
 
 ## Not supported
 Golf, tennis, racing, UFC and custom API paths. Team sports only.
+
+## Backups
+
+Tap **Backups** at the bottom of the add-on page to back up, download or restore. A backup is a `.zip` with your saved teams, the tracked team and the calendar settings, plus everything in the Configuration tab.
+
+| Option | Default | What |
+|---|---|---|
+| `backup_path` | `/share/addon_backups/team_tracker_lite` | Where backups go, inside `/share`, `/media` or `/homeassistant`. A folder keeps several dated backups. A path ending in `.zip` keeps one file that is replaced each time |
+| `backup_every` | `daily` | `off`, `daily` or `weekly` automatic backups |
+| `backup_keep` | `10` | How many backups to keep in the folder. Older ones are deleted |
+
+- **Back up now** makes one straight away. **Download** saves one to your phone or computer.
+- **Restore** (tap twice) first saves a safety copy (`..._pre-restore_...zip`, the newest 3 are kept), puts the Configuration tab settings back, and restarts the add-on. The data is put back as it starts, before it reads anything.
+- **Restore from a file** takes a backup `.zip` you downloaded, for example to move to another Home Assistant.
+- A backup from a different add-on is refused. The page only works from the Home Assistant sidebar, never on the add-on's own ports, because backups include its settings.
+- Backups also hold any passwords or API keys from the Configuration tab, so treat the backup folder like your secrets.

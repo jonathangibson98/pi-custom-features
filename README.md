@@ -30,6 +30,15 @@ from GitHub's container registry instead of building on your Pi (see [Prebuilt i
 Those two have no `image:` line, so Home Assistant builds them on your Pi.
 Each add-on also has a **Documentation** tab with setup details (`DOCS.md` in its folder).
 
+## Backups
+
+Every add-on that keeps data or settings can back itself up. Creator & AI Builder and Release Tracker have their own backups. The rest share one module, [`.shared/addon_backup.py`](.shared/addon_backup.py), which adds:
+
+- a **Backups** page in the add-on (back up now, download, restore, restore from an uploaded file)
+- `backup_path`, `backup_every` and `backup_keep` options in the Configuration tab (default `/share/addon_backups/<slug>`, daily, keep 10)
+
+Each add-on builds from its own folder, so each has its own copy of the module. Edit `.shared/addon_backup.py`, then run `.shared/sync.sh` to copy it into every add-on. Pi Health Monitor keeps no data or settings, so it has no backups.
+
 ## Layout
 
 ```text

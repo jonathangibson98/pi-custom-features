@@ -8,14 +8,16 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, Response, jsonify, request, send_file
+
+import addon_backup
 
 try:
     import paho.mqtt.client as paho
 except Exception:  # paho missing: MQTT is skipped, everything else still works
     paho = None
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 API = "http://supervisor/core/api"
 HEADERS = {"Authorization": f"Bearer {TOKEN}"}
@@ -37,6 +39,9 @@ SESSIONS = os.path.join(DATA_DIR, "sessions.json")
 HISTORY = os.path.join(DATA_DIR, "history.json")
 ANCHOR = os.path.join(DATA_DIR, "anchor.json")
 MQTT_SLUGS = os.path.join(DATA_DIR, "mqtt_slugs.json")
+# created before anything is read, so a queued restore is unpacked first. The hours CSVs in the save folder go too.
+BACKUP = addon_backup.Backup("work_hours", "Work Hours Tracker", VERSION,
+                             [("data", DATA_DIR, "replace", []), ("hours", FOLDER, "merge", [])], data_dir=DATA_DIR)
 CSV_HEADER = ["date", "zone", "start", "end", "hours"]
 
 AVAIL = "work_hours/status"
@@ -725,6 +730,15 @@ def api_settings():
     return jsonify({"ok": True})
 
 
+# ---------- backups (shared module, see addon_backup.py) ----------
+@app.route("/backups", defaults={"sub": ""}, methods=["GET", "POST"])
+@app.route("/backups/<path:sub>", methods=["GET", "POST"])
+def backups(sub):
+    st, ct, body, hdr = BACKUP.handle(request.method, sub, request.args, request.get_data(), request.remote_addr)
+    return Response(body, status=st, content_type=ct, headers=hdr)
+
+
 if __name__ == "__main__":
+    BACKUP.start()
     threading.Thread(target=worker, daemon=True).start()
     app.run(host="0.0.0.0", port=8099, threaded=True)
