@@ -1,6 +1,6 @@
 name: "File Reader"
 description: "Web UI and MQTT file manager for Home Assistant sensors, automations, and text logging."
-version: "1.2.4"
+version: "1.3.0"
 slug: "file_reader"
 image: "ghcr.io/jonathangibson98/{arch}-addon-file_reader"
 init: false
@@ -33,6 +33,11 @@ options:
   mqtt_port: 1883
   mqtt_user: ""
   mqtt_password: ""
+  backup_enabled: true
+  backup_path: "/share/file_reader_backups"
+  backup_keep: 20
+  backup_interval_hours: 24
+  restore_backup: ""
 schema:
   files_path: "match(^/(data|share|media|homeassistant|config)(/.*)?$)"
   scan_interval: "int(5,3600)"
@@ -41,3 +46,8 @@ schema:
   mqtt_port: int
   mqtt_user: str?
   mqtt_password: password?
+  backup_enabled: bool
+  backup_path: str
+  backup_keep: "int(1,200)"
+  backup_interval_hours: "int(0,720)"
+  restore_backup: str?

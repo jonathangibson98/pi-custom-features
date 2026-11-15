@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0
+
+- **Backups.** New options `backup_enabled`, `backup_path` (default `/share/file_reader_backups`), `backup_keep` (default 20) and `backup_interval_hours` (default 24). The add-on saves your files and settings to a zip a minute after it starts and then on that schedule. No new file is made when nothing changed.
+- **Restore.** Put a backup's file name in the new `restore_backup` option and restart. A safety copy of the current files is saved first, and the option clears itself afterwards.
+- Each zip also holds `options_reference.json`, a copy of your settings with the API token, MQTT password and similar secrets hidden.
+
 ## 1.2.4
 
 - Start script quotes the options path and no longer masks `jq` errors.
@@ -7,7 +13,7 @@
 ## 1.2.3
 
 ### Changed
-- **Sensor state is now the time the file last changed** (a timestamp sensor). The text is in the `content` attribute, the newest line in the new `last_line` attribute. If an automation used the old state as the last line, use `state_attr('sensor.file_reader_<name>', 'last_line')` instead.
+- **Sensor state is now the time the file last changed** (a timestamp sensor). The text is in the `content` attribute, the newest line in the new `last_line` attribute. If an automation used the old state as the last line, use `state_attr('sensor.file_reader_<n>', 'last_line')` instead.
 - **Easier automations:** every file in the web page has an **Automate** button with copy-paste Home Assistant code for adding a line, replacing the file, and reading it back.
 
 ## 1.2.2

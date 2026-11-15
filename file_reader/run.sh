@@ -12,5 +12,10 @@ MQTT_USER="$(jq --raw-output '.mqtt_user // ""' "$CONFIG_PATH")"
 MQTT_PASS="$(jq --raw-output '.mqtt_password // ""' "$CONFIG_PATH")"
 export FILES_PATH SCAN_INTERVAL API_TOKEN MQTT_HOST MQTT_PORT MQTT_USER MQTT_PASS
 
+# Backups: restore first (if asked), then back up in the background (see backup.py)
+export BACKUP_SLUG=file_reader BACKUP_EXTRA=@files_path
+python3 /usr/src/app/backup.py restore || true
+python3 -u /usr/src/app/backup.py daemon &
+
 echo "[file_reader] Files folder: $FILES_PATH"
 exec python3 -u /usr/src/app/app/app.py
