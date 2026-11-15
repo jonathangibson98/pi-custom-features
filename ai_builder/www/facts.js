@@ -248,6 +248,7 @@ async function loadLib() {
   const d = await fapi("library");
   if (d.error) { flash(d.error, "bad"); return; }
   LIB = d.items || [];
+  if ((d.renamed || []).length) flash("Picked up from Home Assistant: " + d.renamed.map(x => x.from + " is now " + x.to).join(", ") + ".", "ok");
   $("#libcount").textContent = LIB.length;
   renderLib();
 }
@@ -302,7 +303,8 @@ function libCard(it) {
     el("div", {class: "top"}, el("div", {style: "min-width:0"}, el("h3", {}, it.name || it.id), el("div", {class: "dim small mono"}, (viaAuto(st) ? "automation id: " : "script.") + it.id)), el("span", {class: "pill " + status[0]}, status[1])),
     el("div", {class: "clamp"}, isAutoOnly(st) ? "Your own automation, kept exactly as you wrote it." : raw ? "Your own script, kept exactly as you wrote it." : (st.task || "No instructions yet.")),
     el("div", {class: "meta"}, pills),
-    el("div", {class: "acts"}, el("button", {class: "btn primary sm", onclick: () => openItem(it)}, "Edit"), run, el("button", {class: "btn sm", title: "Copy a dashboard card for this fact", onclick: () => copyCards([it], (t, c) => { msg.className = "msg " + (c || ""); msg.textContent = t; })}, "Copy card"), dup, del), msg);
+    el("div", {class: "acts"}, el("button", {class: "btn primary sm", onclick: () => openItem(it)}, "Edit"), run, el("button", {class: "btn sm", title: "Copy a dashboard card for this fact", onclick: () => copyCards([it], (t, c) => { msg.className = "msg " + (c || ""); msg.textContent = t; })}, "Copy card"), dup,
+      renameButton(it.name || it.id, n => api("rename", {lib: "facts", id: it.id, name: n}), r => { flash(r.in_ha ? "Renamed in Home Assistant too. The id stays " + it.id + "." : "Renamed. Push it to use the new name in Home Assistant.", "ok"); loadLib(); }), del), msg);
 }
 async function removeFact(id, alsoScript) {
   const r = await fapi("library/delete", {id, delete_script: !!alsoScript});
@@ -643,8 +645,14 @@ function dashCard(n) {
     return box;
   };
   drawOpts(); upd();
+  const toCards = el("button", {class: "btn", title: "Open the Cards tab with this fact's sensor and fields filled in", onclick: () => {
+    const fl = isAsAuto(E) && E.style === "json" ? fieldList(E) : [];
+    sendToCards({kind: "fact", id: cur.id || "", name: E.name || "Fact", sensor: c.sensor, toggle: c.toggle || "",
+      shape: fl.length ? "Its content attribute holds JSON written by the \"" + (E.name || "Fact") + "\" fact: {\"" + listKeyOf(E) + "\": [ {" + fl.map(f => JSON.stringify(f.key) + ": ...").join(", ") + "}, ... ]}, a list of items. Field meanings: " + fl.map(f => f.key + " = " + (f.hint || "") + " (" + f.type + ")").join("; ") + ". Strip ```json and ``` then parse with from_json(default={})."
+        : "Its content attribute holds the text of the \"" + (E.name || "Fact") + "\" fact" + (c.kind === "text" ? ", maybe with a first line starting with # that is its title" : "") + "."});
+  }}, "Design a custom card in Cards");
   const copy = el("button", {class: "btn primary", onclick: async () => { const ok = await copyText(prev.value); msg.className = "msg " + (ok ? "ok" : "warn"); msg.textContent = ok ? "Copied. In your dashboard, add a Manual card and paste." : "Your browser blocked copying. Tap the box above, select all, and copy."; if (!ok) { prev.removeAttribute("readonly"); prev.focus(); prev.select(); } }}, "Copy dashboard card");
-  return card(n, "Dashboard card", "Makes the glass-style card for this fact. Paste it into a Manual card on your dashboard.", el("label", {class: "l"}, "Style"), kind, el("label", {class: "l"}, "Show / hide switch (optional)"), picker(["input_boolean"], false, () => c.toggle ? [c.toggle] : [], a => { c.toggle = a[0] || ""; upd(); markDirty(); }), el("p", {class: "help"}, "Wraps the card so it only shows while this input_boolean is on, like your News and Music cards. Make it first under Settings > Devices & services > Helpers > Toggle."), opts, el("label", {class: "l"}, "Card YAML"), prev, el("div", {class: "row", style: "margin-top:10px"}, copy), msg);
+  return card(n, "Dashboard card", "Makes the glass-style card for this fact. Paste it into a Manual card on your dashboard.", el("label", {class: "l"}, "Style"), kind, el("label", {class: "l"}, "Show / hide switch (optional)"), picker(["input_boolean"], false, () => c.toggle ? [c.toggle] : [], a => { c.toggle = a[0] || ""; upd(); markDirty(); }), el("p", {class: "help"}, "Wraps the card so it only shows while this input_boolean is on, like your News and Music cards. Make it first under Settings > Devices & services > Helpers > Toggle."), opts, el("label", {class: "l"}, "Card YAML"), prev, el("div", {class: "row", style: "margin-top:10px"}, copy, toCards), msg);
 }
 async function copyCards(list, say2) {
   const ys = list.map(it => cardYaml(Object.assign({}, it.state || {}, {name: (it.state && it.state.name) || it.name})));
@@ -857,6 +865,7 @@ function problems() {
 }
 async function persist(push) {
   if (push) { const p = problems(); if (p) { say(p, "warn"); return; } }
+  if (!isAutoOnly(E) && E.raw == null && !String(E.file || "").trim()) E.file = fileOf(E);  /* fixed from now on, so a rename keeps the same file and sensor */
   const s = clone(E);
   if (!cur.id) cur.id = uniqueId(fslug(s.name));
   if (viaAuto(s)) s.autoId = cur.id;
@@ -867,7 +876,7 @@ async function persist(push) {
   else r = await fapi("library/save", {id: cur.id, name: s.name, state: s});
   btns.forEach(b => b.disabled = false);
   if (!r.ok) { say(r.detail || r.error || "That failed.", "bad"); if (!cur.saved && !cur.pushed && !cur.fixedId) cur.id = null; paintState(); return; }
-  cur.saved = true; cur.isNew = false; if (push) cur.pushed = true; dirty = false; paintState();
+  cur.saved = true; cur.isNew = false; if (push) cur.pushed = true; dirty = false; paintState(); notifyChanged("facts");
   const am = push ? (isAsAuto(s) ? (s.auto.on ? " It runs " + autoSummary(s.auto) + "." : " It has no schedule, so use Run now.") + (r.cleaned ? " The old script and schedule automation were removed." : "") : ownAuto(s) ? " Your automation is pushed exactly as written." : s.raw == null && s.auto.on ? " The schedule (" + autoSummary(s.auto) + ") is on." : r.auto === "removed" ? " The old schedule was removed." : "") : "";
   say(push ? "Done. " + (viaAuto(s) ? "The automation" : "script." + cur.id) + " is up to date in Home Assistant." + am : "Saved. Home Assistant still has the previous version." + (cur.pushed ? " Push to update it." : ""), "ok");
 }
@@ -1022,6 +1031,7 @@ function drawSettings() {
 $("#setsave").onclick = async () => { if (await saveSettings()) { $("#smsg").className = "msg ok"; $("#smsg").textContent = "Settings saved."; } };
 
 /* ---------- start ---------- */
+onChanged(() => { if (view === "lib") loadLib(); });  /* another tab renamed or changed something */
 Promise.all([api("ann/options"), api("facts/options"), api("ann/entities").then(r => Array.isArray(r) ? r : [])]).then(async ([o, f, e]) => {
   if (o.error || f.error) { $("#setupnote").append(el("div", {class: "note bad"}, o.error || f.error)); return; }
   S = o; F = f; ENT = e; if (!Array.isArray(S.sources)) S.sources = migrate(S);
