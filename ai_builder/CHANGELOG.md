@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.15.0 - 2026-11-15
+
+- **Announcements can answer in JSON fields, like a Facts data list.** In **Save to a file and show it on a card**, pick **Separate fields (JSON)**. Set up the fields (name, what the AI writes there, and whether it is the card's title, text or small bottom line) and pick **Announce this field**: that one is spoken, the others are saved for the card. **Use the birthday example** sets up `name` as the title, `message` as the spoken text and `detail` at the bottom
+- The script reads the answer safely (code fences stripped). If it is not usable JSON nothing is spoken or saved. **Test, text only** shows each field. The card the editor writes now has a title, the text and a bottom line, and still shows an older plain-text file
+- The file name is now fixed when you first save, so renaming an announcement or fact keeps the same file and sensor
+- **The tabs work together.** Cards has **Start from something made here**: pick an announcement or fact and its sensor, switch and file layout are filled in and told to the AI. Announcements and Facts have a **Design a custom card in Cards** button that does the same. A saved card notices when its announcement or fact changed and offers to update. The Builder's AI knows your announcements and facts, so you can ask it to run one. Saving, pushing or renaming in one tab refreshes the others
+- **Rename from the web UI, kept in step with Home Assistant.** **Rename** on saved announcements, facts and cards, and in Build -> Made so far for scripts, automations, scenes, helpers and template sensors. It changes the name in Home Assistant (and the schedule automation) and in the add-on together. Rename something in Home Assistant and the add-on picks it up when you open the list. Ids never change, so nothing that calls them breaks
+- Scripts whose entity id you changed in Home Assistant are still found (the add-on looks them up in the entity registry)
+
 ## 2.14.0 - 2026-11-15
 
 - **Facts now have a card preview, like the Cards tab.** The **Dashboard card** section in the fact editor has a new **Preview with live data** button. Home Assistant renders the card's template with your real entities and shows it right there, so you can see the text card or rotating list before you paste it into a Manual card

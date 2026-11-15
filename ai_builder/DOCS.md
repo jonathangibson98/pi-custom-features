@@ -65,7 +65,15 @@ AppDaemon apps, pyscripts and add-ons are real code that runs on your system. Re
 - Never overwrites a file without asking. If it exists, you get an **Overwrite it** button
 - Keeps a backup of every file it overwrites, in the add-on's own `/data/backups` folder
 
-### Changing something that exists
+### Made so far, and how the tabs work together
+
+The **Made so far** tab lists the template sensors the add-on manages, everything made in the Announcements, Facts and Cards tabs, and what the Builder created recently, with the names Home Assistant shows now. **Rename** works on all of them (scripts, automations, scenes, helpers and template sensors) and changes the name in Home Assistant and in the add-on at the same time.
+
+The Builder's AI is also told about your announcements and facts, so you can ask for things like *"when MJ gets home, run my Birthdays announcement"* and it uses the right script.
+
+When you rename, push or save in one tab, the other tabs refresh their lists by themselves.
+
+## Changing something that exists
 
 Use the **Change something that already exists** dropdown. It lists your UI-created automations, scenes, scripts, the template entities this add-on made, your AppDaemon `.py` files, your pyscript files, and your local add-ons. Pick one, describe the change, and the AI gets the current config to edit. The result overwrites the original when you tap **Save changes**.
 
@@ -226,6 +234,27 @@ Each announcement has an optional **Dashboard card** section. Pick an `input_boo
 
 The steps are named *Show dashboard card*, *Keep dashboard card up* and *Hide dashboard card* in the script, so the editor can read them back.
 
+## Save to a file and show it on a card
+
+Optional. Turn on **Save it to a file** and the script also publishes the announcement over MQTT (same topic prefix as Facts), so a `file_reader` sensor and a dashboard card can show it. Pick **What goes in the file**:
+
+- **Just what it says (plain text)**: the spoken text is saved as it is.
+- **Separate fields (JSON), like a Facts data list**: the AI answers with a JSON object made of the fields you set up. Give each field a name, a short description of what the AI writes there, and where it goes on the card: **Title (top)**, **Text (middle)**, **Bottom line (small)** or **Don't show**. Then pick **Announce this field**: that one is spoken (and follows your instructions, the personality and the max length), the rest are only for the card.
+
+**Use the birthday example** fills in `name` (title, whose birthday it is), `message` (text, the part that is spoken) and `detail` (bottom line, age and what they are known for).
+
+In fields mode the script strips code fences from the AI's answer and reads it safely. If the answer is not usable JSON, nothing is spoken or saved (and a card switch turned on early is turned off again). **Test, text only** shows each field under *What goes on the card*.
+
+The editor writes a glass card for the file (title, text, bottom line), with **Copy card YAML**, **Preview it**, and **Design a custom card in Cards**, which opens the Cards tab already set up from this announcement.
+
+The file name is fixed the first time you save, so renaming the announcement later keeps the same file and sensor.
+
+## Renaming
+
+Press **Rename** on any saved announcement (or fact, or card). If it is in Home Assistant, its name there changes too, and so does its schedule automation (`<name> (auto)`). The script id never changes, so automations that call it keep working.
+
+It works the other way as well: rename the script in Home Assistant and the add-on picks up the new name the next time you open the list (it says so at the top). A name you changed here but haven't pushed yet is never overwritten. A name typed in the entity's own settings in Home Assistant is cleared when you rename from here, so the new name shows.
+
 ## Announcement troubleshooting
 
 **Push to Home Assistant fails**: check the Log tab. If Home Assistant refuses the default Supervisor access, set `ha_token`.
@@ -299,6 +328,12 @@ An AI dashboard card creator. It sits beside Facts and uses the same AI Task as 
 - Entity ids in the YAML that Home Assistant doesn't have are listed as a warning. The AI is told to use only the entities you picked or typed.
 - AI output can be wrong. Read the card, and preview it, before you paste it into a dashboard.
 - Saved cards live in the add-on and are included in Backup. The add-on does not edit your dashboards: you paste the card yourself.
+
+## Start from an announcement or fact
+
+**Start from something made here** lists every announcement and fact that saves to a file. Picking one fills in its sensor and its show / hide switch, writes a starting description, and tells the AI exactly what is in the file (each field and what it is for), so it can build the card before the file has anything in it. The **Design a custom card in Cards** buttons in Announcements and Facts do the same thing from there.
+
+When you open a saved card later and the announcement or fact it came from now writes a different sensor, uses a different switch, or has different fields, the card tells you and offers **Update this card's setup**.
 
 # Backup
 
