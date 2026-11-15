@@ -1,5 +1,5 @@
 name: "Creator & AI Builder"
-version: "2.13.1"
+version: "2.14.0"
 slug: ai_builder
 "image": "ghcr.io/jonathangibson98/{arch}-addon-ai_builder"
 description: "Build Home Assistant automations, scenes, scripts, helpers and more from plain English with your ai_task entity, make AI voice announcements and dashboard facts, and back it all up."

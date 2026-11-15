@@ -15,6 +15,8 @@
   @media (max-width:560px){.pickrow{grid-template-columns:minmax(0,1fr)}}
   .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .inline input,.inline select{width:auto;max-width:150px}
+  iframe.prev{width:100%;height:380px;border:1px solid var(--line);border-radius:var(--r-sm);background:#111}
+  .prevhead{display:flex;align-items:center;gap:8px;margin:12px 0 6px}
 </style>
 </head>
 <body>
@@ -122,5 +124,41 @@
 <script src="js-yaml.min.js"></script>
 <script src="autoform.js"></script>
 <script src="facts.js"></script>
+<script>
+/* Card preview for the Dashboard card section: Home Assistant renders the card's template with your real entities,
+   the same way Cards > Preview does. Added on top of facts.js so the card section keeps working as before. */
+(function () {
+  const escH = t => String(t).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+  const frameDoc = (title, html) => '<!doctype html><meta charset="utf-8"><style>html,body{margin:0;min-height:100%}body{padding:14px;background:linear-gradient(135deg,#1c2b4d,#3b1d5e 55%,#0e3b3d);color:#fff;font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}ha-card{display:block;position:relative;border-radius:12px;box-sizing:border-box;overflow:hidden}.t{font-size:20px;padding:14px 16px 0}</style><ha-card>'
+    + (title ? '<div class="t">' + escH(title) + "</div>" : "") + html + "</ha-card>";
+  async function showPreview(box, yaml) {
+    box.replaceChildren(el("p", {class: "dim small"}, el("span", {class: "spin"}), "Asking Home Assistant to render it..."));
+    let r;
+    try { r = await api("cards/preview", {yaml}); } catch (e) { r = {ok: false, error: String(e)}; }
+    box.replaceChildren();
+    if (!r || !r.ok) { box.append(el("div", {class: "note bad"}, el("div", {}, (r && r.error) || "That failed."))); return; }
+    if (r.note) box.append(el("div", {class: "note"}, el("div", {}, r.note)));
+    (r.items || []).forEach((it, i) => {
+      box.append(el("div", {class: "prevhead"}, el("b", {}, "Card " + (i + 1)), el("span", {class: "pill plain"}, it.type)));
+      if (it.error) { box.append(el("div", {class: "note bad"}, el("div", {}, el("b", {}, "Home Assistant could not render it"), el("pre", {}, it.error)))); return; }
+      if (it.type === "markdown") { box.append(el("pre", {}, it.html)); box.append(el("p", {class: "help"}, "Markdown is shown as plain text here. Home Assistant draws it properly on the dashboard.")); return; }
+      const h = (it.html.match(/ha-card[^}]*?height:\s*(\d+)px/) || [])[1];
+      box.append(el("iframe", {class: "prev", sandbox: "", srcdoc: frameDoc(it.title, it.html), style: "height:" + Math.min(Math.max((+h || 320) + 50, 180), 820) + "px;resize:vertical"}));
+    });
+    if ((r.items || []).length) box.append(el("p", {class: "help"}, "Rotating and scrolling cards animate, so give it a few seconds. The card reads the sensor you picked, so if it looks empty, push the fact and run it once first."));
+  }
+  if (typeof dashCard !== "function" || typeof cardYamlBase !== "function") return;
+  const original = dashCard;
+  dashCard = function (n) {
+    const sec = original(n);
+    const res = el("div", {style: "margin-top:12px"});
+    const btn = el("button", {class: "btn", onclick: async () => { btn.disabled = true; await showPreview(res, cardYamlBase(E)); btn.disabled = false; }}, "Preview it");
+    sec.append(el("label", {class: "l", style: "margin-top:18px"}, "Preview with live data"),
+      el("p", {class: "help"}, "Home Assistant draws the card with your real entities. Your dashboard theme and card height can look a little different. The preview ignores the show / hide switch, so you always see the card."),
+      el("div", {class: "row"}, btn), res);
+    return sec;
+  };
+})();
+</script>
 </body>
 </html>
