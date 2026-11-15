@@ -18,15 +18,16 @@ below can also run as a plain Docker container.
 | [Release Tracker](release_tracker/) | Track anything with a release date: shows, movies, games, albums, tech launches and merch drops | HA add-on |
 | [Team Tracker Lite](team_tracker_lite/) | One lightweight sports sensor, pick any team from a menu, with an optional calendar feed | HA add-on |
 | [Work Hours Tracker](work_hours/) | Logs time spent in chosen zones, one file per person, with MQTT sensors | HA add-on |
+| [Sleep Tracker](sleep_tracker/) | Tracks who is asleep from several signals at once (phone, Focus, lights, TV, motion), with MQTT sensors and sleep history | HA add-on |
 
 ## Install
 
 **Settings → Add-ons → Add-on Store → ⋮ → Repositories**, add
 `https://github.com/jonathangibson98/pi-custom-features`, then install the add-on you want.
 
-Every add-on except Release Tracker has an `image:` line in its `config.yaml`, so Home Assistant downloads a prebuilt image
+Every add-on except Release Tracker and Sleep Tracker has an `image:` line in its `config.yaml`, so Home Assistant downloads a prebuilt image
 from GitHub's container registry instead of building on your Pi (see [Prebuilt images](#prebuilt-images)).
-Release Tracker has no `image:` line, so Home Assistant builds it on your Pi.
+Those two have no `image:` line, so Home Assistant builds them on your Pi.
 Each add-on also has a **Documentation** tab with setup details (`DOCS.md` in its folder).
 
 ## Layout
@@ -52,6 +53,7 @@ pi-custom-features/
 ├── release_tracker/             add-on
 ├── team_tracker_lite/           add-on
 ├── work_hours/                  add-on (Work Hours Tracker)
+├── sleep_tracker/               add-on (Sleep Tracker)
 ├── .hadolint.yaml
 ├── .yamllint
 ├── repository.yaml              makes this repo addable in the HA add-on store

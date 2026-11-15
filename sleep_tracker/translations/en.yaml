@@ -1,0 +1,19 @@
+configuration:
+  check_seconds:
+    name: Check every (seconds)
+    description: How often everyone's signals are checked.
+  keep_days:
+    name: Keep sleep history for (days)
+    description: Older sleeps are deleted. 0 keeps everything.
+  mqtt_host:
+    name: MQTT host (optional)
+    description: Leave empty to use the Mosquitto broker add-on automatically.
+  mqtt_port:
+    name: MQTT port (optional)
+    description: Only used with a custom MQTT host. Defaults to 1883.
+  mqtt_username:
+    name: MQTT username (optional)
+    description: Only used with a custom MQTT host.
+  mqtt_password:
+    name: MQTT password (optional)
+    description: Only used with a custom MQTT host.
