@@ -37,6 +37,43 @@ Every add-on that keeps data or settings can back itself up. Creator & AI Builde
 - a **Backups** page in the add-on (back up now, download, restore, restore from an uploaded file)
 - `backup_path`, `backup_every` and `backup_keep` options in the Configuration tab (default `/share/addon_backups/<slug>`, daily, keep 10)
 
+### Back up all add-ons with one action
+
+Every add-on with backups (Creator & AI Builder and Release Tracker included) listens for `backup` sent with Home Assistant's `hassio.addon_stdin` action. This script backs them all up at once. Add it under **Settings → Automations & scenes → Scripts → Create script → ⋮ → Edit in YAML**, then run it from a dashboard button or an automation:
+
+```yaml
+alias: Back up all add-ons
+description: Tells each custom add-on to save a backup to the backup folder set in its Configuration tab.
+icon: mdi:backup-restore
+mode: single
+sequence:
+  - repeat:
+      for_each:
+        - ai_builder
+        - release_tracker
+        - sleep_tracker
+        - work_hours
+        - photo_shuffle
+        - file_reader
+        - voice_chat
+        - team_tracker_lite
+        - svg_maker
+        - zone_creator
+        - personal_ai_speech
+      sequence:
+        - action: hassio.addon_stdin
+          continue_on_error: true
+          data:
+            addon: "e15fb2fe_{{ repeat.item }}"
+            input: backup
+  - action: persistent_notification.create
+    data:
+      title: Add-on backups
+      message: Every add-on was asked to back up. Each saves to the backup folder in its Configuration tab.
+```
+
+`e15fb2fe` is this repository's prefix on your Home Assistant: open any of these add-ons and check the end of the page address (for example `.../e15fb2fe_sleep_tracker/info`). Add-ons that aren't installed or aren't running are skipped.
+
 Each add-on builds from its own folder, so each has its own copy of the module. Edit `.shared/addon_backup.py`, then run `.shared/sync.sh` to copy it into every add-on. Pi Health Monitor keeps no data or settings, so it has no backups.
 
 ## Layout

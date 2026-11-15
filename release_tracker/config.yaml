@@ -1,5 +1,5 @@
 name: Release Tracker
-version: "1.5.0"
+version: "1.5.1"
 slug: release_tracker
 description: Track anything with a release date, like shows, movies, games, albums, celebrities, tech launches, and merch drops
 arch:
@@ -7,6 +7,7 @@ arch:
   - amd64
 init: false
 ingress: true
+stdin: true
 panel_icon: mdi:calendar-star
 panel_title: Releases
 hassio_api: true

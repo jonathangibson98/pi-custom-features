@@ -5,6 +5,8 @@ import asyncio
 import json
 import logging
 import os
+import threading
+import sys
 import platform
 import re
 import shutil
@@ -3525,7 +3527,36 @@ async def backup_import(request):
                               "cards_count": len(cards if cards is not None else cards_library())})
 
 
+def listen_stdin(on_backup, log_info, log_error):
+    """Home Assistant's hassio.addon_stdin action writes to this add-on's stdin (stdin: true in config.yaml).
+    Sending "backup" makes a backup now, so one script can back up every add-on at once."""
+    def run():
+        try:
+            fd = sys.stdin.fileno()
+            if os.isatty(fd):
+                return
+        except (OSError, ValueError, AttributeError):
+            return
+        tail = b""
+        while True:
+            try:
+                chunk = os.read(fd, 4096)
+            except OSError:
+                return
+            if not chunk:
+                return  # nothing attached
+            tail = (tail + chunk)[-64:]
+            if b"backup" in tail.lower():
+                tail = b""
+                try:
+                    log_info("Backup asked for by Home Assistant (hassio.addon_stdin): %s" % on_backup())
+                except Exception as e:  # noqa: BLE001
+                    log_error("That backup failed: %s" % e)
+    threading.Thread(target=run, daemon=True).start()
+
+
 async def on_startup(app):
+    listen_stdin(write_backup, log.info, log.error)
     app["http"] = aiohttp.ClientSession()
     render_package(load_json(STORE, {}))
     log.info("Creator & AI Builder ready - using %s, template file /config/%s, AppDaemon dir %s, backups %s", ENTITY, TEMPLATE_REL, AD_DIR, BACKUP_PATH)

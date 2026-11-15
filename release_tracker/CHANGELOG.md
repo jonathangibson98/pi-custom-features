@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.1
+
+- **Back up from Home Assistant.** The add-on now listens on stdin, so the `hassio.addon_stdin` action with `input: backup` makes a backup right away. One script can back up every add-on at once (see the repository README, "Back up all add-ons with one action")
+
 ## 1.5.0
 
 - **Track anything, not just shows and games.** The Add tab now has five choices: **TV & Movies**, **Games & DLC**, **Music**, **Celebrities**, and **Anything else**.

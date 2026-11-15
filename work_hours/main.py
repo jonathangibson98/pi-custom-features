@@ -17,7 +17,7 @@ try:
 except Exception:  # paho missing: MQTT is skipped, everything else still works
     paho = None
 
-VERSION = "1.5.0"
+VERSION = "1.5.1"
 TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 API = "http://supervisor/core/api"
 HEADERS = {"Authorization": f"Bearer {TOKEN}"}
