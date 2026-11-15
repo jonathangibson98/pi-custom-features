@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.14.0 - 2026-11-15
+
+- **Facts now have a card preview, like the Cards tab.** The **Dashboard card** section in the fact editor has a new **Preview with live data** button. Home Assistant renders the card's template with your real entities and shows it right there, so you can see the text card or rotating list before you paste it into a Manual card
+- The preview ignores the show / hide switch, so you always see the card. It reads the sensor you picked, so if it looks empty, push the fact and run it once first
+- Announcements are unchanged
+
 ## 2.13.0 - 2026-11-14
 
 - **Announcements can now run on their own, the same way Facts can.** New **Run it automatically** section in the announcement editor: run every N minutes or hours, at a time of day, and/or when an entity (or one of its attributes) changes, and only when someone is home. Pushing makes a Home Assistant automation (`<script id>_auto`) that calls the announcement's script. The script itself is unchanged, so automations of your own that call it keep working
