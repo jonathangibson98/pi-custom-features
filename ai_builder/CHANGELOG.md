@@ -4,7 +4,8 @@
 
 - **Facts now have a card preview, like the Cards tab.** The **Dashboard card** section in the fact editor has a new **Preview with live data** button. Home Assistant renders the card's template with your real entities and shows it right there, so you can see the text card or rotating list before you paste it into a Manual card
 - The preview ignores the show / hide switch, so you always see the card. It reads the sensor you picked, so if it looks empty, push the fact and run it once first
-- Announcements are unchanged
+- **Announcements can now save their text to a file and make a card for it (optional).** New **Save the text to a file** section in the announcement editor. Turn it on and the script also publishes what it says over MQTT (same topic prefix as Facts, file name and sensor are yours to change). The editor then writes a glass-style dashboard card for that file, with **Copy card YAML** and **Preview it**. If you picked a show / hide switch in the Dashboard card section, the copied card is wrapped in it
+- It is off by default. Existing announcements are unchanged until you turn it on and push. Tests without sound never write the file, and scripts you imported as your own are left exactly as written
 
 ## 2.13.0 - 2026-11-14
 
