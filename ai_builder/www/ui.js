@@ -18,12 +18,37 @@ function el(tag, props, ...kids) {
   return e;
 }
 
-/* api("status") -> GET, api("ann/push", {...}) -> POST. Never throws. */
+/* Settings keys the server is allowed to change on its own (a locked add-on option, an empty AI Task falling back
+   to the option, the personality list being tidied). Anything else that comes back different from what was sent
+   means the save did not stick. */
+const DRIFT_SKIP = new Set(["personalities", "helper_ai_task_entity", "ai_task_entity", "prefix_locked"]);
+function settingsDrift(sent, got) {
+  if (!sent || !got || typeof sent !== "object" || typeof got !== "object") return [];
+  return Object.keys(sent).filter(k => !DRIFT_SKIP.has(k) && k in got && JSON.stringify(sent[k]) !== JSON.stringify(got[k]));
+}
+function driftBanner(keys) {
+  let b = document.getElementById("savewarn");
+  if (!b) {
+    b = document.createElement("div"); b.id = "savewarn";
+    b.style.cssText = "position:fixed;left:12px;right:12px;bottom:84px;z-index:50;padding:12px 14px;border-radius:12px;background:#7a1f1f;color:#fff;font-size:.9rem;box-shadow:0 6px 20px rgba(0,0,0,.4)";
+    document.body.append(b);
+  }
+  b.replaceChildren("Saved, but the add-on sent back different values for: " + keys.join(", ") + ". Something on the add-on side is overriding what you saved, so your change did not stick. ",
+    el("button", {class: "btn sm", style: "margin-left:8px", onclick: () => b.remove()}, "Dismiss"));
+}
+
+/* api("status") -> GET, api("ann/push", {...}) -> POST. Never throws.
+   Always asks the network (cache: no-store) so a page reload can never show settings from before the last save. */
 async function api(path, body) {
-  const opts = body === undefined ? undefined : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const opts = body === undefined ? { cache: "no-store" } : { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
   try {
     const r = await fetch(new URL("api/" + path, document.baseURI), opts);
-    return await r.json();
+    const j = await r.json();
+    if (path === "ann/settings" && body !== undefined && j && !j.error) {
+      const bad = settingsDrift(body, j);
+      if (bad.length) driftBanner(bad);
+    }
+    return j;
   } catch (e) { return { ok: false, error: "Couldn't reach the add-on: " + e.message }; }
 }
 
