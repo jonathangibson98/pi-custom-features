@@ -172,21 +172,46 @@ async function renderMine() {
   const box = $("#mine"); box.replaceChildren(el("div", {class: "dim"}, "Loading..."));
   const d = await api("mine"); box.replaceChildren();
   if (d.error) { box.append(el("div", {class: "note bad"}, d.error)); return; }
+  const RENAMABLE = ["script", "automation", "scene", "input_boolean", "input_number", "input_select", "input_text", "input_datetime", "counter", "timer"];
   const t = el("div", {class: "card"}, el("div", {class: "ch"}, el("h2", {}, "Template sensors I manage"), el("p", {}, "Stored in the template file. Don't edit that file by hand.")));
   if (!d.templates.length) t.append(el("p", {class: "dim"}, "None yet."));
   const tl = el("div", {class: "list"});
   for (const x of d.templates) {
     const del = el("button", {class: "btn danger sm"}, "Delete");
     confirmTap(del, "Tap again", async () => { await api("delete_template", {id: x.id}); renderMine(); });
-    tl.append(el("div", {class: "li"}, el("div", {class: "t"}, el("b", {}, x.name), el("span", {class: "dim"}, "  " + x.platform)), del));
+    tl.append(el("div", {class: "li"}, el("div", {class: "t"}, el("b", {}, x.name), el("span", {class: "dim"}, "  " + x.platform)),
+      renameButton(x.name, n => api("rename", {kind: "template", id: x.id, name: n}), renderMine), del));
   }
   t.append(tl); box.append(t);
-  const h = el("div", {class: "card"}, el("div", {class: "ch"}, el("h2", {}, "Recently created")));
+
+  /* announcements, facts and cards made in the other tabs, renamed here or there and kept in step */
+  const TABNAME = {announcement: "Announcements", fact: "Facts", card: "Cards"}, LIBK = {announcement: "ann", fact: "facts", card: "cards"};
+  const made = d.made || [];
+  const m = el("div", {class: "card"}, el("div", {class: "ch"}, el("h2", {}, "Made in the other tabs"),
+    el("p", {}, "Rename one here and it changes in Home Assistant and in its own tab. Rename it in Home Assistant and the add-on picks the new name up.")));
+  if (!made.length) m.append(el("p", {class: "dim"}, "Nothing yet."));
+  const ml = el("div", {class: "list"});
+  for (const x of made) {
+    const open = el("button", {class: "btn sm", onclick: () => { try { window.parent.show(TABNAME[x.kind].toLowerCase()); } catch (e) { /* not inside the add-on page */ } }}, "Open " + TABNAME[x.kind]);
+    ml.append(el("div", {class: "li srcrow"}, el("div", {class: "t"}, el("b", {}, x.name),
+      el("div", {class: "dim small"}, TABNAME[x.kind].replace(/s$/, "") + (x.entity ? " · " + x.entity : "") + (x.file && x.file.sensor ? " · writes " + x.file.sensor : "") + (x.kind !== "card" && !x.pushed ? " · draft" : ""))),
+      renameButton(x.name, n => api("rename", {lib: LIBK[x.kind], id: x.id, name: n}), renderMine), open));
+  }
+  m.append(ml); box.append(m);
+
+  const h = el("div", {class: "card"}, el("div", {class: "ch"}, el("h2", {}, "Recently created"), el("p", {}, "Names are the ones Home Assistant shows now.")));
   if (!d.history.length) h.append(el("p", {class: "dim"}, "Nothing yet."));
   const hl = el("div", {class: "list"});
-  for (const x of d.history) hl.append(el("div", {class: "li"}, el("div", {class: "t"}, el("b", {}, x.name || x.entity), el("div", {class: "dim small"}, (KIND_LABEL[x.kind] || x.kind) + (x.entity ? " · " + x.entity : ""))), el("span", {class: "dim small"}, ago(x.time))));
+  for (const x of d.history) {
+    const can = x.exists && x.cfg_id && RENAMABLE.includes(x.kind_ha) && !["announcement", "fact"].includes(x.kind);
+    hl.append(el("div", {class: "li srcrow"}, el("div", {class: "t"}, el("b", {}, x.name || x.entity),
+      el("div", {class: "dim small"}, (KIND_LABEL[x.kind] || x.kind) + (x.entity ? " · " + x.entity : "") + (x.exists === false ? " · not in Home Assistant any more" : ""))),
+      el("span", {class: "dim small"}, ago(x.time)),
+      can ? renameButton(x.name, n => api("rename", {kind: x.kind_ha, id: x.cfg_id, entity: x.entity, name: n}), renderMine) : null));
+  }
   h.append(hl); box.append(h);
 }
+onChanged(() => { if (!$("#mine").hidden) renderMine(); });
 
 $$(".tab").forEach(b => b.addEventListener("click", () => {
   $$(".tab").forEach(x => x.classList.toggle("on", x === b));
