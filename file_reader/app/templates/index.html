@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Reader</title>
+    <link rel="icon" href="./static/icon.png">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #111a24; color: #e1e6eb; }
+        .container { max-width: 900px; margin: 0 auto; }
+        header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+        header img { width: 56px; height: 56px; border-radius: 12px; }
+        h1 { font-weight: 500; color: #3b9eff; margin: 0; font-size: 26px; }
+        .badge { display: inline-block; font-size: 12px; background: #243242; border: 1px solid #2e3c4e; border-radius: 10px; padding: 2px 8px; margin-left: 8px; color: #9fb3c8; vertical-align: middle; }
+        .sub { color: #9fb3c8; font-size: 13px; margin-top: 4px; word-break: break-all; }
+        .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #e53935; margin-right: 4px; }
+        .dot.ok { background: #43a047; }
+        .card { background: #1c2734; border-radius: 8px; padding: 16px; margin-bottom: 20px; border: 1px solid #2e3c4e; }
+        input, select, textarea, button { background: #111a24; color: #fff; border: 1px solid #3b5066; padding: 8px 12px; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
+        textarea { width: 100%; height: 120px; font-family: monospace; }
+        button { background: #03a9f4; border: none; font-weight: bold; cursor: pointer; }
+        button:hover { background: #0288d1; }
+        .danger { background: #e53935; }
+        .danger:hover { background: #c62828; }
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { padding: 8px 12px; background: #243242; border-radius: 4px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        li .name { word-break: break-all; }
+        .empty { color: #9fb3c8; font-size: 14px; }
+        #status { min-height: 18px; margin-top: 8px; font-size: 13px; color: #9fb3c8; }
+        summary { cursor: pointer; font-weight: 600; }
+        .snip { background: #111a24; border: 1px solid #2e3c4e; border-radius: 4px; padding: 10px 12px; margin: 0 0 6px; }
+        .snip h4 { margin: 8px 0 4px; font-size: 13px; color: #9fb3c8; font-weight: 600; }
+        .snip pre { margin: 0 0 6px; user-select: all; }
+        .snip button { padding: 4px 10px; font-size: 12px; }
+        pre { white-space: pre-wrap; font-size: 13px; color: #c5d0db; margin: 12px 0 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="./static/icon.png" alt="File Reader logo">
+            <div>
+                <h1>File Reader<span class="badge" id="version">v...</span></h1>
+                <div class="sub"><span class="dot" id="dot"></span><span id="mqtt">MQTT</span> &middot; Folder: <code id="path">...</code></div>
+            </div>
+        </header>
+
+        <div class="card">
+            <h3 style="margin-top:0">Manage File</h3>
+            <input type="text" id="filename" placeholder="log.txt or folder/log.txt" style="width: 60%; margin-bottom: 8px;">
+            <select id="mode" style="width: 38%; margin-bottom: 8px;">
+                <option value="append">Append Line</option>
+                <option value="overwrite">Overwrite Content</option>
+            </select>
+            <textarea id="filetext" placeholder="Type multi-line message or text content here..."></textarea>
+            <div style="margin-top: 10px;">
+                <button id="save">Save File &amp; Sync MQTT</button>
+            </div>
+            <div id="status"></div>
+        </div>
+
+        <div class="card">
+            <h3 style="margin-top:0">Managed Files <span class="badge" id="count"></span></h3>
+            <ul id="file-list"></ul>
+        </div>
+
+        <div class="card">
+            <details>
+                <summary>How do I automate this?</summary>
+                <pre>1. Find your file in the list above and press "Automate".
+2. Copy the code it shows into a Home Assistant automation
+   (Settings > Automations > Add action > Edit in YAML).
+3. Change the text in "payload" to whatever you want saved.
+
+Each file also becomes a sensor. Its state is the time the file last
+changed, and the text itself is in the sensor's "content" attribute.
+
+Scripts outside Home Assistant can use the REST API instead
+(see the Documentation tab).</pre>
+            </details>
+        </div>
+    </div>
+
+    <script>
+{% raw %}
+        const $ = id => document.getElementById(id);
+        const api = name => './api/file/' + name.split('/').map(encodeURIComponent).join('/');
+
+        function say(msg) { $('status').textContent = msg; }
+
+        async function loadInfo() {
+            const info = await (await fetch('./api/info')).json();
+            $('version').textContent = 'v' + info.version;
+            $('path').textContent = info.files_path;
+            $('mqtt').textContent = info.mqtt_connected ? 'MQTT connected' : 'MQTT not connected';
+            $('dot').className = 'dot' + (info.mqtt_connected ? ' ok' : '');
+        }
+
+        // "folder/music_fact.txt" -> "Folder / Music Fact"
+        function friendly(path) {
+            return path.split('/').map((part, i, all) => {
+                if (i === all.length - 1) part = part.replace(/\.[^.]*$/, '');
+                return part.replace(/[_\-.]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim()
+                    .split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            }).join(' / ');
+        }
+
+
+        function slug(path) { return path.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''); }
+
+        function snippets(file) {
+            const sensor = 'sensor.file_reader_' + slug(file);
+            return [
+                ['Add a new line to this file', `action: mqtt.publish
+data:
+  topic: file_reader/append/${file}
+  payload: "Front door opened at {{ now().strftime('%H:%M') }}"`],
+                ['Replace everything in this file', `action: mqtt.publish
+data:
+  topic: file_reader/overwrite/${file}
+  payload: "New text goes here"`],
+                ['Read this file in a template or card (copy just the line you need)', `{{ state_attr('${sensor}', 'content') }}
+{{ state_attr('${sensor}', 'last_line') }}
+{{ states('${sensor}') }}`],
+            ];
+        }
+
+        function automatePanel(file) {
+            const box = document.createElement('div');
+            box.className = 'snip';
+            snippets(file).forEach(([title, code]) => {
+                const h = document.createElement('h4');
+                h.textContent = title;
+                const pre = document.createElement('pre');
+                pre.textContent = code;
+                const copy = document.createElement('button');
+                copy.textContent = 'Copy';
+                copy.addEventListener('click', async () => {
+                    try { await navigator.clipboard.writeText(code); copy.textContent = 'Copied'; }
+                    catch (e) { copy.textContent = 'Select and copy'; }
+                    setTimeout(() => copy.textContent = 'Copy', 1500);
+                });
+                box.append(h, pre, copy);
+            });
+            const note = document.createElement('div');
+            note.className = 'empty';
+            note.style.marginTop = '8px';
+            note.textContent = 'If the sensor name does not match, check its entity ID in Settings > Devices > File Reader Storage Engine.';
+            box.appendChild(note);
+            return box;
+        }
+
+        async function loadFiles() {
+            const data = await (await fetch('./api/files')).json();
+            const list = $('file-list');
+            list.innerHTML = '';
+            if (!data.files.length) {
+                const p = document.createElement('div');
+                p.className = 'empty';
+                p.textContent = 'No files yet. Create one above.';
+                list.appendChild(p);
+                return;
+            }
+            $('count').textContent = data.files.length + ' files';
+            data.files.forEach(file => {
+                const li = document.createElement('li');
+                const name = document.createElement('span');
+                name.className = 'name';
+                const strong = document.createElement('strong');
+                strong.textContent = friendly(file);
+                name.title = file;
+                name.appendChild(strong);
+
+                const actions = document.createElement('div');
+                const auto = document.createElement('button');
+                auto.textContent = 'Automate';
+                auto.style.marginRight = '6px';
+                auto.addEventListener('click', () => {
+                    const next = li.nextElementSibling;
+                    if (next && next.classList.contains('snip')) next.remove();
+                    else li.after(automatePanel(file));
+                });
+                const edit = document.createElement('button');
+                edit.textContent = 'Edit';
+                edit.addEventListener('click', () => loadFile(file));
+                const del = document.createElement('button');
+                del.textContent = 'Delete';
+                del.className = 'danger';
+                del.style.marginLeft = '6px';
+                del.addEventListener('click', () => deleteFile(file));
+                actions.append(auto, edit, del);
+
+                li.append(name, actions);
+                list.appendChild(li);
+            });
+        }
+
+        async function saveFile() {
+            const filename = $('filename').value.trim();
+            const text = $('filetext').value;
+            const mode = $('mode').value;
+            if (!filename) return say('Enter a filename first.');
+            const res = await fetch(api(filename), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, mode })
+            });
+            if (!res.ok) return say('Save failed: ' + ((await res.json()).error || res.status));
+            $('filetext').value = '';
+            say('Saved ' + filename);
+            loadFiles();
+        }
+
+        async function loadFile(name) {
+            const res = await fetch(api(name));
+            if (!res.ok) return say('Could not open ' + name);
+            const data = await res.json();
+            $('filename').value = data.filename;
+            $('filetext').value = data.content;
+            $('mode').value = 'overwrite';
+            say('Editing ' + name + ' (Overwrite mode)');
+        }
+
+        async function deleteFile(name) {
+            if (!confirm(`Delete ${name}?`)) return;
+            await fetch(api(name), { method: 'DELETE' });
+            say('Deleted ' + name);
+            loadFiles();
+        }
+
+        $('save').addEventListener('click', saveFile);
+        loadInfo();
+        loadFiles();
+        setInterval(loadInfo, 30000);
+{% endraw %}
+    </script>
+</body>
+</html>
