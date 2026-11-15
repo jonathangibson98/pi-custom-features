@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.16.0 - 2026-11-15
+
+- **Importing converts into the form.** **Import my script or automation** on Announcements and Facts now turns a hand-made script or automation into a normal announcement or fact you edit with the form, instead of raw YAML. Data the prompt reads becomes data sources (added to Settings, reusing ones you already have), speakers, Alexa and phones become outputs, volume, pause, card switch and MQTT file are filled in, and triggers and "is home" conditions become the schedule. Your AI Task splits the prompt into the instructions and the voice (per personality too), and for facts fills in the format and rules. Random lists become Random picks and the last-fact sensor becomes Avoid the last fact
+- What couldn't be converted is listed in the editor. **Use my original instead** goes back to the YAML exactly as written, and **Keep it exactly as written** is still a choice in the import box
+- An automation that only runs a script is read through to the script. When the converted announcement takes over its schedule, pushing turns the old automation off (a copy is backed up) so it doesn't run twice. A converted fact automation keeps its id and is replaced in place, with a backup
+
 ## 2.15.0 - 2026-11-15
 
 - **Announcements can answer in JSON fields, like a Facts data list.** In **Save to a file and show it on a card**, pick **Separate fields (JSON)**. Set up the fields (name, what the AI writes there, and whether it is the card's title, text or small bottom line) and pick **Announce this field**: that one is spoken, the others are saved for the card. **Use the birthday example** sets up `name` as the title, `message` as the spoken text and `detail` at the bottom

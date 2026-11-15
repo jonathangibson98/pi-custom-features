@@ -5,6 +5,7 @@ let editorReady = false, rawMode = false;
 const AUTO = {watch: "", home: []};  /* the entity pickers in "Run it automatically" keep no value of their own */
 const FACT = {home: []};  /* the default "someone is home" list, set in Facts > Settings */
 const CARD = {sw: ""};  /* the dashboard-card switch picked in the editor (the picker widget keeps no value of its own) */
+let IMPORT = {};  /* for an announcement converted from an imported script or automation: its original YAML, and the automation it replaces */
 
 const aiName = () => S.helper_ai_task_entity || S.ai_task_entity || "";
 const ann = (path, body) => api("ann/" + path, body);
@@ -505,8 +506,18 @@ function paintState() {
 }
 function openEditor(state, c, note) {
   cur = Object.assign({id: null, isNew: true, pushed: false, saved: false}, c);
+  IMPORT = {original: state.original || "", replaces: state.replaces || "", done: !!state.replacedDone};
   $("#msg").textContent = ""; $("#tres").replaceChildren(); $("#pnote").textContent = "";
   const lg = $("#elegacy"); lg.hidden = !note; if (note) lg.firstElementChild.textContent = note;
+  lg.querySelectorAll(".origbtn").forEach(b => b.remove());
+  if (note && IMPORT.original && state.raw == null) {  /* converted from an import: one tap goes back to the original, kept exactly as written */
+    const b = el("button", {class: "btn sm origbtn", style: "margin-top:8px"}, "Use my original instead");
+    confirmTap(b, "Tap again: keep it exactly as written", () => {
+      setRaw(true); $("#rawyaml").value = IMPORT.original; const a = getAlias(IMPORT.original); if (a) $("#name").value = a;
+      IMPORT.replaces = ""; gen(); markDirty(); lg.firstElementChild.textContent = "Switched back to your original, kept exactly as written."; b.remove();
+    });
+    lg.append(b);
+  }
   applyState(state); dirty = false; paintState(); showView("edit");
 }
 const blankState = () => ({name: "My announcement", src: usable().filter(x => x.type === "household").map(x => x.id),
@@ -537,13 +548,16 @@ async function persist(push) {
   const btns = [$("#save"), $("#push")]; btns.forEach(b => b.disabled = true);
   say(push ? "Pushing to Home Assistant..." : "Saving...");
   let r;
-  if (push) r = await ann("push", {id: cur.id, yaml: makeYaml(s), auto_yaml: makeAuto(s, cur.id), state: s, new: cur.isNew && !cur.pushed});
+  if (IMPORT.original && s.raw == null) Object.assign(s, {original: IMPORT.original, replaces: IMPORT.replaces || "", replacedDone: IMPORT.done});
+  if (push) r = await ann("push", {id: cur.id, yaml: makeYaml(s), auto_yaml: makeAuto(s, cur.id), state: s, new: cur.isNew && !cur.pushed,
+    replace_auto: IMPORT.replaces && !IMPORT.done && s.raw == null ? IMPORT.replaces : ""});
   else r = await ann("library/save", {id: cur.id, name: s.name, state: s});
   btns.forEach(b => b.disabled = false);
   if (!(r.ok)) { say(r.detail || r.error || "That failed.", "bad"); if (!cur.saved && !cur.pushed && !cur.fixedId) cur.id = null; paintState(); return; }
   cur.saved = true; cur.isNew = false; if (push) cur.pushed = true; dirty = false; paintState(); notifyChanged("ann");
+  if (push && r.replaced) IMPORT.done = true;
   const am = push ? (s.auto.on ? " It runs " + autoSummary(s.auto) + "." : r.auto === "removed" ? " The old schedule was removed." : "") : "";
-  say(push ? "Done. script." + cur.id + " is up to date in Home Assistant." + am : "Saved. Home Assistant still has the previous version." + (cur.pushed ? " Push to update it." : ""), "ok");
+  say(push ? "Done. script." + cur.id + " is up to date in Home Assistant." + am + (r.replaced ? " Your old automation " + r.replaced + " was turned off so it doesn't run twice." : "") : "Saved. Home Assistant still has the previous version." + (cur.pushed ? " Push to update it." : ""), "ok");
 }
 $("#save").onclick = () => persist(false);
 $("#push").onclick = () => persist(true);
@@ -637,6 +651,7 @@ $("#imppickgo").onclick = async () => {
 $("#impgo").onclick = async () => {
   const b = $("#impgo"), typed = $("#impid").value.trim();
   if (typed && !cleanId(typed)) { imsg("The script id can only use lowercase letters, numbers and underscores.", "bad"); return; }
+  if (($$('[name="impmode"]').find(x => x.checked) || {}).value !== "raw") { await importConvert(b, typed); return; }
   b.disabled = true; imsg("Checking your script...");
   const r = await ann("import", {yaml: $("#impyaml").value});
   b.disabled = false;
@@ -649,6 +664,22 @@ $("#impgo").onclick = async () => {
     "Imported. Your script is kept exactly as written. " + (inHA ? "script." + id + " already exists in Home Assistant, so pushing replaces it." : "Pushing creates script." + id + " in Home Assistant.") + (takeover ? "" : " Nothing is in Home Assistant yet."));
   markDirty();
 };
+/* convert a pasted or loaded script / automation into a normal form announcement */
+async function importConvert(b, typed) {
+  if (!$("#impyaml").value.trim()) { imsg("Paste your script or automation, or load one, first.", "warn"); return; }
+  b.disabled = true; imsg("Reading it and converting. Your AI Task helps with the prompt, so this can take a minute...");
+  const r = await convertImport("announcement", $("#impyaml").value);
+  b.disabled = false;
+  if (!r.ok) { imsg(r.error || "That failed.", "bad"); return; }
+  build();  /* show any data sources that were just added */
+  const id = cleanId(typed) || cleanId(r.id) || uniqueId(slug(r.name));
+  if (LIB.some(x => x.id === id)) { imsg("script." + id + " is already in My announcements. Open it from the list below.", "bad"); return; }
+  const inHA = ENT.some(e => e.id === "script." + id);
+  $("#importbox").hidden = true; $("#impyaml").value = ""; $("#impid").value = ""; imsg("");
+  openEditor(Object.assign(blankState(), r.state, {original: r.original}), {id, isNew: true, pushed: false, saved: false, fixedId: true},
+    convertNote(r, "announcement") + " " + (inHA ? "Pushing replaces script." + id + ", so automations that call it keep working." : "Pushing creates script." + id + "."));
+  markDirty();
+}
 $("#rawcheck").onclick = async () => {
   say("Checking...");
   const r = await ann("import", {yaml: $("#rawyaml").value});

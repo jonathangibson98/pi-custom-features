@@ -403,6 +403,7 @@ async function importAutoOnly(b) {
 $("#copyall").onclick = () => copyCards(LIB, (t, c) => { const m = $("#libmsg"); m.className = "msg " + (c || ""); m.textContent = t; });
 $("#impgo").onclick = async () => {
   const b = $("#impgo"), typed = $("#impid").value.trim();
+  if (($$('[name="impmode"]').find(x => x.checked) || {}).value !== "raw") { await importConvert(b, typed); return; }
   if ((!$("#impyaml").value.trim() && $("#impauto").value) || looksAuto($("#impyaml").value)) { await importAutoOnly(b); return; }
   if (typed && !cleanId(typed)) { imsg("The script id can only use lowercase letters, numbers and underscores (54 at most).", "bad"); return; }
   b.disabled = true; imsg("Checking your script...");
@@ -424,6 +425,30 @@ $("#impgo").onclick = async () => {
     "Imported. Your script" + (autoState.autoRaw ? " and its automation are" : " is") + " kept exactly as written. " + (inHA ? "script." + id + " already exists in Home Assistant, so pushing replaces it." : "Pushing creates script." + id + " in Home Assistant.") + (takeover ? "" : " Nothing is in Home Assistant yet."));
   markDirty();
 };
+
+/* convert a pasted script or automation (or one picked from the list) into a normal form fact */
+async function importConvert(b, typed) {
+  let text = $("#impyaml").value, autoText = "";
+  const picked = $("#impauto").value;
+  if (picked) {
+    const ar = await api("facts/automation?id=" + encodeURIComponent(picked));
+    if (!ar.ok) { imsg(ar.error || "Could not load that automation.", "bad"); return; }
+    if (text.trim()) autoText = ar.yaml; else text = ar.yaml;
+  }
+  if (!text.trim()) { imsg("Paste your script or automation, or pick one, first.", "warn"); return; }
+  if (typed && !/^[a-z0-9_]{1,60}$/.test(typed)) { imsg("The id can only use lowercase letters, numbers and underscores.", "bad"); return; }
+  b.disabled = true; imsg("Reading it and converting. Your AI Task helps with the prompt, so this can take a minute...");
+  const r = await convertImport("fact", text, autoText);
+  b.disabled = false;
+  if (!r.ok) { imsg(r.error || "That failed.", "bad"); return; }
+  const id = typed || (/^[a-z0-9_]{1,60}$/.test(r.id || "") ? r.id : "") || uniqueId(fslug(r.name));
+  if (LIB.some(x => x.id === id)) { imsg(id + " is already in My facts. Open it from the list below.", "bad"); return; }
+  const takeover = (await loadAutos()).some(a => a.id === id);
+  $("#importbox").hidden = true; $("#impyaml").value = ""; $("#impid").value = ""; $("#impauto").value = ""; imsg("");
+  openEditor(Object.assign(blankState(), r.state, {original: r.original}), {id, isNew: true, pushed: false, saved: false, fixedId: true},
+    convertNote(r, "fact") + " " + (takeover ? "Pushing replaces your automation " + id + " in place (a copy of the old one is saved first)." : "Pushing creates it as one automation in Home Assistant."));
+  markDirty();
+}
 
 /* ---------- your own automation ---------- */
 let AUTOS = null;
@@ -845,6 +870,17 @@ function openEditor(state, c, note) {
   E = full(state);
   $("#msg").textContent = ""; $("#tres").replaceChildren();
   const n = $("#enote"); n.hidden = !note; if (note) n.firstElementChild.textContent = note;
+  n.querySelectorAll(".origbtn").forEach(b => b.remove());
+  if (note && E.original && !E.autoOnly && E.raw == null) {  /* converted from an import: one tap goes back to the original */
+    const ob = el("button", {class: "btn sm origbtn", style: "margin-top:8px"}, "Use my original instead");
+    confirmTap(ob, "Tap again: keep it exactly as written", () => {
+      const auto = looksAuto(E.original), keep = {name: E.name, original: E.original};
+      E = full(Object.assign(blankState(), keep, auto ? {autoOnly: true, autoRaw: E.original, autoId: cur.id} : {raw: E.original}));
+      $("#trycard").hidden = true; $("#ymldet").hidden = true;
+      n.firstElementChild.textContent = "Switched back to your original, kept exactly as written."; ob.remove(); drawForm(); markDirty();
+    });
+    n.append(ob);
+  }
   $("#trycard").hidden = rawMode() || isAutoOnly(E); $("#ymldet").hidden = rawMode() || isAutoOnly(E); $("#autodet").hidden = isAutoOnly(E) || isAsAuto(E) || (rawMode() && !ownAuto(E));
   drawForm(); dirty = false; paintState(); showView("edit");
 }

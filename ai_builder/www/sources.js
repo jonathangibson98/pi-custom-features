@@ -63,3 +63,37 @@ function picker(doms, multi, get, set) {
   draw(); w.append(chips, inp, list); return w;
 }
 
+
+/* ---------- import: turn a hand-made script or automation into the form ----------
+   The server reads it and says which data sources it needs. New ones are added to the shared list in
+   Announcements > Settings (one that reads the same thing is reused). Returns the converted result, or {ok:false}. */
+async function convertImport(target, yaml, autoYaml) {
+  const r = await api("convert", {target, yaml, auto_yaml: autoYaml || "", sources: (typeof S === "object" && S.sources) || []});
+  if (!r || !r.ok) return r || {ok: false, error: "That failed."};
+  const fresh = await api("ann/options");  /* start from what is saved now, so nothing is lost */
+  if (fresh.error) return {ok: false, error: fresh.error};
+  if (!Array.isArray(fresh.sources)) fresh.sources = migrate(fresh);
+  let changed = false;
+  const ids = (r.sources || []).map(x => {
+    if (x.existing && fresh.sources.some(s => s.id === x.existing)) return x.existing;
+    const n = mk(fresh.sources, x.new.type, Object.assign({}, x.new, {template: x.new.type === "template" ? x.new.template : ""}));
+    fresh.sources.push(n); changed = true; return n.id;
+  });
+  Object.entries(r.settings_add || {}).forEach(([k, add]) => {
+    const cur = Array.isArray(fresh[k]) ? fresh[k] : [], more = (add || []).filter(v => !cur.includes(v));
+    if (more.length) { fresh[k] = cur.concat(more); changed = true; }
+  });
+  if (changed) {
+    const saved = await api("ann/settings", fresh);
+    if (saved.error) return {ok: false, error: saved.error};
+    S = saved; if (!Array.isArray(S.sources)) S.sources = [];
+  }
+  r.state.src = [...new Set(ids)];
+  r.added = (r.sources || []).filter(x => !x.existing).map(x => x.label);
+  return r;
+}
+function convertNote(r, what) {
+  const p = ["Converted into a normal " + what + "." + (r.used_ai ? " Your AI Task split your prompt into the instructions and the voice, so read the instructions before you push." : "")];
+  if ((r.added || []).length) p.push("New data sources added to Settings: " + r.added.join(", ") + ".");
+  return p.concat(r.notes || []).join(" ");
+}
