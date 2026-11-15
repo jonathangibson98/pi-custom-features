@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 - 2026-11-15
+
+- **AI logo can work from a photo.** Add a photo under **Base it on a photo** and your AI Task looks at it while drawing. Choose **Turn it into a logo**, **Stay close to the photo** or **Just inspiration**. The description becomes optional
+- The photo's main colors are shown, and **Use its colors** fills in the color box
+- **Update logo** keeps sending the same photo, so changes stay true to it
+- Photos are shrunk to 1024 px, saved in `/media/svg_maker/ai_photos/` (where Home Assistant reads AI attachments from) and deleted after a day. A clear message explains what to check if your AI Task can't read images
+
 ## 1.1.0 - 2026-11-14
 
 - New **AI logo** tab. Describe the logo you want, pick a style, colors and shape, and your `ai_task` entity draws it as a real SVG. Draw 1 to 3 ideas at once, pick the best, then type a change ("make it rounder, use green") and update it.

@@ -16,6 +16,11 @@ import xml.etree.ElementTree as ET
 import aiohttp
 from aiohttp import web
 
+try:
+    from PIL import Image, ImageOps
+except Exception:  # Pillow is always in this image; keep the module importable without it
+    Image = ImageOps = None
+
 import svg_tool
 
 log = logging.getLogger("svg_maker.ai")
@@ -45,6 +50,25 @@ STYLES = {
     "geometric": ("Geometric", "Geometric logo built from circles, triangles, squares and arcs with tidy alignment "
                                "and a strong silhouette."),
     "sketch": ("Hand-drawn", "Hand-drawn feel: slightly organic paths, uneven stroke ends, warm and playful."),
+}
+
+# A reference photo for the AI is saved where Home Assistant's "local" media source can see it (/media), because
+# ai_task.generate_data takes attachments as media-source ids. Photos are deleted after a day.
+PHOTO_DIR = os.environ.get("SVG_AI_PHOTO_DIR", "/media/svg_maker/ai_photos")
+PHOTO_MEDIA_ID = "media-source://media_source/local/svg_maker/ai_photos/%s.jpg"
+PHOTO_KEEP_SECONDS = 86400
+PHOTO_USES = {
+    "logo": ("Turn it into a logo",
+             "Turn the main subject of the attached photo into a logo or icon. Keep what makes it recognizable (its "
+             "overall shape, pose, distinctive markings, features and main colors) but simplify it into bold, clean "
+             "vector shapes. Leave out the background and small details."),
+    "close": ("Stay close to the photo",
+              "Redraw the attached photo as a clean vector illustration that stays as close to it as you can: the "
+              "same subject, pose, proportions, features, markings and colors. More detail is fine, but keep it clean "
+              "vector art, not a trace of every pixel. Leave out the background unless the request asks for it."),
+    "inspire": ("Just inspiration",
+                "Use the attached photo only as inspiration for subject, colors and mood. The design can differ from "
+                "it as much as the request needs."),
 }
 
 DROP_TAGS = ("script", "foreignObject", "iframe", "object", "embed", "image", "audio", "video",
@@ -141,7 +165,7 @@ def uniquify_ids(svg):
 
 
 # ---------------------------------------------------------------- prompt
-def build_prompt(req, style, colors, mode, idx, n, current, feedback, problem):
+def build_prompt(req, style, colors, mode, idx, n, current, feedback, problem, photo_use=None):
     p = [
         "You are an expert logo and icon designer who writes clean SVG code.", "",
         "OUTPUT RULES:",
@@ -166,6 +190,9 @@ def build_prompt(req, style, colors, mode, idx, n, current, feedback, problem):
     else:
         p += ["COLOR: choose a pleasing palette that suits the subject.", ""]
     p += ["STYLE: " + STYLES.get(style, STYLES["auto"])[1], ""]
+    if photo_use:
+        p += ["REFERENCE PHOTO (attached): " + PHOTO_USES.get(photo_use, PHOTO_USES["logo"])[1],
+              "Look at the photo carefully before drawing. The output is still only SVG code.", ""]
     if n > 1:
         p += ["This is design option %d of %d. Make its concept and composition clearly different from the "
               "other options." % (idx, n), ""]
@@ -205,6 +232,7 @@ class AiLogo:
         self.hdr = {"Authorization": "Bearer " + token}
         self.http = None
         self.lock = asyncio.Lock()  # the AI draws one logo at a time
+        self.photos = {}  # photo id -> {"path", "palette", "time"}
 
     async def start(self):
         self.http = aiohttp.ClientSession()
@@ -232,11 +260,14 @@ class AiLogo:
         except OSError as e:
             log.warning("AI temp cleanup problem: %s", e)
 
-    async def ask(self, prompt):
+    async def ask(self, prompt, photo_id=None):
+        body = {"entity_id": self.entity, "task_name": "SVG logo", "instructions": prompt}
+        if photo_id:
+            body["attachments"] = [{"media_content_id": PHOTO_MEDIA_ID % photo_id, "media_content_type": "image/jpeg"}]
         try:
             async with self.http.post(
                 self.api + "/services/ai_task/generate_data",
-                json={"entity_id": self.entity, "task_name": "SVG logo", "instructions": prompt},
+                json=body,
                 params={"return_response": "true"}, headers=self.hdr,
                 timeout=aiohttp.ClientTimeout(total=self.timeout),
             ) as r:
@@ -255,16 +286,22 @@ class AiLogo:
             data = {}
         if status != 200:
             msg = (data.get("message") if isinstance(data, dict) else None) or txt
+            if photo_id:
+                raise RuntimeError("The AI task call with your photo failed (HTTP %d): %s. If your AI Task entity can't "
+                                   "look at images, remove the photo or use an AI Task that can (Google Gemini, OpenAI "
+                                   "and Anthropic can). The photo must also be readable from Home Assistant's media "
+                                   "folder (Media > My media > svg_maker)." % (status, str(msg)[:300]))
             raise RuntimeError("The AI task call failed (HTTP %d): %s" % (status, str(msg)[:300]))
         out = ((data.get("service_response") or {}) if isinstance(data, dict) else {}).get("data")
         if out is None:
             return ""
         return out if isinstance(out, str) else json.dumps(out)
 
-    async def draw(self, req, style, colors, mode, idx, n, current, feedback):
+    async def draw(self, req, style, colors, mode, idx, n, current, feedback, photo=None):
         problem = ""
+        pid, use = (photo or (None, None))
         for attempt in range(2):
-            text = await self.ask(build_prompt(req, style, colors, mode, idx, n, current, feedback, problem))
+            text = await self.ask(build_prompt(req, style, colors, mode, idx, n, current, feedback, problem, use), pid)
             try:
                 return clean_svg(extract_svg(text))
             except ValueError as e:
@@ -290,7 +327,70 @@ class AiLogo:
             "entity": self.entity, "found": found, "error": err,
             "styles": [[k, v[0]] for k, v in STYLES.items()],
             "default_style": self.default_style, "default_count": self.default_count,
+            "photo_uses": [[k, v[0]] for k, v in PHOTO_USES.items()], "photos": Image is not None,
         })
+
+    # ---- reference photo
+    def photo_cleanup(self):
+        cutoff = time.time() - PHOTO_KEEP_SECONDS
+        for pid in [k for k, v in self.photos.items() if v["time"] < cutoff]:
+            self.photos.pop(pid, None)
+        try:
+            for n in os.listdir(PHOTO_DIR):
+                p = os.path.join(PHOTO_DIR, n)
+                if re.fullmatch(r"[0-9a-f]{16}\.jpg", n) and os.path.getmtime(p) < cutoff:
+                    os.remove(p)
+        except OSError:
+            pass
+
+    def photo_save(self, raw):
+        """Shrink and save the reference photo. Returns (id, palette). Raises ValueError."""
+        import io
+        try:
+            img = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGB")
+        except Exception:
+            raise ValueError("That isn't an image this add-on can open. Try a JPG or PNG.")
+        img.thumbnail((1024, 1024), Image.LANCZOS)
+        if not svg_tool.ensure_dir(PHOTO_DIR):
+            raise ValueError("Could not create %s. The add-on needs access to the media folder." % PHOTO_DIR)
+        pid = uuid.uuid4().hex[:16]
+        img.save(os.path.join(PHOTO_DIR, pid + ".jpg"), "JPEG", quality=88)
+        small = img.copy()
+        small.thumbnail((96, 96))
+        q = small.quantize(colors=8, method=Image.Quantize.MEDIANCUT)
+        pal, counts = q.getpalette() or [], sorted(q.getcolors() or [], reverse=True)
+        palette, seen = [], []
+        for _, i in counts:
+            rgb = tuple(pal[i * 3:i * 3 + 3])
+            if any(sum((a - b) ** 2 for a, b in zip(rgb, o)) < 45 ** 2 for o in seen):
+                continue  # nearly the same as a color already listed
+            seen.append(rgb)
+            palette.append("#%02x%02x%02x" % rgb)
+        self.photos[pid] = {"path": os.path.join(PHOTO_DIR, pid + ".jpg"), "palette": palette[:6], "time": time.time()}
+        return pid, palette[:6]
+
+    async def photo(self, request):
+        if Image is None:
+            return web.Response(text="Pillow is missing from this build.", status=500)
+        try:
+            reader = await request.multipart()
+            raw = b""
+            async for part in reader:
+                if part.name == "photo":
+                    raw = await part.read(decode=False)
+        except Exception:
+            raw = b""
+        if not raw:
+            return web.Response(text="No photo was sent.", status=400)
+        if len(raw) > self.maker.max_upload_bytes:
+            return web.Response(text="File too large.", status=413)
+        self.photo_cleanup()
+        try:
+            pid, palette = await asyncio.get_running_loop().run_in_executor(None, self.photo_save, raw)
+        except ValueError as e:
+            return web.Response(text=str(e), status=400)
+        log.info("Reference photo saved for the AI (%s)", pid)
+        return web.json_response({"photo_id": pid, "palette": palette})
 
     async def generate(self, request):
         try:
@@ -303,9 +403,15 @@ class AiLogo:
         cur = m.cache.get(str(b.get("current_id") or "")) if feedback else None
         if feedback and not (cur and cur.get("raw")):
             return web.Response(text="That logo is no longer in memory. Make it again, then change it.", status=404)
+        pid = str(b.get("photo_id") or "") or (cur or {}).get("photo_id") or ""
+        if pid and (pid not in self.photos or not os.path.isfile(self.photos[pid]["path"])):
+            return web.Response(text="The photo is no longer here (photos are kept for a day). Add it again.", status=404)
+        use = b.get("photo_use") if b.get("photo_use") in PHOTO_USES else ((cur or {}).get("photo_use") or "logo")
         req = str(b.get("prompt") or "").strip()[:1500] or (cur or {}).get("prompt", "")
+        if not req and pid:
+            req = "A logo of the subject in the attached photo."
         if not req:
-            return web.Response(text="Describe the logo first.", status=400)
+            return web.Response(text="Describe the logo first, or add a photo.", status=400)
         style = b.get("style") if b.get("style") in STYLES else self.default_style
         mode = "bw" if b.get("mode") == "bw" else "color"
         shape = b.get("shape") if b.get("shape") in SHAPES else "none"
@@ -315,12 +421,13 @@ class AiLogo:
             idx = max(1, min(n, int(b.get("index") or 1)))
         except (TypeError, ValueError):
             n, idx = 1, 1
-        log.info("Drawing logo (style=%s, mode=%s, shape=%s, option %d/%d%s)", style, mode, shape, idx, n,
-                 ", edit" if cur else "")
+        log.info("Drawing logo (style=%s, mode=%s, shape=%s, option %d/%d%s%s)", style, mode, shape, idx, n,
+                 ", edit" if cur else "", ", photo: " + use if pid else "")
         t0 = time.time()
         try:
             async with self.lock:
-                raw, warns = await self.draw(req, style, colors, mode, idx, n, cur["raw"] if cur else None, feedback)
+                raw, warns = await self.draw(req, style, colors, mode, idx, n, cur["raw"] if cur else None, feedback,
+                                             (pid, use) if pid else None)
         except RuntimeError as e:
             return web.Response(text=str(e), status=502)
         except Exception as e:  # noqa: BLE001 - report anything unexpected to the page
@@ -333,6 +440,8 @@ class AiLogo:
         final = uniquify_ids(svg_tool.apply_shape(raw, shape))
         words = re.findall(r"[A-Za-z0-9]+", req)[:4]
         base = "-".join(words).lower() or "ai-logo"
+        if pid and not str(b.get("prompt") or "").strip() and not cur:
+            base = "photo-logo"
         temp_file = None
         if svg_tool.ensure_dir(m.temp):
             try:
@@ -344,7 +453,8 @@ class AiLogo:
                 temp_file = None
         self.cleanup()
         cid = uuid.uuid4().hex[:12]
-        m.cache[cid] = {"svg": final, "temp": temp_file, "base": base, "raw": raw, "prompt": req}
+        m.cache[cid] = {"svg": final, "temp": temp_file, "base": base, "raw": raw, "prompt": req,
+                        "photo_id": pid, "photo_use": use if pid else None}
         while len(m.cache) > 25:
             m.cache.popitem(last=False)
         log.info("Logo done in %.1fs (%d KB)", time.time() - t0, len(final) // 1024)

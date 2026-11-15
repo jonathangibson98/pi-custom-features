@@ -13,7 +13,7 @@ Turn photos into scalable SVG vector files, or have AI draw a logo, from the add
 Every conversion is also auto-saved to the temp folder (`svg_temp_path`). Save locally or Both moves that copy into your save folder, so only unsaved results stay in temp. Files under `/homeassistant/www` are available in Home Assistant at `/local/...`, for example `/local/svg_maker/temp_icons/name.svg`. If `www` did not exist before, restart Home Assistant once so it starts serving `/local`.
 
 ## AI logo
-1. Open the **AI logo** tab and describe what should be in the logo.
+1. Open the **AI logo** tab and describe what should be in the logo. Or add a photo (below) and describe it, or leave the description blank.
 2. Pick a **Style**, **Color** (full color, or black and white that follows Home Assistant colors), optional color words like "navy and gold", and a **Shape** (as designed, circle, rounded, square).
 3. Choose how many **ideas** to draw (1 to 3, each is a separate AI call) and tap **Draw my logo**.
 4. Tap an idea to pick it. To tweak it, type a change under **Want a change?** (for example "make the ears bigger") and tap **Update logo**. Older versions stay in the grid.
@@ -22,6 +22,19 @@ Every conversion is also auto-saved to the temp folder (`svg_temp_path`). Save l
 The AI draws real vector shapes, so results vary. Several ideas and a couple of edits usually beats one try. Lettering uses the viewer's fonts, so icon-only designs look the same everywhere. Logos are cleaned before you see them: scripts, external links, bitmaps and animation are stripped and gradient ids are made unique so many icons can share a dashboard.
 
 AI logos are auto-saved to the temp folder like photo results, and the auto-delete options cover them too.
+
+### Base it on a photo
+Under **Base it on a photo**, pick a picture (your dog, your truck, an old logo, a sketch). Your AI Task gets the photo along with your description, and actually looks at it while drawing. Choose how it uses the photo:
+
+- **Turn it into a logo**: keeps what makes the subject recognizable (shape, pose, markings, colors) and simplifies it into bold shapes. Leaves out the background.
+- **Stay close to the photo**: a cleaner vector redraw that stays as close to the photo as it can, with more detail.
+- **Just inspiration**: borrows the subject, colors and mood. The design can be quite different.
+
+The photo's main colors show as dots. **Use its colors** puts them in **Colors**. The description is optional with a photo: leave it blank for a logo of the subject, or say what you want ("Nova as a mascot, no background, navy circle"). **Update logo** keeps using the same photo. **Remove photo** goes back to text only.
+
+This needs an AI Task that can read images (Google Gemini, OpenAI and Anthropic can). The photo is shrunk to 1024 px and saved in `/media/svg_maker/ai_photos/` because Home Assistant passes attachments to the AI from its media folder (**Media > My media**). Photos there are deleted after a day.
+
+This is different from the **From photo** tab: that one traces the pixels with no AI. This one has the AI draw a new design from what it sees.
 
 ## File access
 The add-on can see `/homeassistant`, `/share` and `/media`. SVG Maker only writes to the save and temp folders you set. Protected system paths are refused.
@@ -76,6 +89,7 @@ Install the **Custom Icons** integration (HACS), enable the **Local** collection
 - "Home Assistant refused the add-on": restart the add-on once. If it persists, create a long-lived token in your Home Assistant profile and paste it into `ha_token`.
 - "The AI took longer than ...": raise `svg_ai_timeout`, or draw 1 idea at a time.
 - "The AI answered, but not with a usable SVG": the add-on already retried once. Reword the request, or try again.
+- "The AI task call with your photo failed": your AI Task can't read images, or Home Assistant can't open the photo. Check that the AI integration supports attachments, and that **Media > My media > svg_maker > ai_photos** shows the photo. If your Home Assistant uses custom `media_dirs` without `local: /media`, attachments can't be found.
 
 ## If a conversion fails
 - "The tracer failed: killed by signal ..." means the tracing program crashed or ran out of memory. The add-on retries automatically at 60% and then 35% of the image size before giving up. If it still fails, lower `svg_max_image_dimension` or `svg_output_size`, or use fewer detail steps.

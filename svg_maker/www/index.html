@@ -41,6 +41,12 @@ button.tile{padding:6px;background:repeating-conic-gradient(#ddd 0 25%,#fff 0 50
 button.tile.on{border-color:var(--acc)}
 button.tile img{width:100%;display:block}
 #warn{margin-top:8px;color:#f2c06b}
+.photorow{display:flex;gap:12px;align-items:flex-start;margin-top:10px}
+.photorow img{width:96px;height:96px;object-fit:cover;border-radius:10px;flex:none}
+.photorow label{margin-top:0}
+#aiPal{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+#aiPal span{width:26px;height:26px;border-radius:50%;border:2px solid var(--line)}
+button.small{font-size:14px;padding:8px 10px}
 </style></head><body><div class="wrap">
 <div class="hero"><h1>SVG Maker</h1><p>Turn photos into crisp vector graphics, or have AI draw you a logo.</p></div>
 <div class="row seg tabs" id="tabs"><button data-t="photo" class="on">From photo</button><button data-t="ai">AI logo</button></div>
@@ -80,6 +86,17 @@ button.tile img{width:100%;display:block}
 <div class="card">
   <label>Describe your logo <small>&mdash; say what should be in it</small></label>
   <textarea id="aiPrompt" placeholder="A friendly golden retriever head inside a circle, blue and white, for my dog's collar tracker"></textarea>
+  <label>Base it on a photo <small>(optional) &mdash; your AI Task looks at it while drawing</small></label>
+  <input type="file" id="aiFile" accept="image/*">
+  <div id="aiPhoto" hidden>
+    <div class="photorow"><img id="aiThumb" alt="">
+      <div style="flex:1;min-width:0">
+        <label>Use the photo to</label><select id="aiUse"></select>
+        <div id="aiPal"></div>
+        <div class="row" style="margin-top:8px"><button class="alt small" id="aiPalUse">Use its colors</button><button class="alt small" id="aiRemove">Remove photo</button></div>
+      </div>
+    </div>
+  </div>
   <div class="two">
     <div><label>Style</label><select id="aiStyle"></select></div>
     <div><label>Color</label><select id="aiMode"><option value="color">Full color</option><option value="bw">Black &amp; white (follows HA theme)</option></select></div>
@@ -115,7 +132,7 @@ button.tile img{width:100%;display:block}
 </div>
 
 <div class="card tip">
-  <b>AI logos:</b> the AI draws real vector shapes, so results vary. Draw 2 or 3 ideas, pick the best, then use Update logo to tweak it. Lettering uses your device's fonts, so icon-only designs look the same everywhere.<br><br>
+  <b>AI logos:</b> the AI draws real vector shapes, so results vary. Draw 2 or 3 ideas, pick the best, then use Update logo to tweak it. Lettering uses your device's fonts, so icon-only designs look the same everywhere. Add a photo to have the AI draw from it: it needs an AI Task that can read images.<br><br>
   <b>Best results (photos):</b> logos, drawings, pets, portraits and photos with a clear subject. Busy scenes turn stylized and blobby.
   Auto-crop looks for whatever stands out most. It isn't face detection, so nudge the crop if it misses.
   <div id="saveinfo" style="margin-top:8px"></div>
@@ -258,6 +275,7 @@ document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showTab(b.dat
 fetch('./api/svg/ai/settings').then(r=>r.json()).then(c=>{
   $('aiStyle').innerHTML='';
   c.styles.forEach(([k,l])=>{const o=document.createElement('option');o.value=k;o.textContent=l;$('aiStyle').appendChild(o)});
+  (c.photo_uses||[]).forEach(([k,l])=>{const o=document.createElement('option');o.value=k;o.textContent=l;$('aiUse').appendChild(o)});
   $('aiStyle').value=c.default_style;$('aiCount').value=String(c.default_count);
   if(c.error)$('aiMsg').textContent=c.error;
   else if(c.found===false)$('aiMsg').textContent='The AI Task entity '+c.entity+' was not found in Home Assistant. Set svg_ai_task_entity in the add-on Configuration tab.';
@@ -267,7 +285,31 @@ async function aiCall(body){
   if(!r.ok)throw new Error(await r.text());
   return r.json();
 }
-function aiOpts(){return{style:$('aiStyle').value,colors:$('aiColors').value,mode:$('aiMode').value,shape:$('aiShape').value}}
+function aiOpts(){return{style:$('aiStyle').value,colors:$('aiColors').value,mode:$('aiMode').value,shape:$('aiShape').value,photo_id:aiPhoto?aiPhoto.id:'',photo_use:$('aiUse').value}}
+/* ---------- reference photo for the AI ---------- */
+let aiPhoto=null;const PH_DEF=$('aiPrompt').placeholder;
+function aiPhotoClear(){aiPhoto=null;$('aiPhoto').hidden=true;$('aiFile').value='';$('aiPrompt').placeholder=PH_DEF}
+$('aiFile').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  let im;try{im=await loadImage(f)}catch(_){$('aiMsg').textContent='Your browser could not open that image. Try a JPG or PNG.';aiPhotoClear();return}
+  const k=Math.min(1,1024/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement('canvas');
+  c.width=Math.round(im.naturalWidth*k);c.height=Math.round(im.naturalHeight*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+  const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.9)),fd=new FormData();fd.append('photo',blob,'photo.jpg');
+  $('aiMsg').textContent='Adding the photo...';aiBusy(true);
+  try{
+    const r=await fetch('./api/svg/ai/photo',{method:'POST',body:fd});
+    if(!r.ok)throw new Error(await r.text());
+    const j=await r.json();aiPhoto={id:j.photo_id,palette:j.palette||[]};
+    $('aiThumb').src=URL.createObjectURL(blob);$('aiPhoto').hidden=false;
+    $('aiPal').innerHTML='';aiPhoto.palette.forEach(h=>{const d=document.createElement('span');d.style.background=h;d.title=h;$('aiPal').appendChild(d)});
+    $('aiPalUse').hidden=!aiPhoto.palette.length;
+    $('aiPrompt').placeholder='Optional with a photo: say what you want, e.g. "my dog Nova as a mascot logo, no background"';
+    $('aiMsg').textContent='Photo added. Describe what you want (or leave it blank), then Draw my logo.';
+  }catch(err){$('aiMsg').textContent='Could not add the photo: '+err.message;aiPhotoClear()}
+  finally{aiBusy(false)}
+};
+$('aiRemove').onclick=()=>{aiPhotoClear();$('aiMsg').textContent='Photo removed.'};
+$('aiPalUse').onclick=()=>{if(aiPhoto)$('aiColors').value=aiPhoto.palette.join(', ')};
 function aiBusy(b){['aiGo','aiUpdate'].forEach(i=>$(i).disabled=b)}
 function addTile(r){
   const b=document.createElement('button'),im=document.createElement('img');
@@ -279,7 +321,7 @@ function addTile(r){
 function markTile(t){document.querySelectorAll('#aiGrid .tile').forEach(x=>x.classList.toggle('on',x===t))}
 $('aiGo').onclick=async()=>{
   const p=$('aiPrompt').value.trim();
-  if(!p){$('aiMsg').textContent='Describe the logo first.';return}
+  if(!p&&!aiPhoto){$('aiMsg').textContent='Describe the logo first, or add a photo.';return}
   const n=+$('aiCount').value;let ok=0;aiBusy(true);$('result').hidden=true;
   try{
     for(let i=1;i<=n;i++){
