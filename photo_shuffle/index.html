@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo Hub</title>
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--text:#1c2333;--muted:#6b7488;--line:#e2e6f0;--accent:#6366f1;--accent2:#0ea5e9;--good:#16a34a;--warn:#d97706;--bad:#dc2626;--input:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#111827;--card:#1b2436;--text:#e8ecf6;--muted:#93a0b8;--line:#2b3650;--input:#141c2c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:16px}
+header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+h1{font-size:22px;margin:0;flex:1;min-width:140px;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.pill{font-size:12px;padding:3px 9px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--muted);white-space:nowrap}
+.pill.ok{color:var(--good);border-color:var(--good)}.pill.bad{color:var(--bad);border-color:var(--bad)}.pill.warn{color:var(--warn);border-color:var(--warn)}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--text);padding:7px 12px;border-radius:9px}
+button:hover{border-color:var(--accent)}
+button.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;border:0}
+button.danger{color:var(--bad)}
+button:disabled{opacity:.5;cursor:default}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.thumb{aspect-ratio:16/10;background:var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.body{padding:12px;display:flex;flex-direction:column;gap:5px;flex:1}
+.title{display:flex;align-items:center;gap:8px;font-weight:600;font-size:16px}
+.title span:first-child{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--muted);word-break:break-all}
+.meta{font-size:13px;color:var(--muted)}
+.err{font-size:13px;color:var(--bad)}
+.actions{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 12px}
+.actions button{padding:5px 10px;font-size:13px}
+.empty{text-align:center;color:var(--muted);padding:40px 10px;background:var(--card);border:1px dashed var(--line);border-radius:14px}
+.note{font-size:12px;color:var(--muted);margin:14px 2px}
+details{margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px}
+summary{cursor:pointer;font-weight:600}
+#log{max-height:300px;overflow:auto;margin-top:8px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+#log div{padding:2px 0;border-bottom:1px solid var(--line);word-break:break-word}
+#log .WARNING{color:var(--warn)}#log .ERROR{color:var(--bad)}
+.t{color:var(--muted);margin-right:6px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;padding:14px;z-index:10}
+.overlay.show{display:flex}
+.modal{background:var(--card);border-radius:14px;padding:16px;width:100%;max-width:440px;max-height:90vh;overflow:auto}
+.modal h2{margin:0 0 12px;font-size:18px}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+input[type=text],input[type=number],select{width:100%;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--input);color:var(--text);font:inherit}
+.row{display:flex;gap:8px}.row>*{flex:1}.row .fix{flex:0 0 auto}
+.check{display:flex;align-items:center;gap:8px;margin:12px 0 0;color:var(--text);font-size:14px}
+.check input{width:18px;height:18px}
+.btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+#ferr{color:var(--bad);font-size:13px;margin-top:10px;min-height:1em}
+.list{border:1px solid var(--line);border-radius:10px;max-height:300px;overflow:auto;margin-top:8px}
+.list button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent}
+.list button:last-child{border-bottom:0}
+
+.tabs{display:flex;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card);margin-bottom:14px}
+.tabs button{flex:1;border:0;border-radius:0;padding:9px 6px;background:transparent}
+.tabs button.on{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;font-weight:600}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.bar .grow{flex:1;min-width:160px;font-size:13px;color:var(--muted)}
+.banner{border-radius:10px;padding:10px 12px;margin:0 0 12px;font-size:14px}
+.banner.warn{background:rgba(217,119,6,.15);border:1px solid var(--warn)}
+.banner.bad{background:rgba(220,38,38,.12);border:1px solid var(--bad)}
+.thumbs{display:flex;gap:2px;background:var(--line)}
+.thumbs figure{margin:0;flex:1 1 0;min-width:0;position:relative}
+.thumbs img{width:100%;height:130px;object-fit:cover;display:block}
+.thumbs .ph{height:130px;display:flex;align-items:center;justify-content:center;text-align:center;padding:6px;color:var(--muted);font-size:12px;background:var(--line)}
+.thumbs .ph.e{color:var(--bad)}
+.thumbs figcaption{position:absolute;left:0;right:0;bottom:0;padding:3px 6px;font-size:11px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.65));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thumbs figcaption a{color:#fff}
+textarea{width:100%;font:inherit;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--input);color:var(--text);min-height:90px;resize:vertical}
+.hint{font-size:12px;color:var(--muted);margin-top:6px;word-break:break-all}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Photo Hub</h1>
+    <span id="mq" class="pill">MQTT</span>
+  </header>
+
+  <div class="tabs">
+    <button data-tab="folders" class="on">Folders</button>
+    <button data-tab="unsplash">Unsplash</button>
+  </div>
+
+  <section id="pane-folders">
+    <div class="bar">
+      <div class="grow"><span id="fm" class="pill"></span></div>
+      <button class="primary" id="add">+ Add shuffle</button>
+    </div>
+    <div id="cards"></div>
+    <div class="note" id="roots"></div>
+  </section>
+
+  <section id="pane-unsplash" hidden>
+    <div id="ubanners"></div>
+    <div class="bar">
+      <div class="grow" id="ustatus"></div>
+      <button id="ufetchall">Fetch all now</button>
+      <button class="primary" id="uadd">+ Add collection</button>
+    </div>
+    <div id="ucards"></div>
+    <div class="note">Photos come from Unsplash and belong to their photographers. Each entity carries <span class="mono">photographer</span>, <span class="mono">photo_url</span> and <span class="mono">search_term</span> attributes, so you can credit them on your dashboard.</div>
+  </section>
+
+  <details open>
+    <summary>Activity</summary>
+    <div id="log"></div>
+  </details>
+</div>
+
+<div class="overlay" id="formov">
+  <div class="modal">
+    <h2 id="ftitle">Add shuffle</h2>
+    <label for="fname">Name</label>
+    <input type="text" id="fname" maxlength="40" placeholder="Family">
+    <label for="fpath">Folder</label>
+    <div class="row">
+      <input type="text" id="fpath" placeholder="/media/photos/family">
+      <button class="fix" id="browse" type="button">Browse</button>
+    </div>
+    <label>Change picture every</label>
+    <div class="row">
+      <input type="number" id="fint" min="1" value="1">
+      <select id="funit"><option value="1">seconds</option><option value="60" selected>minutes</option><option value="3600">hours</option></select>
+    </div>
+    <label class="check"><input type="checkbox" id="frec" checked> Include subfolders</label>
+    <label class="check"><input type="checkbox" id="fen" checked> Enabled</label>
+    <div id="ferr"></div>
+    <div class="btns"><button id="fcancel" type="button">Cancel</button><button class="primary" id="fsave" type="button">Save</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="cformov">
+  <div class="modal">
+    <h2 id="ctitle">Add collection</h2>
+    <label for="cname">Name</label>
+    <input type="text" id="cname" maxlength="40" placeholder="Ocean">
+    <label for="cterms">Search terms (one per line, a random one each time)</label>
+    <textarea id="cterms" placeholder="ocean waves&#10;beach sunset&#10;coastline"></textarea>
+    <label for="corient">Orientation</label>
+    <select id="corient"><option value="landscape">Landscape</option><option value="portrait">Portrait</option><option value="both">Both (two entities)</option></select>
+    <div class="hint" id="chint"></div>
+    <div id="cerr" style="color:var(--bad);font-size:13px;margin-top:10px;min-height:1em"></div>
+    <div class="btns"><button id="ccancel" type="button">Cancel</button><button class="primary" id="csave" type="button">Save</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="browseov">
+  <div class="modal">
+    <h2>Choose a folder</h2>
+    <div class="mono" id="bpath"></div>
+    <div class="list" id="blist"></div>
+    <div class="meta" id="binfo" style="margin-top:8px"></div>
+    <div class="btns"><button id="bcancel" type="button">Cancel</button><button class="primary" id="bselect" type="button" disabled>Use this folder</button></div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let S = null, skew = 0, sig = '', usig = '', editId = null, cEditId = null, browsePath = '';
+let tab = 'folders';
+try { tab = localStorage.getItem('ph_tab') === 'unsplash' ? 'unsplash' : 'folders'; } catch (e) {}
+
+async function api(path, method, body) {
+  const r = await fetch(path, {method: method || 'GET', headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined});
+  let d = {};
+  try { d = await r.json(); } catch (e) {}
+  if (!r.ok) throw new Error(d.error || ('Error ' + r.status));
+  return d;
+}
+
+function human(sec) {
+  if (sec < 60) return sec + 's';
+  if (sec < 3600) { const m = Math.floor(sec / 60), s = sec % 60; return m + 'm' + (s ? ' ' + s + 's' : ''); }
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+  return h + 'h' + (m ? ' ' + m + 'm' : '');
+}
+const nowSrv = () => Date.now() / 1000 + skew;
+function ago(t) { if (!t) return 'not yet'; const d = Math.max(0, Math.round(nowSrv() - t)); return d < 5 ? 'just now' : human(d) + ' ago'; }
+
+async function refresh() {
+  try {
+    S = await api('api/state');
+    skew = S.now - Date.now() / 1000;
+    render();
+  } catch (e) {
+    $('#mq').className = 'pill bad'; $('#mq').textContent = 'Add-on unreachable';
+  }
+}
+
+function render() {
+  const mq = $('#mq');
+  const st = S.mqtt.status;
+  mq.className = 'pill ' + (st === 'connected' ? 'ok' : st === 'error' ? 'bad' : 'warn');
+  mq.textContent = 'MQTT: ' + st;
+  mq.title = S.mqtt.detail || '';
+  $('#fm').textContent = S.formats.join(', ');
+  $('#fm').title = 'Picture formats (change in Configuration)';
+  $('#roots').innerHTML = 'Allowed photo paths: ' + (S.roots.length
+    ? S.roots.map(r => '<span class="mono">' + esc(r.path) + (r.exists ? '' : ' (not found)') + '</span>').join(', ')
+    : 'none. Add some in the add-on Configuration tab.') + '. Pictures are resized to ' + S.max_dimension + 'px for Home Assistant.';
+
+  const key = JSON.stringify([S.shuffles.map(x => ({...x, next_at: 0})), S.roots]);
+  if (key !== sig) { sig = key; drawCards(); }
+  const ukey = JSON.stringify(S.unsplash.collections);
+  if (ukey !== usig) { usig = ukey; drawU(); }
+  renderUHead();
+  tick();
+
+  $('#log').innerHTML = S.log.slice().reverse().map(l => {
+    const d = new Date(l.t * 1000);
+    return '<div class="' + l.l + '"><span class="t">' + d.toLocaleTimeString() + '</span>' + esc(l.m) + '</div>';
+  }).join('');
+}
+
+function drawCards() {
+  const box = $('#cards');
+  if (!S.shuffles.length) {
+    box.innerHTML = '<div class="empty">No shuffles yet.<br>Tap <b>+ Add shuffle</b> and pick a folder of photos.</div>';
+    return;
+  }
+  box.innerHTML = '<div class="grid">' + S.shuffles.map(s => {
+    const img = s.has_image ? '<img src="api/shuffles/' + esc(s.id) + '/thumb.jpg?v=' + Math.round(s.changed_at || 0) + '" alt="">' : (s.error ? 'No picture' : 'Waiting for first picture');
+    const badge = !s.enabled ? '<span class="pill warn">Paused</span>' : s.error ? '<span class="pill bad">Problem</span>' : '<span class="pill ok">Running</span>';
+    return '<div class="card" data-id="' + esc(s.id) + '">' +
+      '<div class="thumb">' + img + '</div>' +
+      '<div class="body">' +
+        '<div class="title"><span>' + esc(s.name) + '</span>' + badge + '</div>' +
+        '<div class="mono">' + esc(s.path) + (s.recursive ? ' (+ subfolders)' : '') + '</div>' +
+        '<div class="meta">' + (s.count == null ? 'Scanning...' : s.count + ' pictures') + ' · every ' + human(s.interval) + '</div>' +
+        (s.current ? '<div class="meta">Now: ' + esc(s.current) + '</div>' : '') +
+        '<div class="meta"><span class="chg" data-t="' + (s.changed_at || '') + '"></span> · <span class="nxt" data-t="' + (s.next_at || '') + '" data-en="' + (s.enabled ? 1 : 0) + '"></span></div>' +
+        (s.error ? '<div class="err">' + esc(s.error) + '</div>' : '') +
+      '</div>' +
+      '<div class="actions">' +
+        '<button data-act="next">Next</button>' +
+        '<button data-act="toggle">' + (s.enabled ? 'Pause' : 'Resume') + '</button>' +
+        '<button data-act="edit">Edit</button>' +
+        '<button data-act="del" class="danger">Delete</button>' +
+      '</div></div>';
+  }).join('') + '</div>';
+}
+
+function tick() {
+  document.querySelectorAll('.chg').forEach(e => { e.textContent = 'Changed ' + ago(parseFloat(e.dataset.t)); });
+  document.querySelectorAll('.nxt').forEach(e => {
+    const t = parseFloat(e.dataset.t);
+    e.textContent = e.dataset.en === '0' ? 'paused' : (t ? 'next in ' + human(Math.max(0, Math.round(t - nowSrv()))) : 'waiting');
+  });
+}
+setInterval(tick, 1000);
+setInterval(() => { if (S) renderUHead(); }, 1000);
+
+$('#cards').addEventListener('click', async ev => {
+  const b = ev.target.closest('button[data-act]');
+  if (!b) return;
+  const id = b.closest('.card').dataset.id;
+  const s = S.shuffles.find(x => x.id === id);
+  try {
+    if (b.dataset.act === 'next') { await api('api/shuffles/' + id + '/next', 'POST', {}); refresh(); }
+    else if (b.dataset.act === 'toggle') { await api('api/shuffles/' + id, 'PUT', {enabled: !s.enabled}); refresh(); }
+    else if (b.dataset.act === 'edit') openForm(s);
+    else if (b.dataset.act === 'del') {
+      if (confirm('Delete "' + s.name + '"? Its Home Assistant entities will be removed.')) { await api('api/shuffles/' + id, 'DELETE'); refresh(); }
+    }
+  } catch (e) { alert(e.message); }
+});
+
+function openForm(s) {
+  editId = s ? s.id : null;
+  $('#ftitle').textContent = s ? 'Edit shuffle' : 'Add shuffle';
+  $('#fname').value = s ? s.name : '';
+  $('#fpath').value = s ? s.path : (S.roots[0] ? S.roots[0].path : '');
+  const iv = s ? s.interval : 60;
+  const unit = iv % 3600 === 0 ? 3600 : iv % 60 === 0 ? 60 : 1;
+  $('#funit').value = unit; $('#fint').value = iv / unit;
+  $('#frec').checked = s ? s.recursive : true;
+  $('#fen').checked = s ? s.enabled : true;
+  $('#ferr').textContent = '';
+  $('#formov').classList.add('show');
+}
+$('#add').onclick = () => openForm(null);
+$('#fcancel').onclick = () => $('#formov').classList.remove('show');
+$('#fsave').onclick = async () => {
+  const body = {
+    name: $('#fname').value, path: $('#fpath').value,
+    interval: Math.round(parseFloat($('#fint').value || '0') * parseInt($('#funit').value)),
+    recursive: $('#frec').checked, enabled: $('#fen').checked
+  };
+  $('#fsave').disabled = true;
+  try {
+    if (editId) await api('api/shuffles/' + editId, 'PUT', body); else await api('api/shuffles', 'POST', body);
+    $('#formov').classList.remove('show');
+    refresh(); setTimeout(refresh, 1500);
+  } catch (e) { $('#ferr').textContent = e.message; }
+  $('#fsave').disabled = false;
+};
+
+async function browse(path) {
+  try {
+    const d = await api('api/browse' + (path ? '?path=' + encodeURIComponent(path) : ''));
+    const list = $('#blist');
+    browsePath = d.path || '';
+    $('#bselect').disabled = !d.path;
+    if (d.roots) {
+      $('#bpath').textContent = 'Allowed photo paths';
+      $('#binfo').textContent = '';
+      list.innerHTML = d.roots.length ? d.roots.map(r => '<button data-p="' + esc(r.path) + '"' + (r.exists ? '' : ' disabled') + '>📁 ' + esc(r.path) + (r.exists ? '' : ' (not found)') + '</button>').join('') : '<div class="meta" style="padding:10px">No photo paths set in Configuration.</div>';
+    } else {
+      $('#bpath').textContent = d.path;
+      $('#binfo').textContent = d.images + ' picture' + (d.images === 1 ? '' : 's') + ' directly in this folder';
+      list.innerHTML = '<button data-p="' + esc(d.parent || '') + '">⬆ Up</button>' + d.dirs.map(x => '<button data-p="' + esc(x.path) + '">📁 ' + esc(x.name) + '</button>').join('');
+    }
+  } catch (e) { if (path) return browse(''); $('#binfo').textContent = e.message; }
+}
+$('#browse').onclick = () => { $('#browseov').classList.add('show'); browse($('#fpath').value.startsWith('/') ? $('#fpath').value : ''); };
+$('#blist').addEventListener('click', ev => { const b = ev.target.closest('button[data-p]'); if (b) browse(b.dataset.p); });
+$('#bcancel').onclick = () => $('#browseov').classList.remove('show');
+$('#bselect').onclick = () => { $('#fpath').value = browsePath; $('#browseov').classList.remove('show'); };
+
+
+// ---------------------------------------------------------------- tabs
+function showTab(t) {
+  tab = t;
+  try { localStorage.setItem('ph_tab', t); } catch (e) {}
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  $('#pane-folders').hidden = t !== 'folders';
+  $('#pane-unsplash').hidden = t !== 'unsplash';
+}
+document.querySelector('.tabs').addEventListener('click', ev => { const b = ev.target.closest('button[data-tab]'); if (b) showTab(b.dataset.tab); });
+showTab(tab);
+
+// ---------------------------------------------------------------- unsplash
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const slugify = n => n.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
+function renderUHead() {
+  const U = S.unsplash;
+  let b = '';
+  if (!U.has_key) b += '<div class="banner bad">No Unsplash Access Key yet. Add it on the add-on <b>Configuration</b> tab, Save, then Restart the add-on.</div>';
+  if (U.per_hour > 45) b += '<div class="banner warn">That is close to Unsplash\'s 50 requests/hour limit. Raise the interval in Configuration or trim collections.</div>';
+  if ($('#ubanners').innerHTML !== b) $('#ubanners').innerHTML = b;
+  const n = U.collections.reduce((a, c) => a + Object.keys(c.images).length, 0);
+  const left = Math.max(0, Math.round(U.next_cycle - nowSrv()));
+  $('#ustatus').textContent = n + ' image' + (n === 1 ? '' : 's') + ' every ' + U.interval_minutes + ' min · about ' + U.per_hour + ' requests/hour · ' +
+    (U.busy ? 'fetching now...' : 'next refresh in ' + human(left));
+}
+
+function drawU() {
+  const U = S.unsplash, box = $('#ucards');
+  if (!U.collections.length) {
+    box.innerHTML = '<div class="empty">No collections yet.<br>Tap <b>+ Add collection</b>, give it a few search terms and the photos start flowing.</div>';
+    return;
+  }
+  box.innerHTML = '<div class="grid">' + U.collections.map(c => {
+    const imgs = Object.entries(c.images);
+    const thumbs = imgs.map(([o, im]) => {
+      if (im.error) return '<figure><div class="ph e">' + esc(cap(o)) + ': ' + esc(im.error) + '</div></figure>';
+      if (!im.has_image) return '<figure><div class="ph">' + esc(cap(o)) + ': waiting for first photo</div></figure>';
+      const m = im.meta || {};
+      const who = m.photographer ? (m.photo_url ? '<a href="' + esc(m.photo_url) + '" target="_blank" rel="noopener">' + esc(m.photographer) + '</a>' : esc(m.photographer)) : '';
+      return '<figure><img loading="lazy" alt="" src="api/unsplash/thumb/' + esc(im.key) + '.jpg?v=' + Math.round(m.fetched_at || 0) + '">' +
+        '<figcaption>' + esc(cap(o)) + (who ? ' · ' + who : '') + '</figcaption></figure>';
+    }).join('');
+    const bad = imgs.some(([o, im]) => im.error);
+    const badge = bad ? '<span class="pill bad">Problem</span>' : '<span class="pill ok">Running</span>';
+    return '<div class="card" data-id="' + esc(c.id) + '">' +
+      '<div class="thumbs">' + thumbs + '</div>' +
+      '<div class="body">' +
+        '<div class="title"><span>' + esc(c.name) + '</span>' + badge + '</div>' +
+        '<div class="meta">' + esc(c.search_terms.join(' · ')) + '</div>' +
+        '<div class="mono">' + imgs.map(([o, im]) => esc(im.entity)).join('<br>') + '</div>' +
+      '</div>' +
+      '<div class="actions">' +
+        '<button data-act="ufetch">Fetch now</button>' +
+        '<button data-act="uedit">Edit</button>' +
+        '<button data-act="udel" class="danger">Delete</button>' +
+      '</div></div>';
+  }).join('') + '</div>';
+}
+
+function pollSoon() { [1500, 5000, 10000, 20000].forEach(ms => setTimeout(refresh, ms)); }
+
+$('#ucards').addEventListener('click', async ev => {
+  const b = ev.target.closest('button[data-act]');
+  if (!b) return;
+  const id = b.closest('.card').dataset.id;
+  const c = S.unsplash.collections.find(x => x.id === id);
+  try {
+    if (b.dataset.act === 'ufetch') { await api('api/unsplash/collections/' + id + '/fetch', 'POST', {}); pollSoon(); }
+    else if (b.dataset.act === 'uedit') openCForm(c);
+    else if (b.dataset.act === 'udel') {
+      if (confirm('Delete "' + c.name + '"? Its Home Assistant entities will be removed.')) { await api('api/unsplash/collections/' + id, 'DELETE'); refresh(); }
+    }
+  } catch (e) { alert(e.message); }
+});
+
+$('#ufetchall').onclick = async () => {
+  try { await api('api/unsplash/fetch', 'POST', {}); pollSoon(); } catch (e) { alert(e.message); }
+};
+
+function cHint() {
+  const id = cEditId || slugify($('#cname').value) || 'name';
+  const o = $('#corient').value;
+  $('#chint').textContent = 'Entities: ' + (o === 'both' ? ['landscape', 'portrait'] : [o]).map(x => 'image.' + id + '_photos_' + x).join('  ·  ');
+}
+function openCForm(c) {
+  cEditId = c ? c.id : null;
+  $('#ctitle').textContent = c ? 'Edit collection' : 'Add collection';
+  $('#cname').value = c ? c.name : '';
+  $('#cterms').value = c ? c.search_terms.join('\n') : '';
+  $('#corient').value = c ? c.orientation : 'landscape';
+  $('#cerr').textContent = '';
+  cHint();
+  $('#cformov').classList.add('show');
+}
+$('#uadd').onclick = () => openCForm(null);
+$('#cname').oninput = cHint;
+$('#corient').onchange = cHint;
+$('#ccancel').onclick = () => $('#cformov').classList.remove('show');
+$('#csave').onclick = async () => {
+  const body = { name: $('#cname').value, search_terms: $('#cterms').value.split('\n'), orientation: $('#corient').value };
+  $('#csave').disabled = true;
+  try {
+    if (cEditId) await api('api/unsplash/collections/' + cEditId, 'PUT', body); else await api('api/unsplash/collections', 'POST', body);
+    $('#cformov').classList.remove('show');
+    refresh(); pollSoon();
+  } catch (e) { $('#cerr').textContent = e.message; }
+  $('#csave').disabled = false;
+};
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
