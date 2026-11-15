@@ -17,7 +17,8 @@ RUN python -c "from PIL import Image; import vtracer; Image.new('RGB',(96,96),(2
  && rm -f /tmp/t.png /tmp/t.svg
 
 WORKDIR /app
-COPY server.py svg_tool.py ai_logo.py /app/
+COPY server.py svg_tool.py ai_logo.py backup.py start.sh /app/
 COPY www /app/www
+RUN chmod a+x /app/start.sh
 
-CMD ["python3", "-u", "/app/server.py"]
+CMD ["/app/start.sh"]

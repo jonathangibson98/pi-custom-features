@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 - 2026-11-15
+
+- **Backups.** New options `backup_enabled`, `backup_path` (default `/share/svg_maker_backups`), `backup_keep` (default 20) and `backup_interval_hours` (default 24). The add-on saves every SVG in your save folder (`svg_output_path`) to a zip a minute after it starts and then on that schedule. No new file is made when nothing changed. The temp folder is not backed up.
+- **Restore.** Put a backup's file name in the new `restore_backup` option and restart. A safety copy of the current save folder is made first, and the option clears itself afterwards. Files that are not in the backup are left alone.
+- Each zip also holds `options_reference.json`, a copy of your settings with the Home Assistant token hidden.
+
 ## 1.1.0 - 2026-11-14
 
 - New **AI logo** tab. Describe the logo you want, pick a style, colors and shape, and your `ai_task` entity draws it as a real SVG. Draw 1 to 3 ideas at once, pick the best, then type a change ("make it rounder, use green") and update it.
