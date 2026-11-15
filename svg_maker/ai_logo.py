@@ -55,7 +55,8 @@ STYLES = {
 # A reference photo for the AI is saved where Home Assistant's "local" media source can see it (/media), because
 # ai_task.generate_data takes attachments as media-source ids. Photos are deleted after a day.
 PHOTO_DIR = os.environ.get("SVG_AI_PHOTO_DIR", "/media/svg_maker/ai_photos")
-PHOTO_MEDIA_ID = "media-source://media_source/local/svg_maker/ai_photos/%s.jpg"
+PHOTO_SUB = "svg_maker/ai_photos"  # the photos' folder inside /media
+PHOTO_MEDIA_ID = "media-source://media_source/%s/" + PHOTO_SUB + "/%s.jpg"  # (media dir id, photo id)
 PHOTO_KEEP_SECONDS = 86400
 PHOTO_USES = {
     "logo": ("Turn it into a logo",
@@ -233,6 +234,7 @@ class AiLogo:
         self.http = None
         self.lock = asyncio.Lock()  # the AI draws one logo at a time
         self.photos = {}  # photo id -> {"path", "palette", "time"}
+        self.media_dir = None  # Home Assistant's id for the media folder the photos are in ("local" by default)
 
     async def start(self):
         self.http = aiohttp.ClientSession()
@@ -260,10 +262,60 @@ class AiLogo:
         except OSError as e:
             log.warning("AI temp cleanup problem: %s", e)
 
+    async def ws_call(self, msgs):
+        """Run a few Home Assistant websocket commands, returning each result (None for an error)."""
+        base = self.api[:-4] if self.api.endswith("/api") else self.api
+        url = ("ws://supervisor/core/websocket" if base.startswith("http://supervisor")
+               else base.replace("https://", "wss://").replace("http://", "ws://") + "/api/websocket")
+        out = []
+        async with self.http.ws_connect(url) as ws:
+            await ws.receive_json(timeout=10)
+            await ws.send_json({"type": "auth", "access_token": self.hdr["Authorization"][7:]})
+            if (await ws.receive_json(timeout=10)).get("type") != "auth_ok":
+                raise RuntimeError("Home Assistant refused the websocket login.")
+            for i, m in enumerate(msgs, 1):
+                await ws.send_json(dict(m, id=i))
+                while True:
+                    r = await ws.receive_json(timeout=20)
+                    if r.get("id") == i:
+                        break
+                out.append(r.get("result") if r.get("success") else None)
+        return out
+
+    async def find_media_dir(self, photo_id):
+        """Which of Home Assistant's media folders holds our photos. 'local' is the default, but setting media_dirs
+        in configuration.yaml replaces it with your own names, so ask Home Assistant instead of guessing."""
+        if self.media_dir:
+            return self.media_dir
+        try:
+            root = (await self.ws_call([{"type": "media_source/browse_media",
+                                         "media_content_id": "media-source://media_source"}]))[0] or {}
+            ids = []
+            for c in [root] + list(root.get("children") or []):
+                m = re.match(r"media-source://media_source/([^/]+)", str(c.get("media_content_id") or ""))
+                if m and m.group(1) not in ids:
+                    ids.append(m.group(1))
+            ids.sort(key=lambda d: d != "local")
+            res = await self.ws_call([{"type": "media_source/browse_media",
+                                       "media_content_id": "media-source://media_source/%s/%s" % (d, PHOTO_SUB)} for d in ids])
+            for d, r in zip(ids, res):
+                names = [str(c.get("media_content_id") or "") for c in ((r or {}).get("children") or [])]
+                if r is not None and (not names or any(photo_id in n for n in names)):
+                    self.media_dir = d
+                    log.info("Reference photos are in Home Assistant media folder '%s'", d)
+                    return d
+        except Exception as e:  # noqa: BLE001 - fall back to the default name
+            log.warning("Could not look up the media folders: %s", e)
+            return "local"
+        raise RuntimeError("Home Assistant can't see the add-on's photo folder (/media/%s). Your media_dirs setting in "
+                           "configuration.yaml needs a folder that points at /media, for example add  local: /media  "
+                           "under media_dirs, then restart Home Assistant." % PHOTO_SUB)
+
     async def ask(self, prompt, photo_id=None):
         body = {"entity_id": self.entity, "task_name": "SVG logo", "instructions": prompt}
         if photo_id:
-            body["attachments"] = [{"media_content_id": PHOTO_MEDIA_ID % photo_id, "media_content_type": "image/jpeg"}]
+            d = await self.find_media_dir(photo_id)
+            body["attachments"] = [{"media_content_id": PHOTO_MEDIA_ID % (d, photo_id), "media_content_type": "image/jpeg"}]
         try:
             async with self.http.post(
                 self.api + "/services/ai_task/generate_data",
@@ -286,6 +338,8 @@ class AiLogo:
             data = {}
         if status != 200:
             msg = (data.get("message") if isinstance(data, dict) else None) or txt
+            if photo_id and "source directory" in str(msg).lower():
+                self.media_dir = None  # look again next time
             if photo_id:
                 raise RuntimeError("The AI task call with your photo failed (HTTP %d): %s. If your AI Task entity can't "
                                    "look at images, remove the photo or use an AI Task that can (Google Gemini, OpenAI "
