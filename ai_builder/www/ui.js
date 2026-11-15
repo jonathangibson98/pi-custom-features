@@ -79,3 +79,43 @@ const ago = s => {
   if (m < 43200) return Math.round(m / 1440) + " d ago";
   return String(s).slice(0, 10);
 };
+
+/* ---------- the tabs talk to each other ----------
+   Every tab is its own page in the same add-on, so they share localStorage. A change in one tab (a rename, a push,
+   a save) is announced with notifyChanged(), and the other open tabs hear it through the storage event. */
+function notifyChanged(what) {
+  try { localStorage.setItem("aib_changed", JSON.stringify({what: what || "", t: Date.now()})); } catch (e) { /* storage blocked */ }
+}
+function onChanged(fn) {
+  window.addEventListener("storage", e => {
+    if (e.key !== "aib_changed" || !e.newValue) return;
+    try { fn(JSON.parse(e.newValue).what || ""); } catch (err) { /* ignore */ }
+  });
+}
+/* open the Cards tab with a card started from something made here (an announcement or a fact) */
+function sendToCards(src) {
+  try { localStorage.setItem("aib_card_from", JSON.stringify(Object.assign({}, src, {t: Date.now()}))); } catch (e) { /* storage blocked */ }
+  try { if (window.parent && window.parent !== window && typeof window.parent.show === "function") { window.parent.show("cards"); return; } } catch (e) { /* not inside the add-on page */ }
+  location.href = "cards";
+}
+/* a Rename button that turns into a text box with Save / Cancel. save(newName) returns {ok, error} */
+function renameButton(current, save, done) {
+  const wrap = el("span", {style: "display:contents"});
+  const btn = el("button", {class: "btn sm", onclick: () => {
+    const inp = el("input", {value: current || "", maxlength: 80, style: "max-width:240px;min-width:140px"});
+    const msg = el("span", {class: "dim small"});
+    const ok = el("button", {class: "btn primary sm", onclick: async () => {
+      const n = inp.value.trim(); if (!n) { msg.textContent = "Type a name."; return; }
+      if (n === current) { wrap.replaceChildren(btn); return; }
+      ok.disabled = true; msg.textContent = "Renaming...";
+      const r = await save(n); ok.disabled = false;
+      if (!r || !r.ok) { msg.textContent = (r && (r.error || r.detail)) || "That failed."; return; }
+      notifyChanged("rename"); if (done) done(r);
+    }}, "Save");
+    const no = el("button", {class: "btn quiet sm", onclick: () => wrap.replaceChildren(btn)}, "Cancel");
+    inp.onkeydown = e => { if (e.key === "Enter") ok.click(); if (e.key === "Escape") no.click(); };
+    wrap.replaceChildren(el("span", {class: "inline", style: "flex-wrap:wrap;gap:6px;width:100%"}, inp, ok, no, msg)); inp.focus(); inp.select();
+  }}, "Rename");
+  wrap.append(btn);
+  return wrap;
+}
