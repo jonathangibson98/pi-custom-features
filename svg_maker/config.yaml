@@ -1,9 +1,9 @@
 name: "SVG Maker"
-version: "1.0.2"
+version: "1.0.3"
 slug: svg_maker
 description: "Turn photos into clean, scalable SVG icons and vector files, right from the Home Assistant sidebar."
 image: "ghcr.io/jonathangibson98/{arch}-addon-svg_maker"
-url: "https://github.com/jonathangibson98/my-home-assistant-apps"
+url: "https://github.com/jonathangibson98/pi-custom-features"
 arch:
   - aarch64
   - amd64

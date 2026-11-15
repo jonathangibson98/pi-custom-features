@@ -9,12 +9,13 @@ Turn photos into clean, scalable SVG icons and vector files from your Home Assis
 
 ## Install
 
-1. Copy the `svg_maker` folder into `/addons/` on your Home Assistant.
-2. Settings -> Add-ons -> Add-on Store -> menu (three dots) -> **Check for updates**.
-3. Open **SVG Maker** under Local add-ons, then **Install** and **Start**.
-4. Turn on **Show in sidebar**.
+1. Settings -> Add-ons -> Add-on Store -> menu (three dots) -> **Repositories**, and add `https://github.com/jonathangibson98/pi-custom-features` if you haven't already.
+2. Open **SVG Maker**, then **Install** and **Start**.
+3. Turn on **Show in sidebar**.
 
-The first install builds the image on your Home Assistant, which can take a few minutes. The build runs a tracer test, so if the tracer can't run on your hardware the install fails with a clear message instead of failing later.
+Home Assistant downloads a prebuilt image from GitHub's container registry (`ghcr.io/jonathangibson98/{arch}-addon-svg_maker`), so nothing is built on your Pi. If the install says the image can't be found, open your GitHub profile, **Packages**, `aarch64-addon-svg_maker` / `amd64-addon-svg_maker`, **Package settings**, and set it to **Public**.
+
+The image build runs a tracer test, so if the tracer can't run the build fails with a clear message instead of failing on your first conversion.
 
 ## Coming from Creator & AI Builder
 
@@ -22,5 +23,5 @@ SVG Maker used to be a tab inside Creator & AI Builder. It is now this separate 
 
 ## Requirements
 
-- Home Assistant OS or Supervised (needs the add-on system)
+- Home Assistant OS or Supervised (needs the add-on system), on a 64-bit Pi (aarch64) or an amd64 machine
 - Nothing else. To use saved icons as `local:<name>`, install the Custom Icons integration (HACS)

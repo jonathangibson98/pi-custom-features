@@ -11,14 +11,22 @@ below can also run as a plain Docker container.
 | [Voice Chat](voice_chat/) | Hands-free voice conversation with any Home Assistant AI agent, answered out loud on the speaker you choose | HA add-on or Docker |
 | [Personal AI Speech](personal_ai_speech/) | Natural text-to-speech with emotion tags (Kokoro) and local speech-to-text (faster-whisper), as an OpenAI-compatible server for the Personal AI integration | HA add-on |
 | [Zone Creator](zone_creator/) | Search an address, drop a pin and create a Home Assistant zone, with optional AI name and icon suggestions | HA add-on |
+| [Creator & AI Builder](ai_builder/) | Build automations, scenes, scripts, helpers and more from plain English with your `ai_task` entity, make AI voice announcements and dashboard facts, and back it all up | HA add-on |
+| [SVG Maker](svg_maker/) | Turn photos into clean, scalable SVG icons from the sidebar, with a crop editor and color or black and white tracing | HA add-on |
+| [File Reader](file_reader/) | Web UI and MQTT file manager for Home Assistant sensors, automations and text logging, with an optional REST API | HA add-on |
+| [Photo Hub](photo_shuffle/) | Turn folders of photos and Unsplash collections into Home Assistant image entities over MQTT | HA add-on |
+| [Release Tracker](release_tracker/) | Track anything with a release date: shows, movies, games, albums, tech launches and merch drops | HA add-on |
+| [Team Tracker Lite](team_tracker_lite/) | One lightweight sports sensor, pick any team from a menu, with an optional calendar feed | HA add-on |
+| [Work Hours Tracker](work_hours/) | Logs time spent in chosen zones, one file per person, with MQTT sensors | HA add-on |
 
 ## Install
 
 **Settings → Add-ons → Add-on Store → ⋮ → Repositories**, add
 `https://github.com/jonathangibson98/pi-custom-features`, then install the add-on you want.
 
-Every add-on has an `image:` line in its `config.yaml`, so Home Assistant downloads a prebuilt image
+Every add-on except Release Tracker has an `image:` line in its `config.yaml`, so Home Assistant downloads a prebuilt image
 from GitHub's container registry instead of building on your Pi (see [Prebuilt images](#prebuilt-images)).
+Release Tracker has no `image:` line, so Home Assistant builds it on your Pi.
 Each add-on also has a **Documentation** tab with setup details (`DOCS.md` in its folder).
 
 ## Layout
@@ -34,19 +42,16 @@ pi-custom-features/
 │   ├── dependabot.yml
 │   └── pull_request_template.md
 ├── pi_health_monitor/           add-on + standalone Docker
-│   ├── config.yaml, Dockerfile, run.sh, app.py
-│   ├── Dockerfile.standalone, docker-compose.yml
-│   └── DOCS.md, CHANGELOG.md, icon.png, logo.png
 ├── voice_chat/                  add-on + standalone Docker
-│   ├── config.yaml, build.yaml, Dockerfile, run.sh, app/
-│   ├── Dockerfile.standalone, docker-compose.yml, .env.example
-│   └── DOCS.md, CHANGELOG.md, translations/, icon.png, logo.png
 ├── personal_ai_speech/          add-on
-│   ├── config.yaml, Dockerfile, requirements.txt, app/
-│   └── README.md, DOCS.md, CHANGELOG.md, translations/, icon.png, logo.png
 ├── zone_creator/                add-on
-│   ├── config.yaml, Dockerfile, server.py, index.html
-│   └── README.md, DOCS.md, CHANGELOG.md, translations/, icon.png, logo.png
+├── ai_builder/                  add-on (Creator & AI Builder)
+├── svg_maker/                   add-on
+├── file_reader/                 add-on
+├── photo_shuffle/               add-on (Photo Hub)
+├── release_tracker/             add-on
+├── team_tracker_lite/           add-on
+├── work_hours/                  add-on (Work Hours Tracker)
 ├── .hadolint.yaml
 ├── .yamllint
 ├── repository.yaml              makes this repo addable in the HA add-on store
@@ -54,6 +59,7 @@ pi-custom-features/
 └── README.md
 ```
 
+Every add-on folder holds at least `config.yaml`, `Dockerfile`, `DOCS.md`, `CHANGELOG.md`, `icon.png` and `logo.png`.
 Add-on folders have to stay at the top level of the repo for Home Assistant to find them.
 
 ## Prebuilt images
@@ -71,6 +77,10 @@ To get Home Assistant to offer an update, bump `version` in the add-on's `config
 
 The first time a package is published, open your GitHub profile, **Packages**, the new package, **Package settings**,
 and set it to **Public**. Home Assistant (and `docker pull`) cannot use a private package.
+
+If an image build fails with `Failed building wheel for ...`, a Python package has no prebuilt wheel for the Python version in
+that add-on's `Dockerfile` (usually because the base image is a pre-release such as `python:3.15`). Pin the base image to a
+released Python (for example `python:3.12-slim-bookworm`).
 
 ## Checks
 
@@ -159,3 +169,42 @@ Setup: [personal_ai_speech/DOCS.md](personal_ai_speech/DOCS.md).
 Create Home Assistant zones by searching an address instead of typing coordinates. Searches three free geocoders at once
 (US Census, OpenStreetMap, Photon), lets you drag the pin and radius, and can ask your `ai_task` entity for a zone name and icon.
 Setup: [zone_creator/DOCS.md](zone_creator/DOCS.md).
+
+## Creator & AI Builder
+
+Describe what you want in plain English and your `ai_task` entity builds Home Assistant automations, scenes, scripts, helpers and more.
+It also makes AI voice announcements and dashboard facts, and backs everything up (default `/share/ai_builder_backups`, newest 20 kept).
+It needs Home Assistant API access and an `ai_task` entity. Setup: [ai_builder/DOCS.md](ai_builder/DOCS.md).
+
+## SVG Maker
+
+Turn photos into clean, scalable SVG icons from the sidebar. Auto-suggested crop (circle, rounded, square or full), auto-enhance,
+color or black and white tracing, and icon-friendly file names. Everything runs locally. Icons save to `/homeassistant/custom_icons` by default.
+It runs on a Debian (glibc) Python image because the tracer (vtracer) crashes on Alpine. Setup: [svg_maker/DOCS.md](svg_maker/DOCS.md).
+
+## File Reader
+
+A web UI and MQTT file manager: expose text files as Home Assistant sensors, edit them from the sidebar and log text from automations.
+Files live in `/data/files` by default, and you can point it at `/share`, `/media` or your Home Assistant config folder.
+An optional REST API on port 8100 is protected by `api_token`. It needs the MQTT service. Setup: [file_reader/DOCS.md](file_reader/DOCS.md).
+
+## Photo Hub
+
+Turns folders of photos (default `/media`) and Unsplash collections into Home Assistant image entities over MQTT.
+Images are resized (default 1920 px, JPEG quality 85) and Unsplash needs your own access key. Folders are mounted read-only.
+Setup: [photo_shuffle/DOCS.md](photo_shuffle/DOCS.md).
+
+## Release Tracker
+
+Track anything with a release date (shows, movies, games, albums, celebrities, tech launches and merch drops) from the sidebar,
+with MQTT sensors if you have the MQTT service. Setup: [release_tracker/DOCS.md](release_tracker/DOCS.md).
+
+## Team Tracker Lite
+
+One lightweight sports sensor where you pick any team from a menu. An optional calendar feed on port 8100 lets you subscribe
+from a phone or another app. It uses MQTT if available and Home Assistant API access. Setup: [team_tracker_lite/DOCS.md](team_tracker_lite/DOCS.md).
+
+## Work Hours Tracker
+
+Logs the time you spend in chosen zones, one file per person (default `/homeassistant/work_hours`, kept 365 days), with MQTT sensors.
+Setup: [work_hours/DOCS.md](work_hours/DOCS.md).

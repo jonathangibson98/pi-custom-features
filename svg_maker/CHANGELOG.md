@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.3 - 2026-11-14
+
+- Fixed the image build failing with "Failed building wheel for vtracer". The base image is now pinned to Python 3.12 (a released version with prebuilt tracer wheels) instead of the 3.15 pre-release, and the build only accepts a prebuilt tracer wheel so it can't fall into a Rust compile.
+- The add-on page link now really points at this repository.
+
 ## 1.0.1 - 2026-11-13
 
 - Now published as a prebuilt image (`ghcr.io/jonathangibson98/{arch}-addon-svg_maker`), so it installs without building on the Pi.
