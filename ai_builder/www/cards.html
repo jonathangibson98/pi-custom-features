@@ -61,6 +61,11 @@
         <label class="l" for="request">Describe the card</label>
         <textarea id="request" placeholder="e.g. A card that rotates through the songs in my new music list, one at a time. Show the song name big, the artist underneath, and the release date small and dim. Add a little 🎵 in the title."></textarea>
 
+        <label class="l" for="fromsel">Start from something made here (optional)</label>
+        <select id="fromsel" style="max-width:420px"><option value="">Nothing, I'll pick the entities myself</option></select>
+        <div id="fromnote"></div>
+        <p class="help">Pick an announcement or fact that saves to a file. Its sensor and show / hide switch are filled in, and the AI is told what is in the file (the fields and what each one is for), so it can build the card even before the file has anything in it.</p>
+
         <label class="l">Data the card reads</label>
         <div id="entpick"></div>
         <p class="help">Pick the sensors, helpers or entities it should use. The AI is shown their live state and attributes, so it knows the exact field names. Add the file_reader sensor for a fact or list (for example sensor.read_new_songs).</p>
