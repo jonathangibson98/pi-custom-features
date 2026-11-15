@@ -2972,7 +2972,7 @@ def conv_schedule(cfg, fact):
             if m:
                 a.update(every=int(m.group(1)), unit="minutes")
                 continue
-        if kind == "time" and not fact and not a["at"] and re.match(r"^\d{1,2}:\d{2}", str(t.get("at", ""))):
+        if kind == "time" and not a["at"] and re.match(r"^\d{1,2}:\d{2}", str(t.get("at", ""))):
             a["at"] = str(t["at"])[:5].rjust(5, "0")
             continue
         if kind == "state" and not a["watch"]:

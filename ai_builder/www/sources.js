@@ -93,7 +93,8 @@ async function convertImport(target, yaml, autoYaml) {
   return r;
 }
 function convertNote(r, what) {
-  const p = ["Converted into a normal " + what + "." + (r.used_ai ? " Your AI Task split your prompt into the instructions and the voice, so read the instructions before you push." : "")];
+  const split = what === "fact" ? "the instructions, format and rules" : "the instructions and the voice";
+  const p = ["Converted into a normal " + what + "." + (r.used_ai ? " Your AI Task split your prompt into " + split + ", so read them before you push." : "")];
   if ((r.added || []).length) p.push("New data sources added to Settings: " + r.added.join(", ") + ".");
   return p.concat(r.notes || []).join(" ");
 }

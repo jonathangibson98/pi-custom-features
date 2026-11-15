@@ -106,12 +106,12 @@
 
         <section class="card" id="rawcard" hidden>
           <div class="ch"><h2><span class="n">2</span>Your script</h2><p>Kept exactly as you wrote it. Edit the YAML here, then Save or Save and push.</p></div>
+          <div class="note" style="margin-bottom:12px"><div><b>Want the normal form instead?</b> Converting reads this script into the same form as an announcement made here: data sources, speakers, personalities, schedule, the helper and the test panel. Your AI Task splits the prompt into the instructions and the voice. Anything that doesn't fit is listed, and you can go back to this script until you push.</div>
+            <button class="btn primary sm" id="rawform" style="margin-top:10px">Convert to the normal form</button></div>
           <textarea id="rawyaml" class="code" spellcheck="false" style="min-height:440px"></textarea>
           <div class="row" style="margin-top:10px">
             <button class="btn sm" id="rawcheck">Check YAML</button>
-            <button class="btn sm" id="rawform">Switch to the form tools</button>
           </div>
-          <p class="help">The form tools (data sources, personalities, speakers, volume, the helper and the test panel) build the script from a form. Switching reads your script into the form first. Anything the form does not cover is dropped when you push, so leave without saving if it looks wrong.</p>
         </section>
 
         <div id="formcards" class="stack">

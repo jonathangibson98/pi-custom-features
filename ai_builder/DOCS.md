@@ -286,6 +286,7 @@ AI-written facts for a dashboard. Each fact is one Home Assistant automation (tr
 
 - **New fact** starts the editor. **Start from** has presets modeled on a random trivia fact, a dark history fact, a music fact (random artist, or titled "Artist ||| fact") and a city fact.
 - Each saved fact shows its status, its file, and whether its schedule is on. **Edit, Run now, Duplicate, Delete** work like Announcements. **Save** keeps changes here only, **Save and push** creates or updates the automation in Home Assistant. Its id stays the same. Facts made before 2.10.0 are a script plus a schedule automation; open one and tap **Switch to a single automation**, then push.
+- Facts and announcements imported before 2.16 (shown as "Your own automation/script, kept exactly as you wrote it") have **Convert to the normal form** at the top of the editor. It keeps the same id, so pushing updates what's in Home Assistant.
 - **Import my script or automation** takes a script or automation you wrote by hand. Paste it, or pick an automation from the list. By default it is converted into a normal fact like Announcements does: random lists (`[...] | random`) become **Random picks**, the "don't repeat the last fact" sensor becomes **Avoid the last fact**, the MQTT topic becomes the file, triggers become the schedule, and your AI Task fills in the format and rules. Converting an automation keeps its id, so pushing replaces it in place (a copy is saved first). Pick **Keep it exactly as written** for the old behaviour.
 
 ## The editor
