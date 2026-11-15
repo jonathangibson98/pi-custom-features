@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SVG Maker - turns photos into scalable SVG files. Stand-alone Home Assistant add-on (ingress only)."""
+"""SVG Maker - turns photos into scalable SVG files and draws logos with AI. Stand-alone Home Assistant add-on (ingress only)."""
 import asyncio
 import json
 import logging
@@ -8,6 +8,7 @@ from pathlib import Path
 
 from aiohttp import web
 
+import ai_logo
 import svg_tool
 
 DATA = Path(os.environ.get("DATA_DIR", "/data"))
@@ -39,24 +40,33 @@ def file_route(name, ctype):
     return handler
 
 
+svg = svg_tool.SvgMaker(OPTS)
+ai = ai_logo.AiLogo(svg, OPTS)
+
+
 async def on_startup(app):
     svg.start()
+    await ai.start()
     asyncio.get_running_loop().run_in_executor(None, svg.self_test)  # logs whether the tracer works here
     log.info("SVG Maker ready")
 
 
-svg = svg_tool.SvgMaker(OPTS)
+async def on_cleanup(app):
+    await ai.close()
 
 
 def main():
     app = web.Application(client_max_size=svg.max_upload_bytes + 1024 * 1024, middlewares=[ingress_only])
     app.on_startup.append(on_startup)
+    app.on_cleanup.append(on_cleanup)
     app.add_routes([
         web.get("/", file_route("index.html", "text/html")),
         web.get("/svg-crop.js", file_route("svg-crop.js", "application/javascript")),
         web.get("/api/svg/settings", svg.settings),
         web.post("/api/svg/convert", svg.convert),
         web.post("/api/svg/save", svg.save),
+        web.get("/api/svg/ai/settings", ai.settings),
+        web.post("/api/svg/ai/generate", ai.generate),
     ])
     web.run_app(app, host="0.0.0.0", port=8099, access_log=None)
 

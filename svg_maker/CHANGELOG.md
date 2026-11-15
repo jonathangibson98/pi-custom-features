@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.0 - 2026-11-14
+
+- New **AI logo** tab. Describe the logo you want, pick a style, colors and shape, and your `ai_task` entity draws it as a real SVG. Draw 1 to 3 ideas at once, pick the best, then type a change ("make it rounder, use green") and update it.
+- Results use the same name, Save locally, Download and Both buttons as photo conversions, and auto-save to the temp folder.
+- AI output is cleaned before you see it: scripts, external links, bitmaps and animation are removed, gradient ids are made unique and the size is normalized. Black and white logos use `currentColor` so Home Assistant can recolor them.
+- New options: `svg_ai_task_entity`, `svg_ai_timeout`, `svg_ai_default_style`, `svg_ai_default_count`, plus optional `ha_url` and `ha_token`. The add-on now has Home Assistant API access (`homeassistant_api`).
+- Photo conversion is unchanged.
+
 ## 1.0.3 - 2026-11-14
 
 - Fixed the image build failing with "Failed building wheel for vtracer". The base image is now pinned to Python 3.12 (a released version with prebuilt tracer wheels) instead of the 3.15 pre-release, and the build only accepts a prebuilt tracer wheel so it can't fall into a Rust compile.

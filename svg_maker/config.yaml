@@ -1,13 +1,14 @@
 name: "SVG Maker"
-version: "1.0.3"
+version: "1.1.0"
 slug: svg_maker
-description: "Turn photos into clean, scalable SVG icons and vector files, right from the Home Assistant sidebar."
+description: "Turn photos into clean, scalable SVG icons, or describe a logo and let your AI draw it, right from the Home Assistant sidebar."
 image: "ghcr.io/jonathangibson98/{arch}-addon-svg_maker"
 url: "https://github.com/jonathangibson98/pi-custom-features"
 arch:
   - aarch64
   - amd64
 init: false
+homeassistant_api: true
 ingress: true
 panel_icon: mdi:vector-curve
 panel_title: SVG Maker
@@ -40,6 +41,12 @@ options:
   svg_crop_padding: 15
   svg_output_size: 512
   svg_auto_enhance: true
+  svg_ai_task_entity: ai_task.gemini_pro_ai_task
+  svg_ai_timeout: 180
+  svg_ai_default_style: flat
+  svg_ai_default_count: 1
+  ha_url: "http://homeassistant:8123"
+  ha_token: ""
 schema:
   log_level: list(debug|info|warning|error)
   svg_output_path: str
@@ -61,3 +68,9 @@ schema:
   svg_crop_padding: int(0,60)
   svg_output_size: int(128,2048)
   svg_auto_enhance: bool
+  svg_ai_task_entity: str
+  svg_ai_timeout: int(30,600)
+  svg_ai_default_style: list(auto|flat|line|gradient|badge|mascot|geometric|sketch)
+  svg_ai_default_count: int(1,3)
+  ha_url: str?
+  ha_token: password?

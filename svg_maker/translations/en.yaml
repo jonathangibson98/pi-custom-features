@@ -59,3 +59,21 @@ configuration:
   svg_auto_enhance:
     name: SVG auto-enhance before tracing
     description: Boosts contrast, smooths texture noise and simplifies colors so photos trace into clean shapes with smaller files. Changeable on the page.
+  svg_ai_task_entity:
+    name: AI logo - AI Task entity
+    description: The Home Assistant ai_task entity that draws logos in the AI logo tab. Default ai_task.gemini_pro_ai_task.
+  svg_ai_timeout:
+    name: AI logo - timeout (seconds)
+    description: How long to wait for the AI to draw one logo before giving up. Raise it if your AI is slow.
+  svg_ai_default_style:
+    name: AI logo - default style
+    description: Starting style in the AI logo tab. Changeable on the page.
+  svg_ai_default_count:
+    name: AI logo - default number of ideas
+    description: How many different designs to draw at once (1 to 3). Each one is a separate AI call. Changeable on the page.
+  ha_url:
+    name: Home Assistant URL (optional)
+    description: Only used with the token below. Leave the default unless you need to reach Home Assistant a different way.
+  ha_token:
+    name: Home Assistant long-lived token (optional)
+    description: Leave empty to use the add-on's built-in access. Only fill this in if the AI logo tab says Home Assistant refused the add-on.

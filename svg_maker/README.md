@@ -1,7 +1,8 @@
 # SVG Maker
 
-Turn photos into clean, scalable SVG icons and vector files from your Home Assistant sidebar. Runs fully local: your photos never leave your Home Assistant.
+Turn photos into clean, scalable SVG icons from your Home Assistant sidebar, or describe a logo and let your AI draw it. Photo conversion runs fully local: your photos never leave your Home Assistant.
 
+- **AI logo tab:** say what you want, pick style, colors and shape, and your `ai_task` entity draws it. Make 1 to 3 ideas, pick one, then ask for changes in plain English
 - Facebook-style crop window: auto-suggested crop, drag and pinch to adjust, circle, rounded, square or full photo
 - Auto-enhance for cleaner shapes and smaller files; color or black and white tracing with adjustable detail
 - Name your file, then Save locally, Download, or Both. Icon-friendly names (`my-dog`) and black and white icons that follow Home Assistant colors
@@ -24,4 +25,5 @@ SVG Maker used to be a tab inside Creator & AI Builder. It is now this separate 
 ## Requirements
 
 - Home Assistant OS or Supervised (needs the add-on system), on a 64-bit Pi (aarch64) or an amd64 machine
-- Nothing else. To use saved icons as `local:<name>`, install the Custom Icons integration (HACS)
+- For the AI logo tab: an `ai_task` entity (default `ai_task.gemini_pro_ai_task`). Photo conversion needs nothing
+- To use saved icons as `local:<name>`, install the Custom Icons integration (HACS)
