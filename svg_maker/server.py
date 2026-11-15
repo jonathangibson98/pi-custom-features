@@ -67,6 +67,7 @@ def main():
         web.post("/api/svg/save", svg.save),
         web.get("/api/svg/ai/settings", ai.settings),
         web.post("/api/svg/ai/generate", ai.generate),
+        web.post("/api/svg/ai/photo", ai.photo),
     ])
     web.run_app(app, host="0.0.0.0", port=8099, access_log=None)
 
