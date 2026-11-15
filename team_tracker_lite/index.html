@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team Tracker Lite</title>
+<style>
+  :root {
+    --ink: #0f1219; --panel: #171c27; --line: #2a3142;
+    --text: #e8ecf4; --muted: #8b95ab; --good: #52d29a; --bad: #ff7a7a;
+    --me: #6f8cff; --opp: #3a4258;
+    --score: "Arial Narrow", "Roboto Condensed", "Helvetica Neue", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ink); color: var(--text);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 14px 14px 40px; max-width: 640px; margin-inline: auto;
+  }
+  h2 { font-size: 1.05rem; margin: 26px 0 10px; font-weight: 650; }
+  .board {
+    border-radius: 14px; border: 1px solid var(--line); padding: 18px 12px 14px;
+    background:
+      linear-gradient(90deg, color-mix(in srgb, var(--me) 38%, transparent), transparent 42%, transparent 58%,
+                              color-mix(in srgb, var(--opp) 38%, transparent)),
+      var(--panel);
+  }
+  .row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 6px; text-align: center; }
+  .side img { width: 64px; height: 64px; object-fit: contain; }
+  .side .abbr { font: 700 1.35rem var(--score); letter-spacing: .02em; }
+  .side .rec { color: var(--muted); font-size: .85rem; }
+  .score { font: 700 3.1rem/1 var(--score); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .score small { color: var(--muted); font-weight: 400; margin: 0 .2em; }
+  .status { text-align: center; margin-top: 12px; color: var(--muted); font-size: .92rem; }
+  .pill { display: inline-block; padding: 1px 10px; border-radius: 99px; font-weight: 650; font-size: .8rem;
+          border: 1px solid var(--line); color: var(--text); margin-right: 8px; }
+  .pill.IN { background: var(--good); color: #06281b; border-color: var(--good); }
+  .pill.PRE { border-color: var(--me); }
+  .empty { text-align: center; color: var(--muted); padding: 18px 8px; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .team { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-top: 1px solid var(--line); }
+  .team:first-child { border-top: 0; }
+  .team.active { box-shadow: inset 3px 0 0 var(--me); }
+  .team img { width: 34px; height: 34px; object-fit: contain; }
+  .team .nm { flex: 1; min-width: 0; }
+  .team .nm b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .team .nm span { color: var(--muted); font-size: .82rem; }
+
+  button, select, input {
+    font: inherit; color: var(--text); background: #1f2535; border: 1px solid var(--line);
+    border-radius: 9px; padding: 9px 12px; min-height: 42px;
+  }
+  button { cursor: pointer; }
+  button.primary { background: var(--me); border-color: var(--me); color: #0b1020; font-weight: 650; }
+  button.ghost { background: transparent; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .form { display: grid; gap: 10px; padding: 12px; }
+  .inline { display: flex; gap: 10px; }
+  .inline input { flex: 1; min-width: 0; }
+  label { display: grid; gap: 4px; color: var(--muted); font-size: .85rem; }
+  .foot { margin-top: 22px; color: var(--muted); font-size: .85rem; display: flex; gap: 8px; align-items: center; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--bad); display: inline-block; }
+  .dot.ok { background: var(--good); }
+  #msg { min-height: 1.3em; margin-top: 8px; color: var(--bad); font-size: .9rem; }
+  #msg.ok { color: var(--good); }
+  .note { color: var(--muted); font-size: .88rem; }
+  .note.bad { color: var(--bad); }
+  .game { padding: 10px 12px; border-top: 1px solid var(--line); }
+  .game:first-child { border-top: 0; }
+  .game .ln { font: 700 1.15rem var(--score); font-variant-numeric: tabular-nums; }
+  .game .btns { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  details { color: var(--muted); font-size: .9rem; }
+  details summary { cursor: pointer; color: var(--text); min-height: 28px; }
+  details ol { padding-left: 20px; margin: 8px 0; }
+  details b { color: var(--text); }
+</style>
+</head>
+<body>
+
+<div class="board" id="board"></div>
+
+<h2>Teams you can switch between</h2>
+<div class="card" id="teams"></div>
+
+<h2>Live game</h2>
+<div class="card form">
+  <div class="note">Pick any game that's on right now and track its score. It never goes in the calendar.</div>
+  <label>Sport <select id="lsport"></select></label>
+  <div class="card" id="games"></div>
+  <button id="lfind">Find live games</button>
+</div>
+
+<h2>Add a team</h2>
+<div class="card form">
+  <label>League <select id="league"></select></label>
+  <label>Find a team <input id="filter" type="search" placeholder="Start typing a team name" autocomplete="off"></label>
+  <label>Team <select id="team" size="1"></select></label>
+  <button class="primary" id="add" disabled>Add team</button>
+</div>
+
+<h2>How often to refresh</h2>
+<div class="card form">
+  <label>When no game is live
+    <select id="idle"></select></label>
+  <label>During a game
+    <select id="live"></select></label>
+</div>
+
+<h2>Calendar</h2>
+<div class="card form">
+  <div class="note" id="calstatus"></div>
+  <label>Update the calendar every day at <input type="time" id="caltime" step="60"></label>
+  <label>Calendar entity to refresh after each update <input id="calent" placeholder="calendar.team_games" autocomplete="off" spellcheck="false"></label>
+  <button id="calnow">Update calendar now</button>
+  <details>
+    <summary>Set up the calendar in Home Assistant (one time)</summary>
+    <ol>
+      <li>Add your teams first. The calendar holds every game for each saved team.</li>
+      <li>Settings, Devices &amp; services, Add integration, <b>Remote Calendar</b>.</li>
+      <li>Name it <b>Team Games</b> and paste this link:</li>
+    </ol>
+    <div class="inline"><input id="calurl" readonly><button id="copyurl">Copy</button></div>
+  </details>
+</div>
+
+<h2>Sensor name</h2>
+<div class="card form">
+  <div class="inline"><input id="sname" maxlength="60"><button id="savename">Save name</button></div>
+</div>
+
+<div id="msg" role="status"></div>
+<div class="foot"><span class="dot" id="dot"></span><span id="mq"></span><button class="ghost" id="refresh" style="margin-left:auto">Refresh now</button></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const api = (path, body) => fetch("api/" + path, body === undefined ? {} : {
+  method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)
+}).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); return j; });
+
+function el(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") n.className = v; else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v);
+  }
+  for (const k of kids) n.append(k);
+  return n;
+}
+const say = (t, ok) => { $("msg").textContent = t || ""; $("msg").className = ok ? "ok" : ""; };
+let teams = [], lastNameSeen = null;
+
+function sideBlock(a, p) {
+  const logo = a[p + "_logo"];
+  return el("div", {class: "side"},
+    logo ? el("img", {src: logo, alt: ""}) : el("div", {style: "height:64px"}),
+    el("div", {class: "abbr"}, a[p + "_abbr"] || "?"),
+    el("div", {class: "rec"}, a[p + "_record"] || ""));
+}
+
+function drawBoard(sensor) {
+  const a = sensor.attributes || {}, st = sensor.state;
+  const b = $("board");
+  b.replaceChildren();
+  const root = document.documentElement.style;
+  root.setProperty("--me", (a.team_colors && a.team_colors[0]) || "#6f8cff");
+  root.setProperty("--opp", (a.opponent_colors && a.opponent_colors[0]) || "#3a4258");
+  if (!a.opponent_abbr) {
+    b.append(el("div", {class: "empty"}, a.api_message || "Nothing to show yet"));
+    if (a.team_name) b.prepend(el("div", {class: "status"}, a.team_name));
+    return;
+  }
+  const hasScore = a.team_score !== null && a.team_score !== undefined;
+  b.append(el("div", {class: "row"}, sideBlock(a, "team"),
+    el("div", {class: "score"}, hasScore ? String(a.team_score) : "vs", hasScore ? el("small", {}, "–") : "",
+      hasScore ? String(a.opponent_score ?? 0) : ""),
+    sideBlock(a, "opponent")));
+  let detail = "";
+  if (st === "IN") detail = [a.quarter ? "Period " + a.quarter : "", a.clock].filter(Boolean).join("  ") || a.status_detail || "";
+  else if (st === "PRE") detail = [a.kickoff_in, a.date ? new Date(a.date).toLocaleString([], {weekday: "short", hour: "numeric", minute: "2-digit"}) : ""].filter(Boolean).join(" – ");
+  else detail = a.status_detail || "";
+  b.append(el("div", {class: "status"}, el("span", {class: "pill " + st}, st), detail));
+}
+
+function drawTeams(s) {
+  const box = $("teams");
+  box.replaceChildren();
+  const lg = s.settings.live_game;
+  if (lg) {
+    const on = s.settings.active === "LIVE";
+    box.append(el("div", {class: "team" + (on ? " active" : "")},
+      lg.logo ? el("img", {src: lg.logo, alt: ""}) : el("div", {style: "width:34px"}),
+      el("div", {class: "nm"}, el("b", {}, "Live: " + lg.label), el("span", {}, "Tracking " + lg.abbr + " · not in the calendar")),
+      on ? el("span", {class: "pill PRE"}, "Tracking")
+         : el("button", {onclick: () => act("active", {key: "LIVE"})}, "Track"),
+      el("button", {class: "ghost", "aria-label": "Clear live game", onclick: () => act("livegame/clear", {})}, "✕")));
+  }
+  if (!s.settings.favorites.length && !lg) { box.append(el("div", {class: "empty"}, "No teams yet. Add one below.")); return; }
+  for (const f of s.settings.favorites) {
+    const on = f.key === s.settings.active;
+    box.append(el("div", {class: "team" + (on ? " active" : "")},
+      f.logo ? el("img", {src: f.logo, alt: ""}) : el("div", {style: "width:34px"}),
+      el("div", {class: "nm"}, el("b", {}, f.name), el("span", {}, f.league)),
+      on ? el("span", {class: "pill PRE"}, "Tracking")
+         : el("button", {onclick: () => act("active", {key: f.key})}, "Track"),
+      el("button", {class: "ghost", "aria-label": "Remove " + f.name, onclick: () => act("remove", {key: f.key})}, "✕")));
+  }
+}
+
+function draw(s) {
+  drawBoard(s.sensor);
+  drawTeams(s);
+  drawCalendar(s);
+  $("dot").className = "dot" + (s.mqtt ? " ok" : "");
+  $("mq").textContent = s.mqtt ? "Connected to MQTT" : "Not connected to MQTT. Check the add-on options.";
+  if (document.activeElement !== $("idle")) $("idle").value = String(s.settings.idle_minutes);
+  if (document.activeElement !== $("live")) $("live").value = String(s.settings.live_seconds);
+  if (document.activeElement !== $("sname") && lastNameSeen !== s.settings.sensor_name) {
+    $("sname").value = s.settings.sensor_name; lastNameSeen = s.settings.sensor_name;
+  }
+}
+
+function drawCalendar(s) {
+  const c = s.calendar, st = $("calstatus");
+  const when = c.built_at ? new Date(c.built_at).toLocaleString() : null;
+  st.className = "note" + (c.error ? " bad" : "");
+  if (c.error) st.textContent = "Last update failed, keeping the old calendar: " + c.error;
+  else if (!when) st.textContent = s.settings.favorites.length ? "Building the calendar for the first time…" : "Add a team and the calendar builds itself.";
+  else st.textContent = c.events + " games from " + c.teams + " team" + (c.teams === 1 ? "" : "s") + ". Updated " + when + (c.poke ? ". " + c.poke + "." : ".");
+  if (document.activeElement !== $("caltime")) $("caltime").value = s.settings.calendar_time;
+  if (document.activeElement !== $("calent")) $("calent").value = s.settings.calendar_entity || "";
+  $("calurl").value = c.url;
+  $("caltime").title = "Times are in " + c.tz;
+}
+
+async function act(path, body) {
+  try { say(""); draw(await api(path, body)); return true; } catch (e) { say(e.message); return false; }
+}
+
+function fillTeams() {
+  const q = $("filter").value.trim().toLowerCase();
+  const sel = $("team");
+  sel.replaceChildren();
+  const shown = teams.filter(t => !q || t.name.toLowerCase().includes(q) || t.abbr.toLowerCase() === q);
+  for (const t of shown) sel.append(el("option", {value: t.id}, t.name + (t.abbr ? " (" + t.abbr + ")" : "")));
+  $("add").disabled = !shown.length;
+}
+
+async function loadTeams() {
+  teams = []; fillTeams(); $("add").disabled = true;
+  try { say("Loading teams…"); teams = await api("teams?league=" + encodeURIComponent($("league").value)); say(""); fillTeams(); }
+  catch (e) { say(e.message); }
+}
+
+async function findLive() {
+  const box = $("games");
+  box.replaceChildren(el("div", {class: "empty"}, "Looking…"));
+  try {
+    const games = await api("live?league=" + encodeURIComponent($("lsport").value));
+    box.replaceChildren();
+    if (!games.length) { box.append(el("div", {class: "empty"}, "Nothing is live in this sport right now.")); return; }
+    for (const g of games) {
+      const [a, h] = [g.teams[0], g.teams[g.teams.length - 1]];
+      box.append(el("div", {class: "game"},
+        el("div", {class: "ln"}, `${a.abbr} ${a.score ?? 0} – ${h.score ?? 0} ${h.abbr}`),
+        el("div", {class: "note"}, g.detail || ""),
+        el("div", {class: "btns"}, ...g.teams.map(t =>
+          el("button", {onclick: () => act("livegame", {league: $("lsport").value, event_id: g.event_id, team_id: t.id})}, "Track " + t.abbr)))));
+    }
+  } catch (e) { box.replaceChildren(el("div", {class: "empty"}, e.message)); }
+}
+$("lsport").addEventListener("change", findLive);
+$("lfind").addEventListener("click", findLive);
+const saveCal = () => act("calendar", {calendar_time: $("caltime").value || "04:00", calendar_entity: $("calent").value}).then(ok => ok && say("Calendar settings saved", true));
+$("caltime").addEventListener("change", saveCal);
+$("calent").addEventListener("change", saveCal);
+$("calnow").addEventListener("click", () => act("calendar/refresh", {}).then(ok => ok && say("Updating the calendar now…", true)));
+$("copyurl").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($("calurl").value); say("Link copied", true); }
+  catch (e) { $("calurl").select(); say("Press and hold the link to copy it"); }
+});
+
+$("league").addEventListener("change", () => { $("filter").value = ""; loadTeams(); });
+$("filter").addEventListener("input", fillTeams);
+$("add").addEventListener("click", () => {
+  const t = teams.find(x => x.id === $("team").value);
+  if (t) act("favorites", {league: $("league").value, team_id: t.id, abbr: t.abbr, name: t.name, logo: t.logo});
+});
+$("savename").addEventListener("click", () => act("name", {name: $("sname").value}).then(ok => ok && say("Name saved", true)));
+const saveRates = () => act("rates", {idle_minutes: +$("idle").value, live_seconds: +$("live").value}).then(ok => ok && say("Refresh speed saved", true));
+$("idle").addEventListener("change", saveRates);
+$("live").addEventListener("change", saveRates);
+$("refresh").addEventListener("click", () => act("refresh", {}));
+
+(async function init() {
+  for (const m of [1, 2, 5, 10, 15, 30, 60]) $("idle").append(el("option", {value: m}, "Every " + m + (m === 1 ? " minute" : " minutes")));
+  for (const n of [5, 10, 15, 30, 60, 120]) $("live").append(el("option", {value: n}, "Every " + n + " seconds"));
+  const leagues = await api("leagues");
+  for (const l of leagues) { $("league").append(el("option", {value: l.id}, l.label)); $("lsport").append(el("option", {value: l.id}, l.label)); }
+  draw(await api("state"));
+  loadTeams();
+  findLive();
+  setInterval(async () => { try { draw(await api("state")); } catch (e) {} }, 5000);
+})().catch(e => say(e.message));
+</script>
+</body>
+</html>

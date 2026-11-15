@@ -1,0 +1,36 @@
+name: "Team Tracker Lite"
+version: "0.3.2"
+slug: team_tracker_lite
+image: "ghcr.io/jonathangibson98/{arch}-addon-team_tracker_lite"
+description: "One lightweight sports sensor. Pick any team from a menu."
+url: "https://github.com/vasqued2/ha-teamtracker"
+arch:
+  - aarch64
+  - amd64
+init: false
+ingress: true
+panel_icon: mdi:scoreboard
+panel_title: "Team Tracker"
+homeassistant_api: true
+map:
+  - addon_config:rw
+ports:
+  8100/tcp: null
+ports_description:
+  8100/tcp: "Calendar feed. Optional: only needed to subscribe from a phone or another app."
+services:
+  - "mqtt:want"
+options:
+  mqtt_host: ""
+  mqtt_port: 1883
+  mqtt_username: ""
+  mqtt_password: ""
+  publish_team_selector: false
+  log_level: info
+schema:
+  mqtt_host: "str?"
+  mqtt_port: port
+  mqtt_username: "str?"
+  mqtt_password: "password?"
+  publish_team_selector: bool
+  log_level: "list(debug|info|warning|error)"

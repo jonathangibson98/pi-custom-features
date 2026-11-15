@@ -1,0 +1,266 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Work Hours</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; background: #111827; color: #e5e7eb;
+         margin: 0 auto; padding: 16px; max-width: 760px; }
+  h1 { font-size: 22px; }
+  h2 { font-size: 16px; margin: 24px 0 8px; color: #93c5fd; }
+  h3 { font-size: 14px; margin: 16px 0 8px; color: #93c5fd; }
+  .card { background: #1f2937; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+  label.field { display: block; margin-bottom: 12px; font-size: 14px; }
+  label.field span { display: block; color: #9ca3af; font-size: 13px; margin-bottom: 4px; }
+  select, input[type=date], input[type=number] {
+    width: 100%; box-sizing: border-box; background: #111827; color: #e5e7eb;
+    border: 1px solid #374151; border-radius: 8px; padding: 10px; font-size: 16px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
+  button { background: #2563eb; color: #fff; border: 0; border-radius: 8px; padding: 12px 18px;
+           font-size: 16px; width: 100%; margin-top: 10px; }
+  button.small { width: auto; margin: 0; padding: 8px 12px; font-size: 14px; background: #374151; }
+  button.danger { background: #7f1d1d; }
+  .head { display: flex; align-items: center; gap: 8px; }
+  .head .grow { flex: 1; min-width: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+  .chip { background: #1e3a8a; border-radius: 999px; padding: 6px 6px 6px 12px; font-size: 14px;
+          display: inline-flex; align-items: center; gap: 6px; }
+  .chip button { background: transparent; padding: 0 6px; font-size: 16px; width: auto; margin: 0; }
+  .addrow { display: flex; gap: 8px; }
+  .addrow select { flex: 1; }
+  .big { font-size: 22px; font-weight: 700; }
+  .row { display: flex; gap: 12px; margin-top: 8px; }
+  .row > div { flex: 1; }
+  .muted { color: #9ca3af; font-size: 13px; }
+  .live { color: #34d399; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  td, th { padding: 4px; text-align: left; }
+  .err { background: #7f1d1d; padding: 10px; border-radius: 8px; display: none; }
+</style>
+</head>
+<body>
+<h1>⏱ Work Hours</h1>
+<div id="err" class="err"></div>
+
+<h2>People</h2>
+<div class="muted" style="margin-bottom:8px">Each person has their own work zones and their own pay period. Press Edit to change them.</div>
+<div id="people"></div>
+<div class="card">
+  <div class="addrow">
+    <select id="addperson"></select>
+    <button class="small" id="addbtn">Add person</button>
+  </div>
+</div>
+
+<button id="save">Save</button>
+
+<h2>Hours</h2>
+<div id="status"></div>
+<div class="muted" id="info"></div>
+
+<script>
+const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function btn(text, cls, fn) {
+  const b = el('button', cls, text);
+  b.type = 'button';
+  b.onclick = fn;
+  return b;
+}
+
+let catalog = { people: [], zones: [], defaultPeriod: null };   // everything HA knows about
+let model = null;                                               // what you are editing
+const pname = id => (catalog.people.find(p => p.id === id) || { name: id }).name;
+const zname = id => (catalog.zones.find(z => z.id === id) || { name: id }).name;
+const periodText = per => per.start_day + ', ' + (per.weeks === 1 ? '1 week' : per.weeks + ' weeks');
+
+/* ---------- pay period editor (one per person) ---------- */
+function field(label, input) {
+  const l = el('label', 'field');
+  l.appendChild(el('span', null, label));
+  l.appendChild(input);
+  return l;
+}
+
+function periodEditor(p) {
+  const per = p.period;
+  const box = el('div');
+  box.appendChild(el('h3', null, 'Pay period for ' + pname(p.id)));
+  const grid = el('div', 'grid');
+
+  const day = el('select');
+  DAYS.forEach(d => { const o = el('option', null, d); o.value = d; day.appendChild(o); });
+  day.value = per.start_day;
+  day.onchange = () => { per.start_day = day.value; };
+
+  const weeks = el('select');
+  for (let w = 1; w <= 8; w++) {
+    const o = el('option', null, w === 1 ? '1 week' : w + ' weeks'); o.value = w; weeks.appendChild(o);
+  }
+  weeks.value = per.weeks;
+  weeks.onchange = () => { per.weeks = parseInt(weeks.value, 10); };
+
+  const anchor = el('input'); anchor.type = 'date'; anchor.value = per.anchor;
+  anchor.onchange = () => { per.anchor = anchor.value; };
+
+  const hist = el('input'); hist.type = 'number'; hist.min = 1; hist.max = 100; hist.value = per.history;
+  hist.onchange = () => { per.history = parseInt(hist.value, 10) || 26; };
+
+  grid.appendChild(field('Pay period starts on', day));
+  grid.appendChild(field('Length', weeks));
+  grid.appendChild(field('A pay period started on', anchor));
+  grid.appendChild(field('Periods of history to keep', hist));
+  box.appendChild(grid);
+  box.appendChild(el('div', 'muted', 'The date only matters for 2+ week periods: pick any day one of their pay periods began so the add-on knows which weeks to group.'));
+  return box;
+}
+
+/* ---------- people editor ---------- */
+function renderAdd() {
+  const sel = document.getElementById('addperson');
+  const used = model.people.map(p => p.id);
+  sel.innerHTML = '';
+  const first = el('option', null, 'Choose a person...'); first.value = ''; sel.appendChild(first);
+  catalog.people.filter(p => !used.includes(p.id)).forEach(p => {
+    const o = el('option', null, p.name); o.value = p.id; sel.appendChild(o);
+  });
+}
+
+function renderPeople() {
+  const box = document.getElementById('people');
+  box.innerHTML = '';
+  if (!model.people.length) {
+    box.appendChild(el('div', 'muted', 'Nobody yet. Choose a person below and press Add person.'));
+  }
+  model.people.forEach(p => {
+    const card = el('div', 'card');
+    const head = el('div', 'head');
+    const info = el('div', 'grow');
+    info.appendChild(el('b', null, pname(p.id)));
+    info.appendChild(el('div', 'muted', p.zones.length ? p.zones.map(zname).join(', ') : 'No work zones yet'));
+    info.appendChild(el('div', 'muted', 'Pay period: ' + periodText(p.period)));
+    head.appendChild(info);
+    head.appendChild(btn(p.open ? 'Done' : 'Edit', 'small', () => { p.open = !p.open; renderPeople(); }));
+    head.appendChild(btn('Remove', 'small danger', () => {
+      model.people = model.people.filter(x => x.id !== p.id);
+      renderPeople(); renderAdd();
+    }));
+    card.appendChild(head);
+
+    if (p.open) {
+      card.appendChild(el('h3', null, 'Work zones'));
+      const chips = el('div', 'chips');
+      p.zones.forEach(z => {
+        const c = el('span', 'chip', zname(z));
+        c.appendChild(btn('✕', null, () => { p.zones = p.zones.filter(x => x !== z); renderPeople(); }));
+        chips.appendChild(c);
+      });
+      card.appendChild(chips);
+
+      const sel = el('select');
+      const ph = el('option', null, p.zones.length ? 'Add another work zone...' : 'Add a work zone...'); ph.value = ''; sel.appendChild(ph);
+      catalog.zones.filter(z => !p.zones.includes(z.id)).forEach(z => {
+        const o = el('option', null, z.name); o.value = z.id; sel.appendChild(o);
+      });
+      sel.onchange = () => { if (sel.value) { p.zones.push(sel.value); renderPeople(); } };
+      card.appendChild(sel);
+
+      card.appendChild(periodEditor(p));
+    }
+    box.appendChild(card);
+  });
+}
+
+document.getElementById('addbtn').onclick = () => {
+  const sel = document.getElementById('addperson');
+  if (!sel.value) return;
+  // start from the last person's pay period (people often share one), else the default
+  const last = model.people[model.people.length - 1];
+  const per = Object.assign({}, last ? last.period : catalog.defaultPeriod);
+  model.people.push({ id: sel.value, zones: [], period: per, open: true });
+  renderPeople(); renderAdd();
+};
+
+/* ---------- status ---------- */
+function renderStatus(d) {
+  const box = document.getElementById('status');
+  box.innerHTML = '';
+  if (!d.status.length) box.appendChild(el('div', 'muted', 'Add a person and a work zone, then hit Save.'));
+  d.status.forEach(p => {
+    const c = el('div', 'card');
+    c.appendChild(el('b', null, p.name));
+    c.appendChild(el('div', 'muted', 'Work zones: ' + (p.zones.length ? p.zones.join(', ') : 'none picked')));
+    c.appendChild(el('div', 'muted live', p.live ? '● Clocked in at ' + p.live.zone + ' since ' + p.live.since : '○ Not at a work zone'));
+    const row = el('div', 'row');
+    [[p.today, 'Today'], [p.week, 'This week (Mon-Sun)'], [p.period, 'Pay period: ' + p.period_label]].forEach(([v, label]) => {
+      const x = el('div');
+      x.appendChild(el('div', 'big', v.toFixed(2) + ' h'));
+      x.appendChild(el('div', 'muted', label));
+      row.appendChild(x);
+    });
+    c.appendChild(row);
+    c.appendChild(el('div', 'muted', 'File: ' + p.file));
+    if (p.recent.length) {
+      const t = el('table');
+      const h = el('tr');
+      ['Date', 'Zone', 'In', 'Out', 'Hrs'].forEach(x => h.appendChild(el('th', null, x)));
+      t.appendChild(h);
+      p.recent.forEach(r => {
+        const tr = el('tr');
+        [r.date, r.zone, r.start, r.end, r.hours].forEach(x => tr.appendChild(el('td', null, x)));
+        t.appendChild(tr);
+      });
+      c.appendChild(t);
+    }
+    box.appendChild(c);
+  });
+  const i = d.info;
+  document.getElementById('info').textContent =
+    'Saving to ' + i.folder + ' | Keeping ' + (i.keep_days ? i.keep_days + ' days' : 'forever') +
+    ' | Grace ' + i.grace + ' min | Ignoring visits under ' + i.min + ' min | MQTT: ' + i.mqtt;
+}
+
+/* ---------- load / save ---------- */
+let first = true;
+async function load() {
+  const r = await fetch('api/state');
+  const d = await r.json();
+  const e = document.getElementById('err');
+  e.textContent = d.error || '';
+  e.style.display = d.error ? 'block' : 'none';
+  if (!d.error) catalog = { people: d.people, zones: d.zones, defaultPeriod: d.default_period };
+  if (!catalog.defaultPeriod) catalog.defaultPeriod = d.default_period;
+  if (first) {
+    model = { people: d.settings.people.map(p => ({
+      id: p.id, zones: [...p.zones], period: Object.assign({}, p.period), open: false })) };
+    first = false;
+  }
+  renderPeople(); renderAdd(); renderStatus(d);
+}
+
+document.getElementById('save').onclick = async () => {
+  const body = { people: model.people.map(p => ({ id: p.id, zones: p.zones, period: p.period })) };
+  await fetch('api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const b = document.getElementById('save');
+  b.textContent = 'Saved ✓';
+  setTimeout(() => b.textContent = 'Save', 2000);
+  first = true;       // reload so the dates show what was actually saved
+  load();
+};
+
+load();
+setInterval(async () => {   // keep the numbers fresh without touching what you're editing
+  if (first) return;
+  const r = await fetch('api/state'); renderStatus(await r.json());
+}, 60000);
+</script>
+</body>
+</html>
