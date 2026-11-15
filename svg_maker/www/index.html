@@ -15,7 +15,7 @@ body{font-family:-apple-system,Roboto,sans-serif;background:var(--bg);color:var(
 .steps b{color:var(--acc)}
 label{display:block;font-size:14px;color:var(--mut);margin:12px 0 4px}
 label small{font-weight:normal}
-input[type=file],input[type=text],select{width:100%;font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--txt)}
+input[type=file],input[type=text],select,textarea{width:100%;font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--txt)}
 input[type=range]{width:100%}
 button{font-size:16px;padding:12px;border:0;border-radius:10px;background:var(--acc);color:var(--on);font-weight:700}
 button.main{width:100%;margin-top:14px}
@@ -33,9 +33,19 @@ button:disabled{opacity:.5}
 #prevbox{background:repeating-conic-gradient(#ddd 0 25%,#fff 0 50%) 0 0/16px 16px;border-radius:10px;padding:10px;text-align:center}
 #prevbox img{max-width:100%;max-height:50vh}
 .tip{font-size:13px;color:var(--mut);line-height:1.5}
+textarea{font-family:inherit;resize:vertical;min-height:84px}
+.tabs{margin-top:14px}.tabs button{background:var(--chip);color:var(--txt);font-weight:500}.tabs button.on{background:var(--acc);color:var(--on);font-weight:700}
+.two{display:flex;gap:8px}.two>div{flex:1;min-width:0}
+#aiGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;margin-top:12px}
+button.tile{padding:6px;background:repeating-conic-gradient(#ddd 0 25%,#fff 0 50%) 0 0/16px 16px;border:3px solid transparent;border-radius:10px}
+button.tile.on{border-color:var(--acc)}
+button.tile img{width:100%;display:block}
+#warn{margin-top:8px;color:#f2c06b}
 </style></head><body><div class="wrap">
-<div class="hero"><h1>SVG Maker</h1><p>Turn photos into crisp, scalable vector graphics.</p></div>
+<div class="hero"><h1>SVG Maker</h1><p>Turn photos into crisp vector graphics, or have AI draw you a logo.</p></div>
+<div class="row seg tabs" id="tabs"><button data-t="photo" class="on">From photo</button><button data-t="ai">AI logo</button></div>
 
+<div id="tab-photo">
 <div class="card"><div class="steps"><span><b>1.</b> Pick a photo</span><span><b>2.</b> Adjust the crop</span><span><b>3.</b> Convert</span><span><b>4.</b> Name, save or download</span></div></div>
 
 <div class="card">
@@ -64,6 +74,27 @@ button:disabled{opacity:.5}
   <button class="main" id="btn">Convert to SVG</button>
   <div id="msg"></div>
 </div>
+</div>
+
+<div id="tab-ai" hidden>
+<div class="card">
+  <label>Describe your logo <small>&mdash; say what should be in it</small></label>
+  <textarea id="aiPrompt" placeholder="A friendly golden retriever head inside a circle, blue and white, for my dog's collar tracker"></textarea>
+  <div class="two">
+    <div><label>Style</label><select id="aiStyle"></select></div>
+    <div><label>Color</label><select id="aiMode"><option value="color">Full color</option><option value="bw">Black &amp; white (follows HA theme)</option></select></div>
+  </div>
+  <label>Colors <small>(optional)</small></label>
+  <input type="text" id="aiColors" placeholder="navy and gold" autocapitalize="off" autocorrect="off">
+  <div class="two">
+    <div><label>Shape</label><select id="aiShape"><option value="none">As designed</option><option value="circle">Circle</option><option value="rounded">Rounded</option><option value="square">Square</option></select></div>
+    <div><label>Ideas to draw</label><select id="aiCount"><option>1</option><option>2</option><option>3</option></select></div>
+  </div>
+  <button class="main" id="aiGo">Draw my logo</button>
+  <div id="aiMsg"></div>
+  <div id="aiGrid"></div>
+</div>
+</div>
 
 <div class="card" id="result" hidden>
   <div id="prevbox"><img id="prev"></div>
@@ -75,10 +106,17 @@ button:disabled{opacity:.5}
     <button id="bBoth">Both</button>
   </div>
   <div id="rmsg"></div>
+  <div id="warn" class="tip"></div>
+  <div id="refine" hidden>
+    <label>Want a change?</label>
+    <input type="text" id="aiTweak" placeholder="make it rounder, use green instead" autocapitalize="off">
+    <button class="main alt" id="aiUpdate">Update logo</button>
+  </div>
 </div>
 
 <div class="card tip">
-  <b>Best results:</b> logos, drawings, pets, portraits and photos with a clear subject. Busy scenes turn stylized and blobby.
+  <b>AI logos:</b> the AI draws real vector shapes, so results vary. Draw 2 or 3 ideas, pick the best, then use Update logo to tweak it. Lettering uses your device's fonts, so icon-only designs look the same everywhere.<br><br>
+  <b>Best results (photos):</b> logos, drawings, pets, portraits and photos with a clear subject. Busy scenes turn stylized and blobby.
   Auto-crop looks for whatever stands out most. It isn't face detection, so nudge the crop if it misses.
   <div id="saveinfo" style="margin-top:8px"></div>
 </div>
@@ -192,14 +230,80 @@ $('btn').onclick=async()=>{
     fd.append('shape',shape==='full'?'none':shape);fd.append('enhance',$('enh').checked?'1':'0');
     const r=await fetch('./api/svg/convert',{method:'POST',body:fd});
     if(!r.ok){$('msg').textContent='Failed: '+await r.text();return}
-    cur=await r.json();
-    $('prev').src=URL.createObjectURL(new Blob([cur.svg],{type:'image/svg+xml'}));
-    $('fname').value=cur.name;$('result').hidden=false;
-    $('rmsg').textContent=cur.temp_file?('Auto-saved to '+cur.temp_file+(cur.temp_url?' (Home Assistant URL: '+cur.temp_url+')':'')):'';
+    showResult(await r.json());
     $('msg').textContent='Done ('+Math.round(cur.svg.length/1024)+' KB). Name it and choose what to do.';
     $('result').scrollIntoView({behavior:'smooth'});
   }catch(e){$('msg').textContent='Error: '+e}
   finally{$('btn').disabled=false}
+};
+
+/* ---------- shared result card ---------- */
+function showResult(r){
+  cur=r;$('prev').src=URL.createObjectURL(new Blob([r.svg],{type:'image/svg+xml'}));
+  $('fname').value=r.name;$('result').hidden=false;
+  $('rmsg').textContent=r.temp_file?('Auto-saved to '+r.temp_file+(r.temp_url?' (Home Assistant URL: '+r.temp_url+')':'')):'';
+  $('warn').textContent=(r.warnings||[]).join(' ');
+  $('refine').hidden=!r.ai;
+}
+
+/* ---------- tabs ---------- */
+function showTab(t){
+  $('tab-photo').hidden=t!=='photo';$('tab-ai').hidden=t!=='ai';
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  $('result').hidden=!cur||(t==='ai')!==!!cur.ai;
+}
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
+
+/* ---------- AI logo ---------- */
+fetch('./api/svg/ai/settings').then(r=>r.json()).then(c=>{
+  $('aiStyle').innerHTML='';
+  c.styles.forEach(([k,l])=>{const o=document.createElement('option');o.value=k;o.textContent=l;$('aiStyle').appendChild(o)});
+  $('aiStyle').value=c.default_style;$('aiCount').value=String(c.default_count);
+  if(c.error)$('aiMsg').textContent=c.error;
+  else if(c.found===false)$('aiMsg').textContent='The AI Task entity '+c.entity+' was not found in Home Assistant. Set svg_ai_task_entity in the add-on Configuration tab.';
+}).catch(()=>{});
+async function aiCall(body){
+  const r=await fetch('./api/svg/ai/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok)throw new Error(await r.text());
+  return r.json();
+}
+function aiOpts(){return{style:$('aiStyle').value,colors:$('aiColors').value,mode:$('aiMode').value,shape:$('aiShape').value}}
+function aiBusy(b){['aiGo','aiUpdate'].forEach(i=>$(i).disabled=b)}
+function addTile(r){
+  const b=document.createElement('button'),im=document.createElement('img');
+  b.className='tile';im.src=URL.createObjectURL(new Blob([r.svg],{type:'image/svg+xml'}));b.appendChild(im);
+  b.onclick=()=>{showResult(r);markTile(b)};
+  $('aiGrid').prepend(b);while($('aiGrid').children.length>12)$('aiGrid').lastChild.remove();
+  return b;
+}
+function markTile(t){document.querySelectorAll('#aiGrid .tile').forEach(x=>x.classList.toggle('on',x===t))}
+$('aiGo').onclick=async()=>{
+  const p=$('aiPrompt').value.trim();
+  if(!p){$('aiMsg').textContent='Describe the logo first.';return}
+  const n=+$('aiCount').value;let ok=0;aiBusy(true);$('result').hidden=true;
+  try{
+    for(let i=1;i<=n;i++){
+      $('aiMsg').textContent=n>1?'Drawing idea '+i+' of '+n+'... the AI can take a minute each.':'Drawing... the AI can take a minute.';
+      let r;
+      try{r=await aiCall({...aiOpts(),prompt:p,index:i,of:n})}
+      catch(e){$('aiMsg').textContent='Idea '+i+' failed: '+e.message;break}
+      ok++;const t=addTile(r);if(ok===1){showResult(r);markTile(t)}
+      if(i===n)$('aiMsg').textContent=n>1?n+' ideas ready. Tap one to pick it.':'Done. Name it and choose what to do, or ask for a change.';
+    }
+  }finally{aiBusy(false)}
+  if(ok)$('result').scrollIntoView({behavior:'smooth'});
+};
+$('aiUpdate').onclick=async()=>{
+  const f=$('aiTweak').value.trim();
+  if(!f){$('aiMsg').textContent='Say what to change first.';return}
+  if(!cur||!cur.ai)return;
+  aiBusy(true);$('aiMsg').textContent='Updating... the AI can take a minute.';
+  try{
+    const r=await aiCall({...aiOpts(),prompt:$('aiPrompt').value,current_id:cur.id,feedback:f});
+    const t=addTile(r);showResult(r);markTile(t);$('aiTweak').value='';
+    $('aiMsg').textContent='Updated. The old version is still in the grid above.';
+  }catch(e){$('aiMsg').textContent='Update failed: '+e.message}
+  finally{aiBusy(false)}
 };
 
 /* ---------- save / download ---------- */
