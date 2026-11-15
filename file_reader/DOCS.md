@@ -108,3 +108,19 @@ curl -X POST -H "Authorization: Bearer YOUR_TOKEN" \
 - Folders are created automatically when you write to `folder/sub/file.txt`.
 - Sensor attributes hold at most the last 8000 characters of a file.
 - The web editor opens files up to 2 MB.
+
+## Backups
+
+Tap **Backups** at the bottom of the add-on page to back up, download or restore. A backup is a `.zip` with the files it manages (your files folder) and its own data, plus everything in the Configuration tab.
+
+| Option | Default | What |
+|---|---|---|
+| `backup_path` | `/share/addon_backups/file_reader` | Where backups go, inside `/share`, `/media` or `/homeassistant`. A folder keeps several dated backups. A path ending in `.zip` keeps one file that is replaced each time |
+| `backup_every` | `daily` | `off`, `daily` or `weekly` automatic backups |
+| `backup_keep` | `10` | How many backups to keep in the folder. Older ones are deleted |
+
+- **Back up now** makes one straight away. **Download** saves one to your phone or computer.
+- **Restore** (tap twice) first saves a safety copy (`..._pre-restore_...zip`, the newest 3 are kept), puts the Configuration tab settings back, and restarts the add-on. The data is put back as it starts, before it reads anything.
+- **Restore from a file** takes a backup `.zip` you downloaded, for example to move to another Home Assistant.
+- A backup from a different add-on is refused. The page only works from the Home Assistant sidebar, never on the add-on's own ports, because backups include its settings.
+- Backups also hold any passwords or API keys from the Configuration tab, so treat the backup folder like your secrets.

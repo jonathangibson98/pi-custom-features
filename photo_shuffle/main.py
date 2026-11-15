@@ -15,7 +15,12 @@ import requests
 from flask import Flask, Response, jsonify, request
 from PIL import Image, ImageOps
 
+import addon_backup
+
 DATA_DIR = os.environ.get("PS_DATA_DIR", "/data")
+# created before anything is read, so a queued restore is unpacked first (thumbnails are rebuilt, so they're left out)
+BACKUP = addon_backup.Backup("photo_shuffle", "Photo Hub", "4.1.0",
+                             [("data", DATA_DIR, "replace", ["unsplash_thumbs"])], data_dir=DATA_DIR)
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -1088,6 +1093,14 @@ def only_ingress():
         return Response("Forbidden", 403)
 
 
+# ---------- backups (shared module, see addon_backup.py) ----------
+@app.route("/backups", defaults={"sub": ""}, methods=["GET", "POST"])
+@app.route("/backups/<path:sub>", methods=["GET", "POST"])
+def backups(sub):
+    st, ct, body, hdr = BACKUP.handle(request.method, sub, request.args, request.get_data(), request.remote_addr)
+    return Response(body, status=st, content_type=ct, headers=hdr)
+
+
 def err(msg, code=400):
     return jsonify({"error": msg}), code
 
@@ -1257,6 +1270,7 @@ def main():
     for s in mgr.all():
         s.start()
     threading.Thread(target=unsplash.run, daemon=True).start()
+    BACKUP.start()
     threading.Thread(target=mqtt_worker, daemon=True).start()
     threading.Thread(
         target=lambda: app.run(host="0.0.0.0", port=int(os.environ.get("PS_PORT", 8099)), threaded=True, use_reloader=False),

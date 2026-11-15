@@ -17,7 +17,7 @@ RUN python -c "from PIL import Image; import vtracer; Image.new('RGB',(96,96),(2
  && rm -f /tmp/t.png /tmp/t.svg
 
 WORKDIR /app
-COPY server.py svg_tool.py ai_logo.py /app/
+COPY server.py svg_tool.py ai_logo.py addon_backup.py /app/
 COPY www /app/www
 
 CMD ["python3", "-u", "/app/server.py"]

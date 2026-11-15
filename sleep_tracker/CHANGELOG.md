@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0 - 2026-11-15
+
+- **Backups.** New **Backups** page (link at the bottom of the add-on page) to back up now, download, restore, or restore from an uploaded file. Backups go to `backup_path` (a folder, or one `.zip` file) automatically on the `backup_every` schedule, and the newest `backup_keep` are kept
+- A backup holds your people, their signals and settings, the current sleep state and the sleep history, plus the Configuration tab settings. Restoring saves a safety copy first, puts the settings back and restarts the add-on to put the data back
+- The add-on now has Supervisor access (`hassio_api`, to restore its settings and restart itself) and `/share` access for the backup folder
+
 ## 1.0.0 - 2026-11-15
 
 - First release. Track any `person`: weighted signals with a sleep confidence score, fall-asleep and wake levels, settle and

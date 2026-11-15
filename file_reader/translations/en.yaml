@@ -27,5 +27,17 @@ configuration:
   mqtt_password:
     name: MQTT password
     description: Leave empty if your broker has no login.
+  backup_path:
+    name: Backup folder
+    description: >-
+      Where backups are saved, inside /share, /media or /homeassistant. A folder keeps several dated backups.
+      A path ending in .zip keeps one file that is replaced each time. Open Backups in the add-on page to back up,
+      download or restore.
+  backup_every:
+    name: Automatic backups
+    description: How often a backup is made by itself (off, daily or weekly).
+  backup_keep:
+    name: Backups to keep
+    description: The newest this many backups are kept in the folder, older ones are deleted.
 network:
   8100/tcp: REST API port (needs api_token)

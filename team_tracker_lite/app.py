@@ -21,7 +21,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import paho.mqtt.client as mqtt
 from zoneinfo import ZoneInfo
 
-VERSION = "0.3.2"
+import addon_backup
+
+VERSION = "0.4.0"
+BACKUP = None  # set in main(), before the settings are read
 # Settings live in the add-on's config folder (/addon_configs/<id>_team_tracker_lite/data on the host).
 DATA = os.environ.get("TTL_DATA", "/config/data")
 SETTINGS_FILE = os.path.join(DATA, "settings.json")
@@ -923,6 +926,22 @@ class Handler(BaseHTTPRequestHandler):
         self.send_body(403, {"error": "forbidden"})
         return False
 
+    def backups(self, method):
+        """The backup page and its API (shared module, see addon_backup.py)."""
+        u = urllib.parse.urlparse(self.path)
+        body = b""
+        if method == "POST":
+            body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
+        st, ct, data, hdr = BACKUP.handle(method, u.path[len("/backups"):], q, body, self.client_address[0])
+        self.send_response(st)
+        self.send_header("Content-Type", ct)
+        self.send_header("Content-Length", str(len(data)))
+        for k, v in hdr.items():
+            self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(data)
+
     def state_payload(self):
         with LOCK:
             return {"settings": json.loads(json.dumps(S)), "sensor": dict(LAST),
@@ -935,6 +954,8 @@ class Handler(BaseHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path)
         p = "/" + u.path.strip("/")
         qs = urllib.parse.parse_qs(u.query)
+        if p == "/backups" or p.startswith("/backups/"):
+            return self.backups("GET")
         if p in ("/", "/index.html"):
             with open(os.path.join(HERE, "index.html"), "rb") as f:
                 return self.send_body(200, f.read(), "text/html; charset=utf-8")
@@ -964,6 +985,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self.allowed():
             return
         p = "/" + urllib.parse.urlparse(self.path).path.strip("/")
+        if p.startswith("/backups/"):
+            return self.backups("POST")
         try:
             n = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(n) or b"{}")
@@ -1075,7 +1098,10 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global OPTS, S, LOG_LEVEL
+    global OPTS, S, LOG_LEVEL, BACKUP
+    # before anything is read, so a queued restore is unpacked first
+    BACKUP = addon_backup.Backup("team_tracker_lite", "Team Tracker Lite", VERSION,
+                                 [("settings", DATA, "replace", []), ("data", "/data", "replace", [])])
     OPTS = load_json(OPTIONS_FILE, {})
     LOG_LEVEL = LEVELS.get(str(OPTS.get("log_level") or "info").lower(), 20)
     init_storage()
@@ -1086,6 +1112,7 @@ def main():
     log("info", f"Settings file: {SETTINGS_FILE} ({len(S['favorites'])} saved teams)")
     log("info", f"Refresh: every {S['idle_minutes']} min idle, {S['live_seconds']}s during games")
     mqtt_start()
+    BACKUP.start()
     threading.Thread(target=poll_loop, daemon=True).start()
     threading.Thread(target=calendar_loop, daemon=True).start()
     threading.Thread(target=ThreadingHTTPServer(("0.0.0.0", 8100), ICSHandler).serve_forever, daemon=True).start()

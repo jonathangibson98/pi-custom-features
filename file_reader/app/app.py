@@ -12,6 +12,8 @@ import paho.mqtt.client as mqtt
 from flask import Flask, render_template, request, jsonify, Response, abort
 from werkzeug.serving import make_server
 
+import addon_backup
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("file_reader")
 
@@ -52,6 +54,10 @@ def prepare_dir():
         return LEGACY_DIR
 
 
+# created before the files folder is read, so a queued restore is unpacked first. The managed files go too.
+BACKUP = addon_backup.Backup("file_reader", "File Reader", "1.3.0",
+                             [("data", "/data", "replace", ["files"]),
+                              ("files", lambda o: os.path.abspath(o.get("files_path") or LEGACY_DIR), "merge", [])])
 DATA_DIR = prepare_dir()
 
 
@@ -456,6 +462,14 @@ def current_version():
     return m.group(1) if m else "unknown"
 
 
+# ---------- backups (shared module, see addon_backup.py) ----------
+@app.route("/backups", defaults={"sub": ""}, methods=["GET", "POST"])
+@app.route("/backups/<path:sub>", methods=["GET", "POST"])
+def backups(sub):
+    st, ct, body, hdr = BACKUP.handle(request.method, sub, request.args, request.get_data(), request.remote_addr)
+    return Response(body, status=st, content_type=ct, headers=hdr)
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -513,4 +527,5 @@ def delete_file(filename):
 
 if __name__ == "__main__":
     start_background()
+    BACKUP.start()
     app.run(host="0.0.0.0", port=8099)

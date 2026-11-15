@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.1.0
+
+- **Backups.** New **Backups** page (link at the bottom of the add-on page) to back up now, download, restore, or restore from an uploaded file. Backups go to `backup_path` (a folder, or one `.zip` file) automatically on the `backup_every` schedule, and the newest `backup_keep` are kept
+- A backup holds your shuffles and Unsplash collections (thumbnails are left out, they're rebuilt by themselves), plus the Configuration tab settings. Restoring saves a safety copy first, puts the settings back and restarts the add-on to put the data back
+- The add-on now has Supervisor access (`hassio_api`, to restore its settings and restart itself) and `/share` access for the backup folder
+
 ## 4.0.3
 
 - Fix: Photo Hub could lose its MQTT connection and never get it back, leaving every image entity unavailable until the add-on was restarted by hand. It now watches its own connection and, if it is down for more than a minute or stops answering, throws the connection away and rebuilds it with freshly fetched broker settings (this also covers a changed Mosquitto login).

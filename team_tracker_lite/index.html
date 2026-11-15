@@ -303,5 +303,6 @@ $("refresh").addEventListener("click", () => act("refresh", {}));
   setInterval(async () => { try { draw(await api("state")); } catch (e) {} }, 5000);
 })().catch(e => say(e.message));
 </script>
+<div style="text-align:center;margin:28px 0 14px;font-size:13px;opacity:.75"><a href="backups" style="color:inherit">&#x1F4BE; Backups</a></div>
 </body>
 </html>

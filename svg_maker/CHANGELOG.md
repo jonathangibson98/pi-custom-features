@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0 - 2026-11-15
+
+- **Backups.** New **Backups** page (link at the bottom of the add-on page) to back up now, download, restore, or restore from an uploaded file. Backups go to `backup_path` (a folder, or one `.zip` file) automatically on the `backup_every` schedule, and the newest `backup_keep` are kept
+- A backup holds the icons in your save folder (svg_output_path), plus the Configuration tab settings. Restoring saves a safety copy first, puts the settings back and restarts the add-on to put the data back
+- The add-on now has Supervisor access (`hassio_api`, to restore its settings and restart itself) and `/share` access for the backup folder
+
 ## 1.2.1 - 2026-11-15
 
 - Fixed **"Unknown source directory"** when drawing from a photo. The add-on assumed Home Assistant's media folder is called `local`, but a `media_dirs` setting in `configuration.yaml` replaces it with your own names. It now asks Home Assistant which media folder holds its photos. If none of your media folders point at `/media`, the message says what to add

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from aiohttp import web
 
+import addon_backup
 import ai_logo
 import svg_tool
 
@@ -40,6 +41,11 @@ def file_route(name, ctype):
     return handler
 
 
+# created before anything is read, so a queued restore is unpacked first. Your saved icons go too.
+BACKUP = addon_backup.Backup("svg_maker", "SVG Maker", "1.3.0",
+                             [("data", str(DATA), "replace", []),
+                              ("icons", lambda o: o.get("svg_output_path") or "/homeassistant/custom_icons", "merge", [])],
+                             data_dir=str(DATA))
 svg = svg_tool.SvgMaker(OPTS)
 ai = ai_logo.AiLogo(svg, OPTS)
 
@@ -48,6 +54,7 @@ async def on_startup(app):
     svg.start()
     await ai.start()
     asyncio.get_running_loop().run_in_executor(None, svg.self_test)  # logs whether the tracer works here
+    BACKUP.start()
     log.info("SVG Maker ready")
 
 
@@ -55,13 +62,23 @@ async def on_cleanup(app):
     await ai.close()
 
 
+# ---------- backups (shared module, see addon_backup.py) ----------
+async def backups_route(request):
+    body = await request.read() if request.method == "POST" else b""
+    st, ct, data, hdr = await asyncio.get_running_loop().run_in_executor(
+        None, BACKUP.handle, request.method, request.match_info.get("tail", ""), dict(request.query), body, request.remote)
+    return web.Response(body=data, status=st, headers=dict(hdr, **{"Content-Type": ct}))
+
+
 def main():
-    app = web.Application(client_max_size=svg.max_upload_bytes + 1024 * 1024, middlewares=[ingress_only])
+    app = web.Application(client_max_size=max(svg.max_upload_bytes, 100 * 1024 * 1024) + 1024 * 1024,
+                          middlewares=[ingress_only])
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
     app.add_routes([
         web.get("/", file_route("index.html", "text/html")),
         web.get("/svg-crop.js", file_route("svg-crop.js", "application/javascript")),
+        web.route("*", "/backups{tail:.*}", backups_route),
         web.get("/api/svg/settings", svg.settings),
         web.post("/api/svg/convert", svg.convert),
         web.post("/api/svg/save", svg.save),

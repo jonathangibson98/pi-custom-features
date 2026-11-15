@@ -7,6 +7,11 @@ import time
 
 from aiohttp import ClientSession, ClientTimeout, TCPConnector, WSMsgType, web
 
+import addon_backup
+
+# created before anything is read, so a queued restore is unpacked first
+BACKUP = addon_backup.Backup("zone_creator", "Zone Creator", "1.2.0", [("data", "/data", "replace", [])])
+
 TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 HA = "http://supervisor/core"
 WS = "ws://supervisor/core/websocket"
@@ -221,7 +226,21 @@ async def create(request):
     return web.json_response({"ok": True, "zone": r.get("result")})
 
 
-app = web.Application()
+# ---------- backups (shared module, see addon_backup.py) ----------
+async def backups_route(request):
+    body = await request.read() if request.method == "POST" else b""
+    st, ct, data, hdr = await asyncio.get_running_loop().run_in_executor(
+        None, BACKUP.handle, request.method, request.match_info.get("tail", ""), dict(request.query), body, request.remote)
+    return web.Response(body=data, status=st, headers=dict(hdr, **{"Content-Type": ct}))
+
+
+async def start_backups(app):
+    BACKUP.start()
+
+
+app = web.Application(client_max_size=100 * 1024 * 1024)
+app.on_startup.append(start_backups)
+app.router.add_route("*", "/backups{tail:.*}", backups_route)
 app.router.add_get("/", index)
 app.router.add_get("/api/config", config)
 app.router.add_get("/api/search", search)
