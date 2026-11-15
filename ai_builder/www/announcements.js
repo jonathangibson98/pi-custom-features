@@ -227,7 +227,7 @@ function libCard(it) {
   }}, "Duplicate");
   return el("div", {class: "card ann"},
     el("div", {class: "top"}, el("div", {style: "min-width:0"}, el("h3", {}, it.name || it.id), el("div", {class: "dim small mono"}, "script." + it.id)), el("span", {class: "pill " + status[0]}, status[1])),
-    el("div", {class: "clamp"}, st.raw != null ? "Your own script, kept exactly as you wrote it." : (st.task || "No instructions yet.")),
+    el("div", {class: "clamp"}, st.raw != null ? "Your own script, kept exactly as you wrote it. Open it to convert it to the normal form." : (st.task || "No instructions yet.")),
     el("div", {class: "meta"}, st.raw != null ? el("span", {class: "pill plain"}, "Own script") : [el("span", {class: "pill plain"}, (st.src || []).length + " data source" + ((st.src || []).length === 1 ? "" : "s")), el("span", {class: "pill plain"}, outsSummary(st))],
       st.cardSw ? el("span", {class: "pill plain", title: st.cardSw}, "Card switch") : null,
       st.auto && st.auto.on ? (!it.auto_in_ha ? el("span", {class: "pill warn"}, "Schedule not pushed") : it.auto_on ? el("span", {class: "pill ok"}, "Runs " + autoSummary(st.auto)) : el("span", {class: "pill warn"}, "Schedule is off in HA")) : null,
@@ -685,9 +685,22 @@ $("#rawcheck").onclick = async () => {
   const r = await ann("import", {yaml: $("#rawyaml").value});
   say(r.ok ? "That is a valid script with " + (r.config.sequence || []).length + " top-level steps." : r.error, r.ok ? "ok" : "bad");
 };
-confirmTap($("#rawform"), "Tap again to switch", async () => {
-  say("Reading your script...");
-  const r = await ann("import", {yaml: $("#rawyaml").value});
+confirmTap($("#rawform"), "Tap again to convert", async () => {
+  const b0 = $("#rawform"); b0.disabled = true;
+  say("Converting. Your AI Task helps with the prompt, so this can take a minute...");
+  const yml = $("#rawyaml").value, nm0 = $("#name").value;
+  const cv = await convertImport("announcement", yml);
+  b0.disabled = false;
+  if (cv.ok) {
+    build();  /* show any data sources that were just added */
+    const keep = {id: cur.id, isNew: cur.isNew, pushed: cur.pushed, saved: cur.saved, fixedId: true};
+    openEditor(Object.assign(blankState(), cv.state, {original: cv.original || yml, name: nm0 || cv.state.name}), keep,
+      convertNote(cv, "announcement") + " Pushing replaces script." + cur.id + " with the form's version, so automations that call it keep working. Until you push, Use my original instead goes back.");
+    markDirty(); say("Converted. Nothing is saved yet: check it, then Save or Save and push.", "ok");
+    return;
+  }
+  if (cv.error && !/ai_task\.generate_data|YAML problem/.test(cv.error)) say(cv.error + " Trying the simple way instead...", "warn");
+  const r = await ann("import", {yaml: yml});
   if (!r.ok) { say(r.error, "bad"); return; }
   const {state, notes} = recover(r.config);
   if (!state.task) { say("There is no ai_task.generate_data step in it to put in the form, so it stays as your own script.", "warn"); return; }

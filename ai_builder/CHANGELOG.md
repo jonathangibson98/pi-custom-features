@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.17.0 - 2026-11-15
+
+- **Convert what's already here.** Facts and announcements you imported before converting existed (the "kept exactly as you wrote it" step editor) now have a **Convert to the normal form** button at the top of the editor. It runs the same converter as a new import: data sources, format and rules, fields, random picks, the file, speakers and the schedule are filled in, and your AI Task splits the prompt. The id stays the same, so pushing updates the same automation or script in Home Assistant (a copy of an automation it replaces is saved first). **Use my original instead** goes back until you push
+- Announcements' old **Switch to the form tools** now uses the full converter too, and falls back to the old way if your AI Task can't help
+- **Facts can run at a time of day.** **When it runs** has **And at this time every day**, so converted facts keep a daily time trigger (like Daily Birthdays at 6:00) instead of dropping it
+
 ## 2.16.1 - 2026-11-15
 
 - **Back up from Home Assistant.** The add-on now listens on stdin, so the `hassio.addon_stdin` action with `input: backup` makes a backup right away. One script can back up every add-on at once (see the repository README, "Back up all add-ons with one action")

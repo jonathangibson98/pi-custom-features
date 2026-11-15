@@ -45,7 +45,7 @@ const PRE = {
 };
 
 /* ---------- state ---------- */
-const defAuto = () => ({on: false, every: 10, unit: "minutes", watch: "", watchAttr: "", watchFor: 10, home: []});
+const defAuto = () => ({on: false, every: 10, unit: "minutes", at: "", watch: "", watchAttr: "", watchFor: 10, home: []});
 const blankState = () => ({name: "My fact", src: [], task: "", picks: [], seed: true, len: F.default_length || 180, style: "plain", titleHint: "", heading: "", count: 5,
   file: "", swear: "none", real: true, obscure: true, skip: "", noPeople: true, avoidLast: true, lastEntity: "", lastAttr: "", extra: "", ai: "", auto: defAuto(), autoRaw: "", autoId: "", autoOnly: false,
   asAuto: true, listKey: "items", fields: [], sortBy: "", sortDir: "desc", keepIf: "", useDate: false});
@@ -165,6 +165,7 @@ function stepsYaml(s, o) {
 const autoSummary = a => {
   const p = [];
   if (+a.every > 0) p.push("every " + Math.round(+a.every) + (a.unit === "hours" ? " h" : " min"));
+  if (a.at) p.push("daily at " + a.at);
   if (a.watch) p.push("when " + a.watch + " changes");
   return p.join(" and ") || "no trigger set";
 };
@@ -181,6 +182,7 @@ function makeAuto(s0, sid) {
     if (a.unit === "hours") T.push(`  - trigger: time_pattern\n    hours: "/${Math.min(23, Math.max(1, Math.round(+a.every)))}"\n    minutes: 0\n`);
     else T.push(`  - trigger: time_pattern\n    minutes: "/${Math.min(59, Math.max(1, Math.round(+a.every)))}"\n`);
   }
+  if (/^\d{1,2}:\d{2}$/.test(a.at || "")) T.push(`  - trigger: time\n    at: "${a.at.padStart(5, "0")}:00"\n`);
   if (a.watch) T.push(`  - trigger: state\n    entity_id: ${a.watch}\n` + (a.watchAttr ? `    attribute: ${a.watchAttr}\n` : "") + (+a.watchFor > 0 ? `    for:\n      seconds: ${Math.round(+a.watchFor)}\n` : ""));
   if (!T.length) return "";
   let y = "alias: " + JSON.stringify((s.name || "Fact") + " (auto)") + "\ndescription: " + FASK + "\nmode: restart\ntriggers:\n" + T.join("");
@@ -204,6 +206,7 @@ function makeAutomation(s0, sid) {
     if (a.unit === "hours") T.push(`  - trigger: time_pattern\n    hours: "/${Math.min(23, Math.max(1, Math.round(+a.every)))}"\n    minutes: 0\n`);
     else T.push(`  - trigger: time_pattern\n    minutes: "/${Math.min(59, Math.max(1, Math.round(+a.every)))}"\n`);
   }
+  if (a.on && /^\d{1,2}:\d{2}$/.test(a.at || "")) T.push(`  - trigger: time\n    at: "${a.at.padStart(5, "0")}:00"\n`);
   if (a.on && a.watch) T.push(`  - trigger: state\n    entity_id: ${a.watch}\n` + (a.watchAttr ? `    attribute: ${a.watchAttr}\n` : "") + (+a.watchFor > 0 ? `    for:\n      seconds: ${Math.round(+a.watchFor)}\n` : ""));
   let y = "alias: " + JSON.stringify(s.name || "Fact") + "\ndescription: " + FASK + "\nmode: restart\n" + (T.length ? "triggers:\n" + T.join("") : "triggers: []\n");
   const C = (a.on ? (a.home || []) : []).map(e => {
@@ -219,7 +222,7 @@ function makeAutomation(s0, sid) {
 }
 const pushBody = (s, id, extra) => Object.assign({id, yaml: viaAuto(s) ? "" : makeYaml(s), auto_yaml: isAsAuto(s) ? makeAutomation(s, id) : makeAuto(s, id), state: s,
   auto_raw: ownAuto(s) && !isAsAuto(s), auto_only: viaAuto(s), cleanup_script: isAsAuto(s), auto_id: viaAuto(s) ? id : ownAuto(s) ? (s.autoId || "") : ""}, extra || {});
-const hasTrigger = s => !!(s.auto && ((+s.auto.every > 0) || s.auto.watch));
+const hasTrigger = s => !!(s.auto && ((+s.auto.every > 0) || s.auto.at || s.auto.watch));
 
 /* ---------- DOM ---------- */
 /* ---------- views ---------- */
@@ -301,7 +304,7 @@ function libCard(it) {
   pills.push(el("span", {class: "pill plain"}, "Edited " + ago(it.updated)));
   return el("div", {class: "card ann"},
     el("div", {class: "top"}, el("div", {style: "min-width:0"}, el("h3", {}, it.name || it.id), el("div", {class: "dim small mono"}, (viaAuto(st) ? "automation id: " : "script.") + it.id)), el("span", {class: "pill " + status[0]}, status[1])),
-    el("div", {class: "clamp"}, isAutoOnly(st) ? "Your own automation, kept exactly as you wrote it." : raw ? "Your own script, kept exactly as you wrote it." : (st.task || "No instructions yet.")),
+    el("div", {class: "clamp"}, isAutoOnly(st) ? "Your own automation, kept exactly as you wrote it. Open it to convert it to the normal form." : raw ? "Your own script, kept exactly as you wrote it. Open it to convert it to the normal form." : (st.task || "No instructions yet.")),
     el("div", {class: "meta"}, pills),
     el("div", {class: "acts"}, el("button", {class: "btn primary sm", onclick: () => openItem(it)}, "Edit"), run, el("button", {class: "btn sm", title: "Copy a dashboard card for this fact", onclick: () => copyCards([it], (t, c) => { msg.className = "msg " + (c || ""); msg.textContent = t; })}, "Copy card"), dup,
       renameButton(it.name || it.id, n => api("rename", {lib: "facts", id: it.id, name: n}), r => { flash(r.in_ha ? "Renamed in Home Assistant too. The id stays " + it.id + "." : "Renamed. Push it to use the new name in Home Assistant.", "ok"); loadLib(); }), del), msg);
@@ -425,6 +428,22 @@ $("#impgo").onclick = async () => {
     "Imported. Your script" + (autoState.autoRaw ? " and its automation are" : " is") + " kept exactly as written. " + (inHA ? "script." + id + " already exists in Home Assistant, so pushing replaces it." : "Pushing creates script." + id + " in Home Assistant.") + (takeover ? "" : " Nothing is in Home Assistant yet."));
   markDirty();
 };
+
+/* convert a fact that is still an own automation or own script (kept as written) into the normal form, keeping its id */
+async function convertExisting(btn) {
+  const own = isAutoOnly(E), text = own ? E.autoRaw : E.raw, autoText = own ? "" : (E.autoRaw || "");
+  if (!String(text || "").trim()) { say("There is nothing to convert yet.", "warn"); return; }
+  btn.disabled = true; say("Converting. Your AI Task helps with the prompt, so this can take a minute...");
+  const r = await convertImport("fact", text, autoText);
+  btn.disabled = false;
+  if (!r.ok) { say(r.error || "That failed.", "bad"); return; }
+  const keep = {id: cur.id, isNew: cur.isNew, pushed: cur.pushed, saved: cur.saved, fixedId: true};
+  const where = own ? "Pushing replaces your automation " + cur.id + " in place with the form's version (a copy of the old one is saved first)."
+                    : "Pushing turns it into one automation with the id " + cur.id + ".";
+  openEditor(Object.assign(blankState(), r.state, {name: E.name || r.state.name, original: own ? text : (r.original || text), originalAuto: autoText}), keep,
+    convertNote(r, "fact") + " " + where + " Until you push, Use my original instead goes back.");
+  markDirty(); say("Converted. Nothing is saved yet: check it, then Save or Save and push.", "ok");
+}
 
 /* convert a pasted script or automation (or one picked from the list) into a normal form fact */
 async function importConvert(b, typed) {
@@ -726,6 +745,15 @@ function drawForm() {
     const sw = el("button", {class: "btn sm", onclick: () => { E.asAuto = true; changed(); drawForm(); $("#trycard").hidden = false; say("Switched. Push to replace the script and its schedule automation with one automation.", "ok"); }}, "Switch to a single automation");
     add(c1, el("p", {class: "help"}, "This one is still a script plus a separate schedule automation."), el("div", {class: "row", style: "margin-top:6px"}, sw));
   }
+  if (isAutoOnly(E) || raw) {
+    /* made outside the add-on (imported "exactly as written" before converting existed): offer the normal form */
+    const go = el("button", {class: "btn primary sm", style: "margin-top:10px"}, "Convert to the normal form");
+    confirmTap(go, "Tap again to convert", () => convertExisting(go));
+    add(c1, el("div", {class: "note", style: "margin-top:12px"}, el("div", {},
+      el("b", {}, "Want the normal form instead? "),
+      "This is your own " + (isAutoOnly(E) ? "automation" : "script") + ", kept exactly as written. Converting reads it into the same form as a fact made here: " +
+      "the instructions, format and rules, random picks, the file, and the schedule. Your AI Task splits the prompt for you. Anything that doesn't fit is listed, and you can go back until you push."), go));
+  }
   f.append(c1);
   if (isAutoOnly(E)) { const k = autoOnlyCard(2); k.forEach(x => f.append(x)); f.append(dashCard(6)); gen(); return; }
   if (raw) {
@@ -823,6 +851,9 @@ function drawForm() {
     const ev = el("input", {type: "number", min: 0, step: 1, value: A.every, style: "width:90px"}); ev.oninput = () => { A.every = ev.value === "" ? "" : +ev.value; changed(); };
     const un = el("select", {style: "width:auto"}, el("option", {value: "minutes"}, "minutes"), el("option", {value: "hours"}, "hours")); un.value = A.unit; un.onchange = () => { A.unit = un.value; changed(); };
     add(c5, el("label", {class: "l"}, "Every"), el("div", {class: "inline"}, ev, un), el("p", {class: "help"}, "0 turns the repeat off. Minutes up to 59, hours up to 23."));
+    const tm = el("input", {type: "time", value: A.at || "", style: "max-width:160px"}); tm.onchange = () => { A.at = tm.value; changed(); };
+    const clr = el("button", {class: "btn sm", onclick: () => { A.at = ""; tm.value = ""; changed(); }}, "Clear");
+    add(c5, el("label", {class: "l"}, "And at this time every day (optional)"), el("div", {class: "inline"}, tm, clr));
     add(c5, el("label", {class: "l"}, "And when this entity changes (optional)"), picker(null, false, () => A.watch ? [A.watch] : [], a => { A.watch = a[0] || ""; changed(); drawForm(); }));
     if (A.watch) {
       const at = el("input", {value: A.watchAttr, placeholder: "attribute (blank = state)", style: "max-width:240px"}); at.oninput = () => { A.watchAttr = at.value.trim(); changed(); };
@@ -875,7 +906,7 @@ function openEditor(state, c, note) {
     const ob = el("button", {class: "btn sm origbtn", style: "margin-top:8px"}, "Use my original instead");
     confirmTap(ob, "Tap again: keep it exactly as written", () => {
       const auto = looksAuto(E.original), keep = {name: E.name, original: E.original};
-      E = full(Object.assign(blankState(), keep, auto ? {autoOnly: true, autoRaw: E.original, autoId: cur.id} : {raw: E.original}));
+      E = full(Object.assign(blankState(), keep, auto ? {autoOnly: true, autoRaw: E.original, autoId: cur.id} : {raw: E.original, autoRaw: E.originalAuto || ""}));
       $("#trycard").hidden = true; $("#ymldet").hidden = true;
       n.firstElementChild.textContent = "Switched back to your original, kept exactly as written."; ob.remove(); drawForm(); markDirty();
     });
