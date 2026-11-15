@@ -61,7 +61,33 @@ The add-on can see `/homeassistant`, `/share` and `/media`. SVG Maker only write
 | `ha_url` | `http://homeassistant:8123` | Optional. Only used together with `ha_token` |
 | `ha_token` | empty | Optional long-lived token. Leave empty to use the add-on's built-in access |
 
+### Backup options
+
+| Option | Default | What it does |
+|---|---|---|
+| `backup_enabled` | `true` | Turns automatic backups on or off |
+| `backup_path` | `/share/svg_maker_backups` | Folder for the zip files. Use a folder inside `/share` |
+| `backup_keep` | `20` | How many backups to keep. The oldest are deleted |
+| `backup_interval_hours` | `24` | Hours between backups. `0` backs up only when the add-on starts |
+| `restore_backup` | empty | File name of a backup to restore (see below) |
+
 Restart the add-on after changing options.
+
+## Backup and restore
+
+SVG Maker saves your icons to a zip file so you can recover them after a reinstall, a deleted folder or a failed SD card.
+
+A backup is made about a minute after the add-on starts and then every `backup_interval_hours`. If nothing changed since the last backup, no new file is made.
+
+A backup holds every file in your **save folder** (`svg_output_path`). The temp folder is not backed up, because it only holds results you did not keep. Files larger than 25 MB are skipped. Each zip also has `options_reference.json`, a copy of your settings with the Home Assistant token replaced by `***`. It is for reading only and is never restored.
+
+**To restore:**
+
+1. Open your backup folder (Samba or the File editor) and copy the name of the zip, for example `svg_maker-20261115-021500.zip`. The add-on log also lists the newest backups each time it starts.
+2. Paste that name into `restore_backup` on the Configuration tab and save.
+3. Restart the add-on.
+
+The add-on first saves a safety copy of the current save folder (named `svg_maker-prerestore-...zip`), puts the backed up icons back, and clears `restore_backup` itself. Icons that are not in the backup are left alone. If the option does not clear, empty it by hand so the restore is not repeated. If you changed the save folder since the backup was made, set it back to the old path before restoring.
 
 ## SVG tips
 - Works best on logos, drawings, signatures and images with clear shapes.

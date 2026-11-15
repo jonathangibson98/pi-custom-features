@@ -77,3 +77,18 @@ configuration:
   ha_token:
     name: Home Assistant long-lived token (optional)
     description: Leave empty to use the add-on's built-in access. Only fill this in if the AI logo tab says Home Assistant refused the add-on.
+  backup_enabled:
+    name: Backups on
+    description: Save the icons in your SVG save folder to a zip file automatically (a minute after start and then on the schedule below).
+  backup_path:
+    name: Backup folder
+    description: Where the backup zip files are saved. Default /share/svg_maker_backups. Use a folder inside /share.
+  backup_keep:
+    name: Backups to keep
+    description: How many zip files to keep. Older ones are deleted. Default 20.
+  backup_interval_hours:
+    name: Hours between backups
+    description: How often to back up. 0 means only when the add-on starts. No file is made if nothing changed.
+  restore_backup:
+    name: Restore this backup
+    description: File name of a zip in the backup folder, for example svg_maker-20261115-021500.zip. Save, then restart the add-on. The option clears itself after the restore.
