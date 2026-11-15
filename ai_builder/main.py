@@ -831,7 +831,7 @@ async def generate(request):
         except Exception as e:
             return web.json_response({"error": f"Could not load that to edit: {e}"})
 
-    ctx = build_context(states, services, text + " " + feedback)
+    ctx = build_context(states, services, text + " " + feedback) + made_context()
     prompt = build_prompt(text, b.get("kind", "auto"), ctx, existing, target, previous, feedback, cfg)
 
     parsed, last_raw = None, ""
@@ -1073,10 +1073,39 @@ async def targets(request):
 
 
 async def mine(request):
+    """What the Builder made, with the names Home Assistant shows now (so a rename made in HA shows up here too),
+    plus everything made in the other tabs."""
+    app = request.app
     store = load_json(STORE, {})
+    hist = load_json(HIST, [])
+    st, states = await ha(app, "GET", "/states")
+    ok = st == 200 and isinstance(states, list)
+    by_ent = {s["entity_id"]: s for s in states} if ok else {}
+    reg = {e.get("entity_id"): e for e in await registry_entities(app)} if ok else {}
+    changed = False
+    for x in hist:
+        e = str(x.get("entity") or "")
+        s_ = by_ent.get(e)
+        x["exists"] = bool(s_) if ok else None
+        if not s_:
+            continue
+        d, _, obj = e.partition(".")
+        a = s_.get("attributes") or {}
+        live = str(a.get("friendly_name") or "").strip()
+        if live and live != x.get("name"):
+            x["name"], changed = live, True
+        if d in ("automation", "scene"):
+            x["cfg_id"] = str(a.get("id") or "")
+        elif d == "script":
+            x["cfg_id"] = str((reg.get(e) or {}).get("unique_id") or obj)
+        elif d in HELPER_FIELDS:
+            x["cfg_id"] = str((reg.get(e) or {}).get("unique_id") or obj)
+        x["kind_ha"] = d
+    if changed:  # keep the names HA has, so the list is right even when HA can't be reached later
+        save_json(HIST, [{k: v for k, v in x.items() if k not in ("exists", "cfg_id", "kind_ha")} for x in hist])
     return web.json_response({
         "templates": [{"id": k, "name": v["name"], "platform": v["platform"]} for k, v in store.items()],
-        "history": load_json(HIST, []),
+        "history": hist, "made": made_index(), "ha_ok": ok,
     })
 
 
@@ -1182,9 +1211,13 @@ async def ann_run_test(app, cfg, mode):
             return
         if mode == "data":
             seq = seq[: last + 1]
+        else:  # keep going when the AI answer is bad, so the test can show what came back
+            seq = [x for x in seq if not (isinstance(x, dict) and str(x.get("alias", "")).startswith("Stop if the AI answer"))]
         res = {"sources": {k: "{{ %s }}" % k for k in keys}}
         if mode != "data":
             res.update({"speech": "{{ speech }}", "raw": "{{ announcement.data }}"})
+            if any(isinstance(st, dict) and isinstance(st.get("variables"), dict) and "ann_fields" in st["variables"] for st in seq):
+                res["fields"] = "{{ ann_fields }}"  # fields mode: show what would go on the card
         cfg["sequence"] = seq + [{"variables": {"test_result": res}},
                                  {"stop": "Test finished", "response_variable": "test_result"}]
         cfg["alias"] = "[TEST] " + str(cfg.get("alias", "announcement"))
@@ -1475,7 +1508,8 @@ def ann_store(sid, name, state, pushed=False):
     old = lib.get(sid, {})
     lib[sid] = {"id": sid, "name": str(name or old.get("name") or sid)[:80],
                 "state": state if state is not None else old.get("state") or {},
-                "updated": now, "pushed_at": now if pushed else old.get("pushed_at")}
+                "updated": now, "pushed_at": now if pushed else old.get("pushed_at"),
+                "ha_name": str(name or sid)[:80] if pushed else old.get("ha_name")}  # the name HA had when we last wrote it
     save_json(ANN_LIB, lib)
     return lib[sid]
 
@@ -1549,18 +1583,20 @@ async def ann_library_list(request):
     app = request.app
     lib = ann_library()
     st, states = await ha(app, "GET", "/states")
-    live = {s["entity_id"].split(".", 1)[1]: s for s in states if st == 200 and isinstance(states, list)
-            and s["entity_id"].startswith("script.")}
-    autos = {str((s.get("attributes") or {}).get("id")): s for s in states if st == 200 and isinstance(states, list)
-             and s["entity_id"].startswith("automation.")}
+    ok = st == 200 and isinstance(states, list)
+    reg = await registry_entities(app) if ok else []
+    live = by_config_id(states if ok else [], reg, "script")
+    autos = by_config_id(states if ok else [], reg, "automation")
+    renamed = sync_lib_names(lib, live, ANN_LIB) if ok else []
     items = []
     for i, v in lib.items():
         a = autos.get(i + ANN_AUTO_SUFFIX)
-        items.append({**v, "in_ha": i in live, "last_run": ((live.get(i) or {}).get("attributes") or {}).get("last_triggered"),
+        items.append({**v, "in_ha": i in live, "entity": (live.get(i) or {}).get("entity_id") or "script." + i,
+                      "last_run": ((live.get(i) or {}).get("attributes") or {}).get("last_triggered"),
                       "auto_in_ha": a is not None, "auto_on": bool(a) and a.get("state") == "on"})
     items.sort(key=lambda x: str(x.get("updated") or ""), reverse=True)
     found = await ann_found(app, set(lib)) if st == 200 else []
-    return web.json_response({"items": items, "found": found, "ha_ok": st == 200})
+    return web.json_response({"items": items, "found": found, "ha_ok": st == 200, "renamed": renamed})
 
 
 async def ann_library_save(request):
@@ -1724,7 +1760,8 @@ def fact_store(sid, name, state, pushed=False):
     old = lib.get(sid, {})
     lib[sid] = {"id": sid, "name": str(name or old.get("name") or sid)[:80],
                 "state": state if state is not None else old.get("state") or {},
-                "updated": now, "pushed_at": now if pushed else old.get("pushed_at")}
+                "updated": now, "pushed_at": now if pushed else old.get("pushed_at"),
+                "ha_name": str(name or sid)[:80] if pushed else old.get("ha_name")}  # the name HA had when we last wrote it
     save_json(FACTS_LIB, lib)
     return lib[sid]
 
@@ -2065,8 +2102,10 @@ async def fact_library_list(request):
     lib = fact_library()
     st, states = await ha(app, "GET", "/states")
     ok = st == 200 and isinstance(states, list)
-    live = {s["entity_id"].split(".", 1)[1]: s for s in states if ok and s["entity_id"].startswith("script.")}
-    autos = {str((s.get("attributes") or {}).get("id")): s for s in states if ok and s["entity_id"].startswith("automation.")}
+    reg = await registry_entities(app) if ok else []
+    live = by_config_id(states if ok else [], reg, "script")
+    autos = by_config_id(states if ok else [], reg, "automation")
+    renamed = sync_lib_names(lib, {i: (autos if fact_is_auto(v.get("state")) else live).get(i) for i, v in lib.items()}, FACTS_LIB, "facts") if ok else []
     items = []
     for i, v in lib.items():
         own_id = str(((v.get("state") or {}).get("autoId")) or "")
@@ -2079,7 +2118,7 @@ async def fact_library_list(request):
         items.append({**v, "in_ha": i in live, "last_run": ((live.get(i) or {}).get("attributes") or {}).get("last_triggered"),
                       "auto_in_ha": a is not None, "auto_on": bool(a) and a.get("state") == "on"})
     items.sort(key=lambda x: str(x.get("updated") or ""), reverse=True)
-    return web.json_response({"items": items, "ha_ok": ok})
+    return web.json_response({"items": items, "ha_ok": ok, "renamed": renamed})
 
 
 async def fact_library_save(request):
@@ -2254,7 +2293,7 @@ def cards_entity_brief(s):
     return "\n".join(lines)
 
 
-def cards_prompt(req, briefs, toggle, style, current, feedback):
+def cards_prompt(req, briefs, toggle, style, current, feedback, source=None):
     look = {"glass": CARD_STYLE_GLASS,
             "plain": "PLAIN STYLE: use normal Home Assistant look. Do not restyle ha-card and do not use card_mod or custom CSS unless the request needs it.",
             "any": "STYLE: pick whatever looks best, but keep it clean and readable on a dark dashboard."}[style]
@@ -2274,6 +2313,9 @@ def cards_prompt(req, briefs, toggle, style, current, feedback):
         p += ["DATA the card can read (live right now):", "\n".join(briefs), ""]
     else:
         p += ["No entities were picked. Use only entity ids the user typed in the request.", ""]
+    if source:
+        p += ["WHERE THE DATA COMES FROM: %s is written by the user's %s \"%s\". %s The file may be empty right now, so build for this shape "
+              "and show a friendly placeholder when it is empty." % (source["sensor"] or "the sensor", source["kind"], source["name"], source["shape"]), ""]
     if toggle:
         p += ["The user will show or hide this card with %s. That is handled for you." % toggle, ""]
     if current and feedback:
@@ -2389,6 +2431,12 @@ async def cards_generate(request):
     toggle = toggle if re.match(r"^input_boolean\.[a-z0-9_]+$", toggle) else ""
     style = b.get("style") if b.get("style") in ("glass", "plain", "any") else "glass"
     wanted = [e for e in (b.get("entities") or []) if isinstance(e, str) and ANN_ENT_RE.match(e)][:12]
+    src = b.get("source") if isinstance(b.get("source"), dict) else None
+    source = None
+    if src and src.get("shape"):
+        sen = str(src.get("sensor") or "")
+        source = {"name": str(src.get("name") or "")[:80], "kind": "announcement" if src.get("kind") == "announcement" else "fact",
+                  "sensor": sen if ANN_ENT_RE.match(sen) else "", "shape": str(src["shape"])[:1500]}
     if not (req or (current and feedback)):
         return web.json_response({"ok": False, "error": "Say what the card should show first."})
     ai = ann_settings().get("ai_task_entity") or ENTITY
@@ -2403,11 +2451,11 @@ async def cards_generate(request):
             used += len(t)
             briefs.append(t)
     try:
-        out = await cards_ai(app, ai, cards_prompt(req, briefs, toggle, style, current, feedback))
+        out = await cards_ai(app, ai, cards_prompt(req, briefs, toggle, style, current, feedback, source))
         y, name, notes = cards_parse(out)
         cfg, err = cards_check(y)
         if err:  # one retry: tell the AI what was wrong with its own answer
-            out = await cards_ai(app, ai, cards_prompt(req, briefs, toggle, style, y, "Your last answer was rejected: %s Fix it and return the whole card." % err))
+            out = await cards_ai(app, ai, cards_prompt(req, briefs, toggle, style, y, "Your last answer was rejected: %s Fix it and return the whole card." % err, source))
             y, name2, notes2 = cards_parse(out)
             name, notes = name or name2, notes or notes2
             cfg, err = cards_check(y)
@@ -2486,6 +2534,323 @@ async def cards_library_delete(request):
     lib.pop(cid)
     save_json(CARDS_LIB, lib)
     return web.json_response({"ok": True})
+
+
+# ---------------------------------------------------------------- shared: everything this add-on made, names kept in step
+async def registry_entities(app):
+    """The entity registry (to find a script whose entity id was renamed in HA). Empty if it can't be read."""
+    try:
+        r = await ws_call(app, {"type": "config/entity_registry/list"})
+        return (r.get("result") or []) if r.get("success") else []
+    except Exception:  # noqa: BLE001 - the registry is a nice-to-have here
+        return []
+
+
+def by_config_id(states, reg, domain):
+    """{config id: state} for scripts, automations or scenes. Survives an entity id that was changed in HA."""
+    by_ent = {s["entity_id"]: s for s in states}
+    out = {}
+    for s in states:
+        d, _, obj = s["entity_id"].partition(".")
+        if d != domain:
+            continue
+        a = s.get("attributes") or {}
+        if domain in ("automation", "scene"):
+            if a.get("id"):
+                out[str(a["id"])] = s
+        else:
+            out.setdefault(obj, s)
+    if domain == "script":  # the registry knows the script's config id even after its entity id was changed
+        for e in reg:
+            if e.get("platform") == "script" and e.get("entity_id") in by_ent and e.get("unique_id"):
+                out[str(e["unique_id"])] = by_ent[e["entity_id"]]
+    return out
+
+
+def set_alias_text(y, name):
+    """Change the alias: line of a YAML text (a pasted script or automation) without touching anything else."""
+    line = "alias: " + json.dumps(name, ensure_ascii=False)
+    y = str(y or "")
+    return re.sub(r"^alias:.*$", lambda m: line, y, count=1, flags=re.M) if re.search(r"^alias:", y, re.M) else line + "\n" + y
+
+
+def pin_file(v, kind):
+    """A file name left blank follows the item's name. Fix it to the current one before a rename, so the file
+    (and the sensor that reads it, and every card on it) keeps working."""
+    st_ = v.get("state") if isinstance(v.get("state"), dict) else {}
+    old = st_.get("name") or v.get("name") or v.get("id") or ""
+    if kind == "ann":
+        t = st_.get("txt")
+        if isinstance(t, dict) and t.get("on") and not str(t.get("file") or "").strip() and st_.get("raw") is None:
+            t["file"] = (slug(old) or "announcement")[:54] + (".json" if t.get("mode") == "fields" else ".txt")
+    elif kind == "facts" and not st_.get("autoOnly") and st_.get("raw") is None and not str(st_.get("file") or "").strip():
+        st_["file"] = ((slug(old)[:54].rstrip("_")) or "fact") + ".txt"
+
+
+def lib_rename(v, name, ha_too, kind="ann"):
+    """Rename one saved item (announcement or fact) in the library, form and pasted YAML alike."""
+    pin_file(v, kind)
+    v["name"] = name[:80]
+    st_ = v.get("state") if isinstance(v.get("state"), dict) else {}
+    st_["name"] = name
+    if isinstance(st_.get("raw"), str):
+        st_["raw"] = set_alias_text(st_["raw"], name)
+    if isinstance(st_.get("autoRaw"), str) and st_.get("autoOnly"):
+        st_["autoRaw"] = set_alias_text(st_["autoRaw"], name)
+    v["state"] = st_
+    if ha_too:
+        v["ha_name"] = name[:80]
+
+
+def sync_lib_names(lib, live, path, kind="ann"):
+    """Pick up names changed in Home Assistant. An item renamed in HA (its HA name moved away from the one we last wrote)
+    takes the new name. A name changed here but not pushed yet is left alone."""
+    changed = []
+    for i, v in lib.items():
+        s = live.get(i)
+        if not s:
+            continue
+        now = str((s.get("attributes") or {}).get("friendly_name") or "").strip()[:80]
+        if not now or now.startswith("[TEST] "):
+            continue
+        last = v.get("ha_name")
+        if last is None:  # saved before names were tracked: adopt HA's name only if nothing was edited here since the push
+            if now != v.get("name") and v.get("pushed_at") and str(v.get("updated") or "") <= str(v.get("pushed_at")):
+                changed.append({"id": i, "from": v.get("name"), "to": now})
+                lib_rename(v, now, True, kind)
+            else:
+                v["ha_name"] = now
+            continue
+        if now != last:
+            if now != v.get("name"):
+                changed.append({"id": i, "from": v.get("name"), "to": now})
+                lib_rename(v, now, True, kind)
+            else:
+                v["ha_name"] = now
+    save_json(path, lib)
+    if changed:
+        log.info("picked up %d name(s) changed in Home Assistant: %s", len(changed), ", ".join("%s -> %s" % (c["from"], c["to"]) for c in changed))
+    return changed
+
+
+RENAME_KINDS = ("script", "automation", "scene", "input_boolean", "input_number", "input_select", "input_text",
+                "input_datetime", "counter", "timer")
+
+
+async def ha_rename(app, kind, cid, name, entity=""):
+    """Rename one thing in Home Assistant. Returns (ok, error). Scripts and automations change their alias, scenes their
+    name, helpers their name. A name typed in HA's entity settings (the registry) is cleared so the new name shows."""
+    if kind in ("script", "automation", "scene"):
+        code, cfg = await ha(app, "GET", f"/config/{kind}/config/{cid}", timeout=10)
+        if code != 200 or not isinstance(cfg, dict):
+            return False, "Could not load %s %s (it may be written in a YAML file, which can't be changed from here)." % (kind, cid)
+        cfg["name" if kind == "scene" else "alias"] = name
+        code, text = await ha_text(app, "POST", f"/config/{kind}/config/{cid}", cfg)
+        if code != 200:
+            return False, "HA said %s: %s" % (code, str(text)[:300])
+        await ha_text(app, "POST", f"/services/{kind}/reload", {})
+    elif kind in HELPER_FIELDS:
+        r = await ws_call(app, {"type": f"{kind}/update", f"{kind}_id": cid, "name": name})
+        if not r.get("success"):  # a helper written in YAML: give the entity its own name instead
+            if not entity:
+                return False, (r.get("error") or {}).get("message", "Home Assistant would not rename it.")
+            r = await ws_call(app, {"type": "config/entity_registry/update", "entity_id": entity, "name": name})
+            return (True, "") if r.get("success") else (False, (r.get("error") or {}).get("message", "Home Assistant would not rename it."))
+    else:
+        return False, "Can't rename a %s." % kind
+    if entity:  # a name set in the entity settings wins over the alias, so clear it
+        try:
+            r = await ws_call(app, {"type": "config/entity_registry/get", "entity_id": entity})
+            if r.get("success") and (r.get("result") or {}).get("name"):
+                await ws_call(app, {"type": "config/entity_registry/update", "entity_id": entity, "name": None})
+        except Exception:  # noqa: BLE001 - the alias is already changed, this is a nice-to-have
+            pass
+    return True, ""
+
+
+async def rename_route(request):
+    """Rename something made here, in Home Assistant and in the add-on at the same time.
+    lib=ann / facts / cards: a saved announcement, fact or card (by its id). Otherwise kind + id of a thing in HA."""
+    app = request.app
+    b = await ann_body(request)
+    name = re.sub(r"\s+", " ", str(b.get("name") or "")).strip()[:80]
+    lib_kind, cid = str(b.get("lib") or ""), str(b.get("id") or "")
+    if not name:
+        return web.json_response({"ok": False, "error": "Type a name."})
+    st, states = await ha(app, "GET", "/states")
+    ok_states = st == 200 and isinstance(states, list)
+    reg = await registry_entities(app) if ok_states else []
+    scripts = by_config_id(states if ok_states else [], reg, "script")
+    autos = by_config_id(states if ok_states else [], reg, "automation")
+    try:
+        if lib_kind == "cards":
+            lib = cards_library()
+            if cid not in lib:
+                return web.json_response({"ok": False, "error": "That card is not saved here."})
+            lib[cid]["name"] = name
+            if isinstance(lib[cid].get("state"), dict):
+                lib[cid]["state"]["name"] = name
+            save_json(CARDS_LIB, lib)
+            return web.json_response({"ok": True, "name": name})
+        if lib_kind in ("ann", "facts"):
+            if not ANN_ID_RE.match(cid):
+                return web.json_response({"ok": False, "error": "Bad id."})
+            path, mark = (ANN_LIB, ANN_MARK) if lib_kind == "ann" else (FACTS_LIB, FACT_MARK)
+            lib = load_json(path, {})
+            v = lib.get(cid) if isinstance(lib, dict) else None
+            if not v:
+                return web.json_response({"ok": False, "error": "That is not saved here."})
+            st_ = v.get("state") or {}
+            one_auto = lib_kind == "facts" and fact_is_auto(st_)
+            kind = "automation" if one_auto else "script"
+            live = (autos if one_auto else scripts).get(cid)
+            in_ha = False
+            if live:
+                ok, err = await ha_rename(app, kind, cid, name, live.get("entity_id", ""))
+                if not ok:
+                    return web.json_response({"ok": False, "error": err})
+                in_ha = True
+                if not one_auto:  # its schedule automation, if this tool made it, follows: "<name> (auto)"
+                    aid = str(st_.get("autoId") or "") if lib_kind == "facts" else ""
+                    aid = aid if ANN_ID_RE.match(aid) else cid + (ANN_AUTO_SUFFIX if lib_kind == "ann" else FACT_AUTO_SUFFIX)
+                    code, acfg = await ha(app, "GET", f"/config/automation/config/{aid}", timeout=10)
+                    if code == 200 and isinstance(acfg, dict) and acfg.get("description") == mark:
+                        await ha_rename(app, "automation", aid, name + " (auto)", (autos.get(aid) or {}).get("entity_id", ""))
+            lib_rename(v, name, in_ha, lib_kind)
+            save_json(path, lib)
+            h = load_json(HIST, [])
+            for x in h:
+                if x.get("entity") in ("script." + cid, "automation." + cid):
+                    x["name"] = name
+            save_json(HIST, h)
+            return web.json_response({"ok": True, "name": name, "in_ha": in_ha})
+        kind = str(b.get("kind") or "")
+        if kind == "template":  # a template sensor this add-on manages: its name lives in our own file
+            store = load_json(STORE, {})
+            if cid not in store:
+                return web.json_response({"ok": False, "error": "That template sensor is not managed here."})
+            store[cid]["name"] = name
+            save_json(STORE, store)
+            render_package(store)
+            await ha(app, "POST", "/services/template/reload", {})
+            return web.json_response({"ok": True, "name": name})
+        if kind not in RENAME_KINDS or not re.match(r"^[A-Za-z0-9_\-]{1,120}$", cid):
+            return web.json_response({"ok": False, "error": "Can't rename that."})
+        entity = str(b.get("entity") or "")
+        ok, err = await ha_rename(app, kind, cid, name, entity if ANN_ENT_RE.match(entity) else "")
+        if not ok:
+            return web.json_response({"ok": False, "error": err})
+        h = load_json(HIST, [])
+        for x in h:
+            if entity and x.get("entity") == entity:
+                x["name"] = name
+        save_json(HIST, h)
+        # it may also be a saved announcement or fact: keep that library in step
+        for path in (ANN_LIB, FACTS_LIB):
+            lib = load_json(path, {})
+            if isinstance(lib, dict) and cid in lib and kind in ("script", "automation"):
+                lib_rename(lib[cid], name, True, "ann" if path == ANN_LIB else "facts")
+                save_json(path, lib)
+        return web.json_response({"ok": True, "name": name})
+    except Exception as e:  # noqa: BLE001 - report anything that goes wrong talking to Home Assistant
+        log.exception("rename failed")
+        return web.json_response({"ok": False, "error": "Could not reach Home Assistant: %s" % e})
+
+
+def ann_file_info(v):
+    """For a saved announcement: the file and sensor it writes (if any) and what is in it."""
+    st_ = v.get("state") or {}
+    t = st_.get("txt") if isinstance(st_.get("txt"), dict) else {}
+    if not t.get("on") or st_.get("raw") is not None:
+        return None
+    name = st_.get("name") or v.get("name") or v.get("id")
+    fields = []
+    if t.get("mode") == "fields":
+        seen = set()
+        for f in t.get("fields") or []:
+            k = re.sub(r"[^a-z0-9_]+", "_", str((f or {}).get("key") or "").lower()).strip("_")[:40]
+            if k and k not in seen and k != "notification":
+                seen.add(k)
+                fields.append({"key": k, "hint": str(f.get("hint") or ""), "as": f.get("as") if f.get("as") in ("title", "text", "small", "hide") else "text"})
+    file = re.sub(r"[^A-Za-z0-9_\-./]", "", str(t.get("file") or "")) or ((slug(name) or "announcement")[:54] + (".json" if fields else ".txt"))
+    sensor = str(t.get("sensor") or "").strip() or ("sensor.read_" + (re.sub(r"\.[^.]*$", "", file.split("/")[-1]) or "announcement"))
+    say = t.get("say") if any(f["key"] == t.get("say") for f in fields) else (next((f["key"] for f in fields if f["as"] == "text"), fields[0]["key"] if fields else ""))
+    role = {"title": "title", "text": "main text", "small": "small bottom line", "hide": "not shown"}
+    if fields:
+        shape = ("Its content attribute holds ONE JSON object written by the \"%s\" announcement, for example {%s}. Fields: %s. "
+                 "Strip ```json and ``` then parse with from_json(default={}). If it is not JSON, show the raw text."
+                 % (name, ", ".join('"%s": "..."' % f["key"] for f in fields),
+                    "; ".join("%s = %s (show as %s)" % (f["key"], "the spoken announcement" if f["key"] == say else (f["hint"] or "short text"), role[f["as"]]) for f in fields)))
+    else:
+        shape = "Its content attribute holds the plain text of the last \"%s\" announcement (what it said out loud)." % name
+    return {"file": file, "sensor": sensor, "fields": fields, "say": say, "shape": shape}
+
+
+def fact_file_info(v):
+    st_ = v.get("state") or {}
+    if st_.get("autoOnly"):
+        card = st_.get("card") or {}
+        return {"sensor": card.get("sensor") or "", "shape": "It is the user's own automation, so its file format is unknown. Read the sensor's live attributes."} if card.get("sensor") else None
+    name = st_.get("name") or v.get("name") or v.get("id")
+    file = str(st_.get("file") or "").strip() or (slug(name) + ".txt")
+    card = st_.get("card") or {}
+    sensor = card.get("sensor") or st_.get("lastEntity") or ("sensor.read_" + re.sub(r"\.[^.]*$", "", file.split("/")[-1]))
+    if st_.get("style") == "json":
+        key = re.sub(r"[^A-Za-z0-9_]", "", str(st_.get("listKey") or "items")) or "items"
+        fl = [f for f in (st_.get("fields") or []) if isinstance(f, dict) and f.get("key")]
+        shape = ("Its content attribute holds JSON written by the \"%s\" fact: {\"%s\": [ {%s}, ... ]}, a list of items. Field meanings: %s. "
+                 "Strip ```json and ``` then parse with from_json(default={})."
+                 % (name, key, ", ".join('"%s": ...' % f["key"] for f in fl), "; ".join("%s = %s (%s)" % (f["key"], f.get("hint") or "", f.get("type") or "text") for f in fl)))
+    else:
+        shape = ("Its content attribute holds the text of the \"%s\" fact%s." % (name, ", with a first line starting with # that is its title" if st_.get("heading") or st_.get("style") == "titled" else ""))
+    return {"file": file, "sensor": sensor, "fields": st_.get("fields") or [], "list_key": st_.get("listKey") or "", "shape": shape}
+
+
+def made_index():
+    """One list of everything made with this add-on, so every tab (and the Builder's AI) can see the others."""
+    out = []
+    for i, v in ann_library().items():
+        st_ = v.get("state") or {}
+        out.append({"kind": "announcement", "id": i, "name": v.get("name") or i, "entity": "script." + i,
+                    "about": str(st_.get("task") or ("Your own script" if st_.get("raw") is not None else ""))[:200],
+                    "pushed": bool(v.get("pushed_at")), "toggle": st_.get("cardSw") or "", "file": ann_file_info(v)})
+    for i, v in fact_library().items():
+        st_ = v.get("state") or {}
+        one = fact_is_auto(st_)
+        out.append({"kind": "fact", "id": i, "name": v.get("name") or i, "entity": ("automation." if one else "script.") + i,
+                    "about": str(st_.get("task") or "")[:200], "pushed": bool(v.get("pushed_at")),
+                    "toggle": (st_.get("card") or {}).get("toggle") or "", "file": fact_file_info(v)})
+    for i, v in cards_library().items():
+        st_ = v.get("state") or {}
+        out.append({"kind": "card", "id": i, "name": v.get("name") or i, "entity": "", "about": str(st_.get("request") or "")[:200],
+                    "toggle": st_.get("toggle") or "", "entities": st_.get("entities") or [], "from": st_.get("source") or None})
+    return out
+
+
+async def made_route(request):
+    return web.json_response({"items": made_index(), "history": load_json(HIST, [])})
+
+
+def made_context():
+    """What the Builder's AI is told about things made in the other tabs, so a request can use them by name."""
+    L = []
+    for x in made_index():
+        if x["kind"] == "card":
+            continue
+        line = "%s | %s | %s" % (x["entity"], x["name"], "voice announcement" if x["kind"] == "announcement" else "dashboard fact (AI writes a file)")
+        if x.get("about"):
+            line += " | " + x["about"][:120]
+        if x.get("file"):
+            line += " | writes the file read by %s" % x["file"]["sensor"]
+        if x.get("toggle"):
+            line += " | shows a card with %s" % x["toggle"]
+        if not x.get("pushed"):
+            line += " | (draft, not in Home Assistant yet)"
+        L.append(line)
+    if not L:
+        return ""
+    return ("\n\nMADE IN THIS ADD-ON'S OTHER TABS (run an announcement with script.turn_on or by calling the script; "
+            "a fact script the same way; a fact automation with automation.trigger). entity | name | what it is:\n" + "\n".join(L[:60]))
 
 
 # ---------------------------------------------------------------- backup / import
@@ -2715,6 +3080,7 @@ def main():
         web.get("/ui.css", asset("ui.css", "text/css")),
         web.get("/ui.js", asset("ui.js", "application/javascript")),
         web.get("/announcements.js", asset("announcements.js", "application/javascript")),
+        web.get("/ann-file.js", asset("ann-file.js", "application/javascript")),
         web.get("/sources.js", asset("sources.js", "application/javascript")),
         web.get("/facts.js", asset("facts.js", "application/javascript")),
         web.get("/cards.js", asset("cards.js", "application/javascript")),
@@ -2723,6 +3089,8 @@ def main():
         web.get("/api/status", status),
         web.get("/api/targets", targets),
         web.get("/api/mine", mine),
+        web.get("/api/made", made_route),
+        web.post("/api/rename", rename_route),
         web.post("/api/generate", generate),
         web.post("/api/create", create),
         web.post("/api/delete_template", delete_template),
