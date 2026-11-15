@@ -1,7 +1,10 @@
 /* Cards page: AI-assisted dashboard card creator. Describe a card, pick the entities it reads, get Lovelace YAML. */
 let S = {}, ENT = [], LIB = [], E = blank(), cur = {id: null, saved: false}, dirty = false, busy = false;
 const cd = (path, body) => api("cards/" + path, body);
-function blank() { return {name: "My card", request: "", entities: [], toggle: "", style: "glass", yaml: "", notes: "", needs: [], unknown: []}; }
+function blank() { return {name: "My card", request: "", entities: [], toggle: "", style: "glass", yaml: "", notes: "", needs: [], unknown: [], source: null, shape: ""}; }
+let MADE = [];  /* announcements and facts made in the other tabs (from /api/made) */
+const madeKey = x => x.kind + ":" + x.id;
+const madeOf = src => src && MADE.find(x => x.kind === src.kind && x.id === src.id);
 const esc = t => String(t).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 
 async function copyText(t) {
@@ -60,10 +63,12 @@ function libCard(it) {
   return el("div", {class: "card ann"},
     el("div", {class: "top"}, el("div", {style: "min-width:0"}, el("h3", {}, it.name || it.id)), st.yaml ? el("span", {class: "pill ok"}, "Built") : el("span", {class: "pill warn"}, "Not built yet")),
     el("div", {class: "clamp"}, st.request || "No description yet."),
-    el("div", {class: "meta"}, ents ? el("span", {class: "pill plain"}, ents + " entit" + (ents === 1 ? "y" : "ies")) : null,
+    el("div", {class: "meta"}, st.source ? el("span", {class: "pill plain", title: st.source.kind}, "From " + ((madeOf(st.source) || {}).name || st.source.name)) : null,
+      ents ? el("span", {class: "pill plain"}, ents + " entit" + (ents === 1 ? "y" : "ies")) : null,
       st.toggle ? el("span", {class: "pill plain", title: st.toggle}, "Has show / hide switch") : null,
       (st.needs || []).map(n => el("span", {class: "pill plain"}, n)), el("span", {class: "pill plain"}, "Edited " + ago(it.updated))),
-    el("div", {class: "acts"}, el("button", {class: "btn primary sm", onclick: () => openItem(it)}, "Edit"), copy, dup, del), msg);
+    el("div", {class: "acts"}, el("button", {class: "btn primary sm", onclick: () => openItem(it)}, "Edit"), copy, dup,
+      renameButton(it.name || it.id, n => api("rename", {lib: "cards", id: it.id, name: n}), () => { flash("Renamed.", "ok"); loadLib(); }), del), msg);
 }
 
 /* ---------- editor ---------- */
@@ -109,8 +114,67 @@ function openEditor(state, c) {
   $("#name").value = E.name; $("#request").value = E.request; $("#style").value = E.style || "glass";
   $("#yaml").value = E.yaml || ""; $("#feedback").value = "";
   ["#bres", "#pres"].forEach(i => $(i).replaceChildren()); $("#ymsg").textContent = ""; say("");
-  drawPickers(); drawCardSec(); dirty = false; paint(); showView("edit");
+  drawPickers(); drawCardSec(); drawFrom(); dirty = false; paint(); showView("edit");
 }
+
+/* ---------- start from an announcement or fact ---------- */
+function drawFrom() {
+  const sel = $("#fromsel"), have = MADE.filter(x => x.file && x.file.sensor);
+  sel.replaceChildren(el("option", {value: ""}, "Nothing, I'll pick the entities myself"),
+    ...have.map(x => el("option", {value: madeKey(x)}, (x.kind === "announcement" ? "Announcement: " : "Fact: ") + x.name + " (" + x.file.sensor + ")")));
+  if (E.source && !have.some(x => madeKey(x) === madeKey(E.source))) sel.append(el("option", {value: madeKey(E.source)}, E.source.name + " (not saving to a file any more)"));
+  sel.value = E.source ? madeKey(E.source) : "";
+  const box = $("#fromnote"); box.replaceChildren();
+  const m = madeOf(E.source);
+  if (!E.source) return;
+  if (E.shape) box.append(el("p", {class: "help"}, "The AI is told: " + E.shape));
+  /* keep in step: the announcement or fact changed its sensor or switch since this card was made */
+  const now = m && m.file ? {sensor: m.file.sensor, toggle: m.toggle || "", shape: m.file.shape} : null;
+  if (!now) return;
+  const diff = [];
+  if (now.sensor && !E.entities.includes(now.sensor)) diff.push("it now writes " + now.sensor);
+  if (now.toggle && now.toggle !== E.toggle) diff.push("its show / hide switch is now " + now.toggle);
+  if (now.shape !== E.shape) diff.push("what is in its file changed");
+  if (!diff.length) return;
+  box.append(el("div", {class: "note warn"}, el("div", {}, el("b", {}, m.name + " changed: "), diff.join(", ") + ". "),
+    el("button", {class: "btn sm", onclick: () => { useSource(m, true); }}, "Update this card's setup")));
+}
+function useSource(x, update) {
+  const oldSensor = (madeOf(E.source) || {}).file ? madeOf(E.source).file.sensor : "";
+  E.source = {kind: x.kind, id: x.id, name: x.name}; E.shape = x.file.shape || "";
+  E.entities = E.entities.filter(e => !oldSensor || e !== oldSensor || e === x.file.sensor);
+  if (x.file.sensor && !E.entities.includes(x.file.sensor)) E.entities = [x.file.sensor].concat(E.entities);
+  const oldT = E.toggle; if (x.toggle && (update || !E.toggle)) E.toggle = x.toggle;
+  if (!update && !E.request.trim()) {
+    const f = x.file.fields || [], by = r => f.filter(y => y.as === r).map(y => y.key).join(" and ");
+    E.request = "A glass card for my " + x.name + " " + x.kind + "." + (f.length && x.kind === "announcement"
+      ? (by("title") ? " Show " + by("title") + " as the title." : "") + (by("text") ? " Show " + by("text") + " as the main text, scrolling if it is long." : "") + (by("small") ? " Put " + by("small") + " small and dim at the bottom." : "")
+      : x.kind === "fact" && f.length ? " Rotate through the items, one at a time." : " Show the text, scrolling if it is long.");
+    $("#request").value = E.request;
+  }
+  if (!E.name || E.name === "My card") { E.name = x.name + " card"; $("#name").value = E.name; }
+  drawPickers(); if (E.toggle !== oldT) applyToggle(oldT); drawFrom(); markDirty();
+}
+$("#fromsel").onchange = () => {
+  const v = $("#fromsel").value, x = MADE.find(y => madeKey(y) === v);
+  if (!v) { E.source = null; E.shape = ""; drawFrom(); markDirty(); return; }
+  if (x && x.file) useSource(x, false);
+};
+async function loadMade() { const d = await api("made"); MADE = (d && d.items) || []; }
+/* the Announcements or Facts tab handed us something to build a card for */
+async function takeHandoff() {
+  let h = null;
+  try { h = JSON.parse(localStorage.getItem("aib_card_from") || "null"); localStorage.removeItem("aib_card_from"); } catch (e) { h = null; }
+  if (!h || Date.now() - (h.t || 0) > 120000) return;
+  await loadMade();
+  const x = MADE.find(y => y.kind === h.kind && y.id === h.id && y.file) || {kind: h.kind, id: h.id || "", name: h.name, toggle: h.toggle, file: {sensor: h.sensor, shape: h.shape, fields: []}};
+  x.file = Object.assign({}, x.file, {sensor: h.sensor || x.file.sensor, shape: h.shape || x.file.shape});  /* what the editor has now, even if not saved yet */
+  if (h.toggle) x.toggle = h.toggle;
+  openEditor(blank(), {}); useSource(x, false);
+  say("Started from " + x.name + ". Describe the look if you like, then Build the card.", "ok");
+}
+window.addEventListener("storage", e => { if (e.key === "aib_card_from" && e.newValue) takeHandoff(); });
+onChanged(async () => { await loadMade(); if (!$("#v-lib").hidden) renderLib(); else drawFrom(); });
 const openNew = () => openEditor(blank(), {});
 const openItem = it => openEditor(Object.assign({}, it.state || {}, {name: (it.state || {}).name || it.name}), {id: it.id, saved: true});
 $("#newcard").onclick = openNew;
@@ -137,14 +201,14 @@ $("#back").onclick = () => {
   dirty = false; showView("lib"); loadLib();
 };
 
-const stateOut = () => ({name: E.name, request: E.request, entities: E.entities, toggle: E.toggle, style: E.style, yaml: $("#yaml").value, notes: E.notes, needs: E.needs, unknown: E.unknown});
+const stateOut = () => ({name: E.name, request: E.request, entities: E.entities, toggle: E.toggle, style: E.style, yaml: $("#yaml").value, notes: E.notes, needs: E.needs, unknown: E.unknown, source: E.source, shape: E.shape});
 $("#save").onclick = async () => {
   E.name = $("#name").value.trim() || "My card"; E.yaml = $("#yaml").value;
   const b = $("#save"); b.disabled = true; say("Saving...");
   const r = await cd("library/save", {id: cur.id, name: E.name, state: stateOut()});
   b.disabled = false;
   if (!r.ok) { say(r.error || "That failed.", "bad"); return; }
-  cur.id = r.item.id; cur.saved = true; dirty = false; paint(); say("Saved.", "ok");
+  cur.id = r.item.id; cur.saved = true; dirty = false; paint(); say("Saved.", "ok"); notifyChanged("cards");
 };
 
 /* ---------- build / revise ---------- */
@@ -156,7 +220,8 @@ async function generate(feedback) {
   if (!feedback && !E.request.trim()) { box.className = "msg warn"; box.textContent = "Describe the card first."; return; }
   if (feedback && !feedback.trim()) { box.className = "msg warn"; box.textContent = "Type what to change first."; return; }
   setBusy(true); box.className = "msg"; box.replaceChildren(...spinner("Asking your AI Task. This can take a minute or two..."));
-  const r = await cd("generate", {request: E.request, entities: E.entities, toggle: E.toggle, style: E.style, yaml: feedback ? $("#yaml").value : "", feedback: feedback || ""});
+  const r = await cd("generate", {request: E.request, entities: E.entities, toggle: E.toggle, style: E.style, yaml: feedback ? $("#yaml").value : "", feedback: feedback || "",
+    source: E.source && E.shape ? {name: E.source.name, kind: E.source.kind, sensor: (madeOf(E.source) || {file: {}}).file.sensor || E.entities[0] || "", shape: E.shape} : null});
   setBusy(false);
   if (!r.ok) {
     box.className = "msg bad"; box.replaceChildren(r.error || "That failed.");
@@ -225,6 +290,7 @@ $("#preview").onclick = async () => {
 };
 
 /* ---------- start ---------- */
-Promise.all([api("ann/options"), api("ann/entities").then(r => Array.isArray(r) ? r : [])]).then(async ([o, e]) => {
+Promise.all([api("ann/options"), api("ann/entities").then(r => Array.isArray(r) ? r : []), loadMade()]).then(async ([o, e]) => {
   if (o && !o.error) S = o; ENT = e; setupNote(); await loadLib(); showView("lib");
+  await takeHandoff();
 });
