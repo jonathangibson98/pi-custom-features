@@ -43,12 +43,12 @@
       <div class="grow"><h2>Everything you've made</h2><p class="dim small" id="libsub"></p></div>
       <button class="btn" id="copyall">Copy all cards</button>
       <button class="btn" id="updall" hidden>Update all in Home Assistant</button>
-      <button class="btn" id="importbtn">Import my script</button>
+      <button class="btn" id="importbtn">Import my script or automation</button>
       <button class="btn primary" id="newfact">New fact</button>
     </div>
 
     <section class="card" id="importbox" hidden>
-      <div class="ch"><h2>Import your script or automation</h2><p>Paste a Home Assistant script or automation (YAML), such as one you made by hand. It is kept exactly as written.</p></div>
+      <div class="ch"><h2>Import your script or automation</h2><p>Paste a Home Assistant script or automation (YAML), such as one you made by hand.</p></div>
       <textarea id="impyaml" class="code" spellcheck="false" style="min-height:220px" placeholder="alias: My fact&#10;sequence:&#10;  - action: ai_task.generate_data&#10;    ... (or an automation with triggers: and actions:)"></textarea>
       <p class="help">Works with just the script, the script with its id on top (the way it looks in scripts.yaml), or only the list of steps.</p>
       <label class="l" for="impid">Script or automation id (optional)</label>
@@ -59,6 +59,10 @@
       <label class="l" for="impauto">Automation (optional)</label>
       <div class="row"><select id="impauto" style="max-width:420px"><option value="">None</option></select></div>
       <p class="help">With a script pasted, this is the automation that runs it. With the box above empty, the automation is imported on its own. Pasting an automation that does everything itself (asks the AI and publishes) works too.</p>
+      <label class="l">How to bring it in</label>
+      <label class="check"><input type="radio" name="impmode" value="convert" checked> Turn it into a normal fact I edit with the form (recommended)</label>
+      <label class="check"><input type="radio" name="impmode" value="raw"> Keep it exactly as written (edit the YAML yourself)</label>
+      <p class="help">Converting reads your steps: what the AI is told becomes data sources, speakers, phones and the file become the matching settings, and triggers become the schedule. Your AI Task splits the prompt into the instructions and the voice. Anything that doesn't fit is listed, and your original is kept so you can switch back.</p>
       <div class="row" style="margin-top:12px"><button class="btn primary" id="impgo">Import</button><button class="btn" id="impcancel">Cancel</button></div>
       <div class="msg" id="impmsg" role="status" aria-live="polite"></div>
     </section>

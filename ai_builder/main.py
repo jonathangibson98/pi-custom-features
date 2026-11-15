@@ -1558,9 +1558,23 @@ async def ann_push(request):
     if body.get("new"):  # the editor says so the first time a script is created
         add_history({"kind": "announcement", "name": name, "entity": f"script.{sid}"})
     state = clean_ann_state(body.get("state"))
+    replaced = ""
+    rid = str(body.get("replace_auto") or "")
+    if ANN_ID_RE.match(rid) and rid != aid:  # an imported automation this announcement now does the job of: turn it off, keep a copy
+        code, old = await ha(app, "GET", f"/config/automation/config/{rid}", timeout=10)
+        if code == 200 and isinstance(old, dict) and old.get("description") != ANN_MARK:
+            fact_backup_automation(rid, old)
+            st_, states = await ha(app, "GET", "/states")
+            ent = next((e["entity_id"] for e in (states if st_ == 200 and isinstance(states, list) else [])
+                        if e["entity_id"].startswith("automation.") and str((e.get("attributes") or {}).get("id")) == rid), "")
+            if ent:
+                await ha_text(app, "POST", "/services/automation/turn_off", {"entity_id": ent})
+                replaced = ent
+        if isinstance(state, dict):
+            state["replacedDone"] = True
     if state is not None or sid in ann_library():
         ann_store(sid, name, state, pushed=True)
-    return web.json_response({"ok": True, "entity": f"script.{sid}", "auto": auto})
+    return web.json_response({"ok": True, "entity": f"script.{sid}", "auto": auto, "replaced": replaced})
 
 
 async def ann_found(app, skip):
@@ -2853,6 +2867,461 @@ def made_context():
             "a fact script the same way; a fact automation with automation.trigger). entity | name | what it is:\n" + "\n".join(L[:60]))
 
 
+# ---------------------------------------------------------------- import: turn a hand-made script or automation into the form
+# A pasted (or picked) script or automation is read step by step and rebuilt as a normal Announcement or Fact, so it is
+# edited with the same form as everything made here instead of as raw YAML. Data the prompt reads becomes data sources,
+# speakers and phones become outputs, MQTT publishing becomes the file, triggers become the schedule. The AI Task only
+# splits the prompt into the instructions and the voice. Anything that does not fit is listed, and the original is kept.
+CONV_PRESTEP = {"weather.get_forecasts": "weather", "calendar.get_events": "calendar", "todo.get_items": "todo"}
+CONV_KNOWN = ("ai_task.generate_data", "tts.speak", "notify.", "media_player.volume_set", "media_player.media_pause",
+              "media_player.media_play", "media_player.media_play_pause", "input_boolean.turn_on", "input_boolean.turn_off",
+              "mqtt.publish", "weather.get_forecasts", "calendar.get_events", "todo.get_items", "script.turn_on")
+CONV_SKIP_VARS = {"current_time", "seed", "now", "trigger", "this"}
+
+
+def conv_load(text):
+    """(config, kind 'script'|'automation', id, error) from pasted YAML in any of the usual shapes."""
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as e:
+        return None, "", "", "YAML problem: %s" % str(e)[:400]
+    cid = ""
+    for _ in range(3):
+        if isinstance(data, list):
+            if len(data) == 1 and isinstance(data[0], dict) and ({"triggers", "trigger", "actions", "action", "sequence"} & set(data[0])):
+                data = data[0]
+            elif data and all(isinstance(x, dict) and ("action" in x or "service" in x or "variables" in x) for x in data):
+                data = {"sequence": data}
+            else:
+                return None, "", "", "That has more than one script or automation in it. Paste one at a time."
+        if isinstance(data, dict) and len(data) == 1 and isinstance(next(iter(data.values())), (dict, list)) \
+                and not ({"triggers", "trigger", "actions", "action", "sequence"} & set(data)):
+            k = next(iter(data))
+            if k not in ("script", "automation"):
+                cid = str(k)
+            data = data[k]
+    if not isinstance(data, dict):
+        return None, "", "", "That does not look like a Home Assistant script or automation."
+    if {"triggers", "trigger", "actions", "action"} & set(data) and "sequence" not in data:
+        cid = str(data.get("id") or cid)
+        return data, "automation", cid, ""
+    if isinstance(data.get("sequence"), (list, dict)):
+        return data, "script", cid, ""
+    return None, "", "", "That needs a sequence: (script) or triggers: and actions: (automation)."
+
+
+def conv_list(x):
+    return x if isinstance(x, list) else ([x] if x else [])
+
+
+def conv_walk(steps, out, depth=0):
+    """Every step, nested ones included (if / choose / parallel / sequence / repeat), in order."""
+    for st in conv_list(steps):
+        if not isinstance(st, dict):
+            continue
+        out.append((st, depth))
+        for k in ("then", "else", "sequence", "parallel", "default"):
+            if k in st and k != "sequence" or (k == "sequence" and "action" not in st and "service" not in st):
+                conv_walk(st.get(k), out, depth + 1)
+        for c in conv_list(st.get("choose")):
+            if isinstance(c, dict):
+                conv_walk(c.get("sequence"), out, depth + 1)
+        if isinstance(st.get("repeat"), dict):
+            conv_walk(st["repeat"].get("sequence"), out, depth + 1)
+    return out
+
+
+def conv_action(st):
+    return str(st.get("action") or st.get("service") or "")
+
+
+def conv_targets(st, key="entity_id"):
+    t = st.get("target") if isinstance(st.get("target"), dict) else {}
+    d = st.get("data") if isinstance(st.get("data"), dict) else {}
+    v = t.get(key) or d.get(key) or st.get(key)
+    return [str(x) for x in conv_list(v)]
+
+
+def conv_secs(d):
+    if isinstance(d, (int, float)):
+        return int(d)
+    if isinstance(d, str):
+        p = [int(x) if x.isdigit() else 0 for x in d.split(":")]
+        return sum(v * 60 ** i for i, v in enumerate(reversed(p)))
+    if isinstance(d, dict):
+        return int(d.get("hours", 0) or 0) * 3600 + int(d.get("minutes", 0) or 0) * 60 + int(d.get("seconds", 0) or 0)
+    return 0
+
+
+def conv_schedule(cfg, fact):
+    """Triggers and conditions -> the form's schedule. Returns (auto, notes, all_mapped)."""
+    a = {"on": False, "every": 0, "unit": "minutes" if fact else "hours", "at": "", "watch": "", "watchAttr": "", "watchFor": 0, "home": []}
+    notes, ok = [], True
+    for t in conv_list(cfg.get("triggers") or cfg.get("trigger")):
+        if not isinstance(t, dict):
+            continue
+        kind = t.get("trigger") or t.get("platform")
+        if kind == "time_pattern" and not a["every"]:
+            m = re.match(r"^/(\d+)$", str(t.get("minutes", "")).strip())
+            h = re.match(r"^/(\d+)$", str(t.get("hours", "")).strip())
+            if h:
+                a.update(every=int(h.group(1)), unit="hours")
+                continue
+            if m:
+                a.update(every=int(m.group(1)), unit="minutes")
+                continue
+        if kind == "time" and not fact and not a["at"] and re.match(r"^\d{1,2}:\d{2}", str(t.get("at", ""))):
+            a["at"] = str(t["at"])[:5].rjust(5, "0")
+            continue
+        if kind == "state" and not a["watch"]:
+            ents = conv_list(t.get("entity_id"))
+            if len(ents) == 1:
+                a.update(watch=str(ents[0]), watchAttr=str(t.get("attribute") or ""), watchFor=conv_secs(t.get("for")))
+                continue
+        ok = False
+        notes.append("A trigger the form can't hold was left out: %s" % json.dumps(t, default=str)[:160])
+    home = []
+
+    def cond(c):
+        if not isinstance(c, dict):
+            return False
+        k = c.get("condition")
+        if k == "or":
+            return all(cond(x) for x in conv_list(c.get("conditions")))
+        ents = [str(e) for e in conv_list(c.get("entity_id"))]
+        if k == "state" and ents and str(c.get("state")) in ("home", "on", "True"):
+            home.extend(ents)
+            return True
+        if k == "numeric_state" and ents and all(e.startswith("zone.") for e in ents) and c.get("above") in (0, "0"):
+            home.extend(ents)
+            return True
+        return False
+    for c in conv_list(cfg.get("conditions") or cfg.get("condition")):
+        if not cond(c):
+            ok = False
+            notes.append("A condition the form can't hold was left out: %s" % json.dumps(c, default=str)[:160])
+    a["home"] = list(dict.fromkeys(home))
+    a["on"] = bool(a["every"] or a["at"] or a["watch"])
+    return a, notes, ok
+
+
+def conv_sources(variables, presteps, instructions, existing, fact):
+    """Variables the prompt reads -> data sources (reusing ones that already exist), random lists (facts) and the
+    'last fact' sensor. Returns (sources, picks, last, labels) where labels maps a variable name to its source label."""
+    def used(name):
+        return re.search(r"(\{\{|\{%)[^}]*\b" + re.escape(name) + r"\b", instructions) is not None
+    srcs, picks, last, labels = [], [], None, {}
+
+    def add(var, src):
+        for s in existing:  # reuse a source that reads the same thing
+            if s.get("type") == src["type"] and (
+                    (src["type"] in ("weather", "todo", "news", "trash", "entity") and s.get("entity") == src.get("entity")
+                     and str(s.get("attribute") or "") == str(src.get("attribute") or ""))
+                    or (src["type"] == "calendar" and sorted(s.get("entities") or []) == sorted(src.get("entities") or []))
+                    or (src["type"] == "template" and str(s.get("template") or "").strip() == str(src.get("template") or "").strip())):
+                srcs.append({"var": var, "existing": s.get("id"), "label": s.get("label") or s.get("id")})
+                labels[var] = s.get("label") or s.get("id")
+                return
+        srcs.append({"var": var, "new": src, "label": src["label"]})
+        labels[var] = src["label"]
+
+    done_pre = set()
+    for var, tpl in variables.items():
+        if var in CONV_SKIP_VARS or var.startswith("src_") or not used(var):
+            continue
+        t = str(tpl)
+        pre = next((p for p in presteps if re.search(r"\b" + re.escape(p["var"]) + r"\b", t)), None)
+        label = var.replace("_", " ").strip().title()[:40] or var
+        m = re.match(r"^\s*\{\{\s*\[(.*)\]\s*\|\s*random\s*\}\}\s*$", t, re.S)
+        if m and fact:
+            try:
+                items = ast.literal_eval("[" + m.group(1) + "]")
+                picks.append({"name": re.sub(r"[^a-z0-9_]", "_", var.lower())[:24], "items": "\n".join(str(i) for i in items)})
+                continue
+            except (ValueError, SyntaxError):
+                pass
+        sa = re.match(r"^\s*\{\{\s*state_attr\(\s*['\"]([a-z_]+\.[a-z0-9_]+)['\"]\s*,\s*['\"]([\w .\-]+)['\"]\s*\)[^}]*\}\}\s*$", t)
+        st = re.match(r"^\s*\{\{\s*states\(\s*['\"]([a-z_]+\.[a-z0-9_]+)['\"]\s*\)[^}]*\}\}\s*$", t)
+        if fact and sa and sa.group(2) == "content" and last is None:  # the fact the file holds now: used to avoid repeats
+            last = {"entity": sa.group(1), "attr": "content", "var": var}
+            continue
+        if pre:
+            done_pre.add(pre["var"])
+            add(var, dict(pre["src"], label=label))
+        elif sa:
+            add(var, {"type": "entity", "label": label, "entity": sa.group(1), "attribute": sa.group(2)})
+        elif st:
+            add(var, {"type": "entity", "label": label, "entity": st.group(1), "attribute": ""})
+        else:
+            add(var, {"type": "template", "label": label, "template": t.strip()})
+    for p in presteps:  # a response the prompt reads directly, e.g. {{ forecast }}
+        if p["var"] not in done_pre and used(p["var"]):
+            add(p["var"], dict(p["src"], label=p["src"]["label"]))
+    return srcs, picks, last, labels
+
+
+async def conv_ai(app, target, instructions, branches, labels, extra):
+    """Ask the AI Task to split the prompt into the form's fields. Returns (dict, error)."""
+    ai = ann_settings().get("helper_ai_task_entity") or ann_settings().get("ai_task_entity") or ENTITY
+    data = "; ".join("%s = %s" % (k, v) for k, v in labels.items()) or "none"
+    common = ("You convert a hand-written Home Assistant %s into a form. The original prompt it sends to an AI is below. "
+              "In the form, each data variable is given to the AI separately under its label, before the instructions, so the "
+              "instructions must NOT contain the data placeholders any more: refer to the data by its label instead (for example "
+              "'use the weather above'). Keep every rule, condition and detail the user wrote. Do not add new rules.\n"
+              "Data variables and their labels: %s\n%s\nORIGINAL PROMPT:\n%s\n"
+              % ("voice announcement" if target == "announcement" else "dashboard fact", data, extra, instructions[:8000]))
+    if target == "announcement":
+        more = ""
+        if len(branches) > 1:
+            more = ("The original has a different prompt per personality. For each, give only its voice and tone rules.\n"
+                    + "\n".join("PERSONALITY %s:\n%s" % (k, v[:2500]) for k, v in branches.items()) + "\n")
+        prompt = common + more + (
+            "Reply with ONLY JSON, no code fences: {\"name\": \"short name\", \"task\": \"what the announcement should do: the "
+            "instructions without the voice/tone part and without output-format rules\", \"style\": \"only the voice, tone, "
+            "personality and language rules (empty if none)\", \"styles\": {\"personality name\": \"its voice rules\"} (only when "
+            "there are several personalities), \"length\": max characters if the prompt says one else 0, \"fields\": [{\"key\": "
+            "\"name\", \"hint\": \"what goes in it\"}] (only when the prompt asks the AI for JSON with keys other than speech and "
+            "notification, else []), \"say\": \"the key of the field that is spoken, or empty\"}")
+    else:
+        prompt = common + (
+            "Reply with ONLY JSON, no code fences: {\"name\": \"short name\", \"task\": \"what the fact should be about, without "
+            "output-format rules\", \"style\": \"plain|titled|list|json\" (titled when the answer is 'Title ||| fact', json when it "
+            "asks for a JSON list), \"title_hint\": \"what the title is, only for titled\", \"length\": max characters or 0, "
+            "\"count\": number of lines or items or 0, \"swear\": \"none|mild|rated\", \"real\": true/false (must be real and "
+            "verifiable), \"obscure\": true/false, \"skip\": \"famous examples it must avoid, or empty\", \"no_people\": true/false "
+            "(keep the household out), \"avoid_last\": true/false (told not to repeat the previous fact), \"extra\": \"any other "
+            "rules, word for word\", \"list_key\": \"only json: the list's key\", \"fields\": [{\"key\": \"name\", \"hint\": \"what it "
+            "holds\", \"type\": \"text|number|yesno\"}] (only json), \"sort_by\": \"field or empty\", \"sort_dir\": \"asc|desc\", "
+            "\"keep_if\": \"a template test on item p, or empty\", \"uses_date\": true/false}")
+    j, err = await ann_ai_json(app, ai, "Import converter", prompt)
+    return (j if isinstance(j, dict) else None), err
+
+
+def conv_strip_vars(text, labels):
+    """No AI: point the data placeholders at their labels so nothing is lost."""
+    for var, label in labels.items():
+        text = re.sub(r"\{\{\s*" + re.escape(var) + r"\s*\}\}", "(the %s above)" % label, text)
+    text = re.sub(r"\{\{\s*(current_time|now\(\)[^}]*)\s*\}\}", "(the current time above)", text)
+    return re.sub(r"\{\{\s*seed\s*\}\}", "", text).strip()
+
+
+async def convert_route(request):
+    app = request.app
+    b = await ann_body(request)
+    target = "fact" if b.get("target") == "fact" else "announcement"
+    text = str(b.get("yaml") or "")
+    if not text.strip():
+        return web.json_response({"ok": False, "error": "Paste a script or automation first, or pick one."})
+    if len(text) > 150_000:
+        return web.json_response({"ok": False, "error": "That is too big to import."})
+    cfg, kind, cid, err = conv_load(text)
+    if err:
+        return web.json_response({"ok": False, "error": err})
+    notes, fact = [], target == "fact"
+    s = ann_settings()
+    existing = [x for x in (b.get("sources") or []) if isinstance(x, dict)]
+    script_id = cid if kind == "script" else ""
+    auto_id = cid if kind == "automation" else ""
+    steps = cfg.get("sequence") if kind == "script" else (cfg.get("actions") or cfg.get("action"))
+    sched_cfg = cfg if kind == "automation" else {}
+    name_from = cfg
+    # an automation that only runs one script: read that script's steps
+    acts = [x for x in conv_list(steps) if isinstance(x, dict)]
+    if kind == "automation" and len(acts) == 1:
+        a0 = conv_action(acts[0])
+        called = a0[7:] if a0.startswith("script.") and a0 != "script.turn_on" else (conv_targets(acts[0]) or [""])[0].replace("script.", "") if a0 == "script.turn_on" else ""
+        if called and ANN_ID_RE.match(called):
+            code, scfg = await ha(app, "GET", f"/config/script/config/{called}", timeout=10)
+            if code == 200 and isinstance(scfg, dict):
+                steps, script_id = scfg.get("sequence"), called
+                name_from = scfg
+                notes.append("This automation runs script.%s, so that script's steps were read too." % called)
+    flat = conv_walk(steps, [])
+    if b.get("auto_yaml"):  # facts: a script plus the automation that runs it
+        acfg, akind, aid2, aerr = conv_load(str(b["auto_yaml"]))
+        if acfg and akind == "automation":
+            sched_cfg, auto_id = acfg, auto_id or aid2
+    variables = {}
+    for k, v in (cfg.get("variables") or {}).items() if isinstance(cfg.get("variables"), dict) else []:
+        variables[k] = v
+    presteps, ai_steps, branches, unknown = [], [], {}, []
+    for st, _d in flat:
+        if isinstance(st.get("variables"), dict):
+            for k, v in st["variables"].items():
+                if isinstance(v, str):
+                    variables[k] = v
+        act = conv_action(st)
+        if act in CONV_PRESTEP and st.get("response_variable"):
+            typ = CONV_PRESTEP[act]
+            ents = conv_targets(st)
+            src = {"type": typ, "label": TYPE_LABELS[typ]}
+            if typ == "calendar":
+                src.update(entities=ents, days=max(1, conv_secs((st.get("data") or {}).get("duration")) // 86400) or 7)
+            else:
+                src["entity"] = ents[0] if ents else ""
+            presteps.append({"var": str(st["response_variable"]), "src": src})
+        elif act == "ai_task.generate_data":
+            ai_steps.append(st)
+        elif act and not any(act == k or (k.endswith(".") and act.startswith(k)) for k in CONV_KNOWN):
+            unknown.append(act)
+    for st, _d in flat:  # a prompt per personality: choose on an input_select
+        for c in conv_list(st.get("choose")):
+            if not isinstance(c, dict):
+                continue
+            conds = conv_list(c.get("conditions"))
+            ai_in = [x for x, _ in conv_walk(c.get("sequence"), []) if conv_action(x) == "ai_task.generate_data"]
+            if conds and ai_in and isinstance(conds[0], dict) and conds[0].get("state") is not None:
+                branches[str(conds[0]["state"])] = str((ai_in[0].get("data") or {}).get("instructions") or "")
+    if not ai_steps:
+        return web.json_response({"ok": False, "error": "There is no ai_task.generate_data step in it, so there is nothing to put in the form. Keep it as written instead."})
+    main_ai = ai_steps[-1] if branches else ai_steps[0]
+    aid_ = (main_ai.get("data") or {})
+    instructions = str(aid_.get("instructions") or "")
+    if branches:
+        instructions = next(iter(branches.values())) or instructions
+    srcs, picks, last, labels = conv_sources(variables, presteps, instructions + "\n".join(branches.values()), existing, fact)
+    if unknown:
+        notes.append("These steps are not part of the form and are left out when you push: %s." % ", ".join(sorted(set(unknown))[:12]))
+    auto, snotes, all_ok = conv_schedule(sched_cfg, fact)
+    notes += snotes
+    publish = next((st for st, _ in flat if conv_action(st) == "mqtt.publish"), None)
+    topic = str(((publish or {}).get("data") or {}).get("topic") or "")
+    payload = str(((publish or {}).get("data") or {}).get("payload") or "")
+    extra = ("The result is saved to a file with this payload template: %s\n" % payload[:600]) if publish else ""
+    j, aerr = await conv_ai(app, target, instructions, branches, labels, extra)
+    used_ai = j is not None
+    if not used_ai:
+        notes.append("The AI Task could not split the prompt (%s), so your prompt was kept as the instructions." % (aerr or "no answer"))
+        j = {}
+    name = str(name_from.get("alias") or cfg.get("alias") or j.get("name") or "Imported").strip()[:80]
+    # the original, unwrapped, so "keep it exactly as written" pushes cleanly (an announcement can only keep a script)
+    clean = yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True, width=1000)
+    original = clean if (target == "fact" or kind == "script") else ""
+    m = re.search(r"under (\d+) characters|(\d+) characters or less", instructions)
+    length = int(j.get("length") or 0) or (int(m.group(1) or m.group(2)) if m else 0)
+    task = str(j.get("task") or "").strip() or conv_strip_vars(instructions, labels)
+    prefix = fact_settings().get("mqtt_prefix") or ""
+    fpath = topic[len(prefix):] if prefix and topic.startswith(prefix) else topic
+    if publish and prefix and not topic.startswith(prefix):
+        notes.append("It published to %s, which is not under your file path setting (%s). Check the file name before you push." % (topic, prefix))
+    if target == "announcement":
+        flag = s.get("talking_flag") or ""
+        outs, add_alexa, add_notify, vol, pause, card = [], [], [], None, False, {}
+        for st, _ in flat:
+            act = conv_action(st)
+            d = st.get("data") if isinstance(st.get("data"), dict) else {}
+            if act == "tts.speak":
+                outs.append("tts")
+                mp = conv_targets(st, "media_player_entity_id")
+                if mp and s.get("speaker") and mp[0] != s.get("speaker"):
+                    notes.append("It spoke on %s. The form uses your main speaker from Settings (%s)." % (mp[0], s.get("speaker")))
+                if not s.get("speaker") and mp:
+                    notes.append("Set %s as the main speaker in Settings." % mp[0])
+            elif act == "notify.alexa_media":
+                for t in conv_list(d.get("target")):
+                    outs.append("a:" + str(t))
+                    if str(t) not in (s.get("alexa_targets") or []):
+                        add_alexa.append(str(t))
+            elif act == "notify.send_message":
+                for t in conv_targets(st):
+                    outs.append("n:" + t)
+                    if t not in (s.get("notify_targets") or []):
+                        add_notify.append(t)
+            elif act.startswith("notify.") and act != "notify.persistent_notification":
+                outs.append("n:" + act)
+                if act not in (s.get("notify_targets") or []):
+                    add_notify.append(act)
+            elif act == "media_player.volume_set" and isinstance(d.get("volume_level"), (int, float)):
+                vol = float(d["volume_level"])
+            elif act == "media_player.media_pause":
+                pause = True
+            elif act == "input_boolean.turn_on":
+                e = (conv_targets(st) or [""])[0]
+                if e and e != flag and not card:
+                    card = {"cardSw": e, "cardWhen": "talk", "cardOff": False, "cardHold": 0}
+            elif act == "input_boolean.turn_off" and card and card["cardSw"] in conv_targets(st):
+                card["cardOff"] = True
+        pers, use_pers, one = {}, False, ANN_PERSONA_DEFAULT
+        style = str(j.get("style") or "").strip()
+        known = {p["name"]: p["style"] for p in s["personalities"]}
+        if branches:
+            styles = j.get("styles") if isinstance(j.get("styles"), dict) else {}
+            pers = {k: str(styles.get(k) or known.get(k) or "") for k in branches}
+            use_pers = bool(s.get("personality_select"))
+            if not use_pers:
+                notes.append("It picks a personality from a dropdown. Set your Personality dropdown in Settings to use that.")
+        elif not used_ai:  # the prompt itself still carries the voice
+            pers = {ANN_PERSONA_DEFAULT: "Follow the voice and tone given in the task."}
+        elif style:
+            hit = next((n for n, v in known.items() if v.strip() == style), None)
+            if hit:
+                one = hit
+            else:
+                pers = {ANN_PERSONA_DEFAULT: style}
+        fields = []
+        for f in (j.get("fields") or [])[:12] if isinstance(j.get("fields"), list) else []:
+            k = re.sub(r"[^a-z0-9_]+", "_", str((f or {}).get("key") or "").lower()).strip("_")[:40]
+            if k and k not in ("notification",) and all(k != x["key"] for x in fields):
+                fields.append({"key": k, "hint": str(f.get("hint") or "")[:200], "as": "title" if not fields else "text"})
+        txt = None
+        if publish:
+            txt = {"on": True, "mode": "fields" if fields else "text", "fields": fields, "say": str(j.get("say") or ""),
+                   "file": fpath, "sensor": "", "title": name, "emoji": "\U0001F4E2", "scroll": True, "cpl": 40, "height": 300}
+        elif fields:
+            notes.append("It asked the AI for JSON fields (%s). Turn on Save to a file to keep them for a card." % ", ".join(f["key"] for f in fields))
+        state = {"name": name, "task": task, "outs": list(dict.fromkeys(outs)), "pause": pause, "usePers": use_pers, "one": one,
+                 "pers": pers, "len": length or s.get("default_length") or 1000, "auto": auto, **card}
+        if vol is not None:
+            state["vol"] = vol
+        if txt:
+            state["txt"] = txt
+        sid = script_id or ""
+        replaces = auto_id if (kind == "automation" and auto["on"] and all_ok and auto_id != (sid + ANN_AUTO_SUFFIX)) else ""
+        if kind == "automation" and not replaces and not script_id:
+            notes.append("Your automation %s still runs its own steps. Turn it off in Home Assistant once the new one works, or it will run twice." % (auto_id or name))
+        if replaces:
+            state["replaces"] = replaces
+            notes.append("When you push, your old automation %s is turned off (a copy is kept) so it does not run twice." % replaces)
+        return web.json_response({"ok": True, "target": target, "id": sid, "name": name, "state": state, "sources": srcs,
+                                  "settings_add": {"alexa_targets": list(dict.fromkeys(add_alexa)), "notify_targets": list(dict.fromkeys(add_notify))},
+                                  "notes": notes, "used_ai": used_ai, "original": original, "kind": kind})
+    # ---- fact
+    style = j.get("style") if j.get("style") in ("plain", "titled", "list", "json") else ("json" if re.search(r"\bjson\b", instructions, re.I) else "plain")
+    fields = []
+    for f in (j.get("fields") or [])[:14] if isinstance(j.get("fields"), list) else []:
+        k = re.sub(r"[^a-z0-9_]+", "_", str((f or {}).get("key") or "").lower()).strip("_")[:30]
+        if k and all(k != x["key"] for x in fields):
+            fields.append({"key": k, "hint": str(f.get("hint") or "")[:120], "type": f.get("type") if f.get("type") in ("text", "number", "yesno") else "text"})
+    head = ""
+    hm = re.match(r"^(.*?)\n*\{\{", payload, re.S)
+    if hm and hm.group(1).strip() and style != "json":
+        head = hm.group(1).strip()
+    ai_ent = str(aid_.get("entity_id") or "")
+    state = {"name": name, "task": task, "picks": picks, "seed": "seed" in variables, "style": style,
+             "titleHint": str(j.get("title_hint") or ""), "heading": head, "len": length or 180,
+             "count": int(j.get("count") or 0) or (10 if style == "json" else 5), "file": fpath,
+             "swear": j.get("swear") if j.get("swear") in ("none", "mild", "rated") else "none",
+             "real": bool(j.get("real", True)), "obscure": bool(j.get("obscure", False)), "skip": str(j.get("skip") or ""),
+             "noPeople": bool(j.get("no_people", False)), "avoidLast": bool(last) or bool(j.get("avoid_last")),
+             "lastEntity": (last or {}).get("entity", ""), "lastAttr": (last or {}).get("attr", ""),
+             "extra": str(j.get("extra") or ""), "ai": ai_ent if ai_ent and ai_ent != s.get("ai_task_entity") else "",
+             "auto": auto, "asAuto": True, "autoOnly": False, "raw": None, "autoRaw": "",
+             "listKey": re.sub(r"[^a-z0-9_]+", "_", str(j.get("list_key") or "items").lower()).strip("_") or "items",
+             "fields": fields, "sortBy": str(j.get("sort_by") or ""), "sortDir": "asc" if j.get("sort_dir") == "asc" else "desc",
+             "keepIf": str(j.get("keep_if") or ""), "useDate": bool(j.get("uses_date"))}
+    if not publish:
+        notes.append("It does not save to a file over MQTT. The fact will publish to the file under Where it goes.")
+    if kind == "automation" and not all_ok:
+        notes.append("Some of its triggers or conditions don't fit the form (see above). Check When it runs before you push.")
+    if kind == "script" or script_id:
+        notes.append("Your script.%s stays in Home Assistant. Delete it once the new fact works." % script_id if script_id else "")
+    return web.json_response({"ok": True, "target": target, "id": auto_id or script_id or "", "name": name, "state": state,
+                              "sources": srcs, "settings_add": {}, "notes": [n for n in notes if n], "used_ai": used_ai, "original": original, "kind": kind})
+
+
+TYPE_LABELS = {"weather": "Weather", "calendar": "Calendar", "todo": "To-do list"}
+
+
 # ---------------------------------------------------------------- backup / import
 # Saves this add-on's own data (template sensors it manages, "Made so far" history, announcement settings)
 # to the folder (or single .json file) given in the backup_path option, and imports it back.
@@ -3091,6 +3560,7 @@ def main():
         web.get("/api/mine", mine),
         web.get("/api/made", made_route),
         web.post("/api/rename", rename_route),
+        web.post("/api/convert", convert_route),
         web.post("/api/generate", generate),
         web.post("/api/create", create),
         web.post("/api/delete_template", delete_template),

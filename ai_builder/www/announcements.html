@@ -43,7 +43,7 @@
     <div class="row">
       <div class="grow"><h2>Everything you've made</h2><p class="dim small" id="libsub"></p></div>
       <button class="btn" id="updall" hidden>Update all in Home Assistant</button>
-      <button class="btn" id="importbtn">Import my script</button>
+      <button class="btn" id="importbtn">Import my script or automation</button>
       <button class="btn primary" id="newann">New announcement</button>
     </div>
 
@@ -56,6 +56,10 @@
       <p class="help">Leave blank to make a new script. Type the id of a script you already have in Home Assistant to take it over: pushing replaces it, and automations that call it keep working.</p>
       <label class="l" for="imppick">Or load one you already have</label>
       <div class="row"><select id="imppick" style="max-width:420px"></select><button class="btn sm" id="imppickgo">Load</button></div>
+      <label class="l">How to bring it in</label>
+      <label class="check"><input type="radio" name="impmode" value="convert" checked> Turn it into a normal announcement I edit with the form (recommended)</label>
+      <label class="check"><input type="radio" name="impmode" value="raw"> Keep it exactly as written (edit the YAML yourself)</label>
+      <p class="help">Converting reads your steps: what the AI is told becomes data sources, speakers, phones and the file become the matching settings, and triggers become the schedule. Your AI Task splits the prompt into the instructions and the voice. Anything that doesn't fit is listed, and your original is kept so you can switch back.</p>
       <div class="row" style="margin-top:12px"><button class="btn primary" id="impgo">Import</button><button class="btn" id="impcancel">Cancel</button></div>
       <div class="msg" id="impmsg" role="status" aria-live="polite"></div>
     </section>

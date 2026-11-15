@@ -183,9 +183,20 @@ The **My announcements** tab lists every announcement you have made. It is store
 - **Update all in Home Assistant** pushes every announcement again using your current Settings.
 - **Made earlier, in Home Assistant** lists scripts this add-on pushed before saving existed. Open one to rebuild the form from the script. Pushing rebuilds the script from the form, so hand edits made in Home Assistant are replaced.
 
-### Import your own script
+### Import your own script or automation
 
-Already have an announcement script? Tap **Import my script** on **My announcements** and paste it (YAML). A pasted script can be just the script, the script with its id on top like in `scripts.yaml`, or only the steps. You can also pick a script that already exists in Home Assistant and press **Load**.
+Already have an announcement script or automation? Tap **Import my script or automation** on **My announcements** and paste it (YAML). It can be just the script, the script with its id on top like in `scripts.yaml`, only the steps, or an automation. You can also pick a script that already exists in Home Assistant and press **Load**.
+
+**How to bring it in** has two choices:
+
+- **Turn it into a normal announcement I edit with the form** (the default). The add-on reads your steps and fills in the form:
+  - Whatever the prompt reads (`states(...)`, `state_attr(...)`, weather forecasts, calendars, to-do lists, other templates) becomes data sources. They are added to Settings, and a source that already reads the same thing is reused.
+  - `tts.speak`, Alexa and phone notifications become **Where it plays**, and Alexa or phone targets you don't have yet are added to Settings. Volume, pausing music, a card switch and MQTT file saving are filled in too.
+  - Triggers (every N minutes or hours, a time of day, an entity changing) and "someone is home" conditions become **Run it automatically**.
+  - Your AI Task splits the prompt into **What should it do?** and the personality's voice, and spots a max length or JSON fields. A prompt per personality (a `choose` on your personality dropdown) becomes one style per personality. If the AI Task fails, your prompt is kept as the instructions.
+  - Anything that doesn't fit is listed at the top of the editor. Read it, then push. **Use my original instead** (tap twice) switches back to the script exactly as written.
+  - Importing an automation that only runs a script reads that script. If its schedule fits the form, pushing turns the old automation **off** (a copy is saved in the backup folder) so it doesn't run twice.
+- **Keep it exactly as written**, as before:
 
 - Leave **Script id** blank to create a new script, or type the id of an existing script to take it over. Pushing then replaces it, and automations that call it keep working.
 - The editor shows your YAML exactly as written. Change the name and the `alias:` line follows. **Check YAML** tests it, **Save** keeps it here, **Save and push** sends it to Home Assistant.
@@ -275,7 +286,7 @@ AI-written facts for a dashboard. Each fact is one Home Assistant automation (tr
 
 - **New fact** starts the editor. **Start from** has presets modeled on a random trivia fact, a dark history fact, a music fact (random artist, or titled "Artist ||| fact") and a city fact.
 - Each saved fact shows its status, its file, and whether its schedule is on. **Edit, Run now, Duplicate, Delete** work like Announcements. **Save** keeps changes here only, **Save and push** creates or updates the automation in Home Assistant. Its id stays the same. Facts made before 2.10.0 are a script plus a schedule automation; open one and tap **Switch to a single automation**, then push.
-- **Import my script** takes a script you wrote by hand and keeps it exactly as written.
+- **Import my script or automation** takes a script or automation you wrote by hand. Paste it, or pick an automation from the list. By default it is converted into a normal fact like Announcements does: random lists (`[...] | random`) become **Random picks**, the "don't repeat the last fact" sensor becomes **Avoid the last fact**, the MQTT topic becomes the file, triggers become the schedule, and your AI Task fills in the format and rules. Converting an automation keeps its id, so pushing replaces it in place (a copy is saved first). Pick **Keep it exactly as written** for the old behaviour.
 
 ## The editor
 
