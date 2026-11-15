@@ -160,9 +160,23 @@
         </section>
 
         <section class="card" id="txtcard">
-          <div class="ch"><h2>Save the text to a file</h2><p>Optional. Also writes what it says to a text file over MQTT, the same way Facts do, so a dashboard card can show it. Off by default.</p></div>
-          <label class="check"><input type="checkbox" id="txt-on"> Save what it says to a file</label>
+          <div class="ch"><h2>Save to a file and show it on a card</h2><p>Optional. Also writes the announcement to a file over MQTT, the same way Facts do, so a dashboard card can show it. Off by default.</p></div>
+          <label class="check"><input type="checkbox" id="txt-on"> Save it to a file</label>
           <div id="txt-opts" hidden>
+            <label class="l" for="txt-mode">What goes in the file</label>
+            <select id="txt-mode" style="max-width:420px">
+              <option value="text">Just what it says (plain text)</option>
+              <option value="fields">Separate fields (JSON), like a Facts data list</option>
+            </select>
+            <div id="txt-fieldsbox" hidden>
+              <p class="help">The AI answers with these fields. Each one goes on the card as its title, its text or the small line at the bottom. For birthdays: <b>name</b> as the title, <b>message</b> as the text, <b>detail</b> at the bottom.</p>
+              <div id="txt-fields"></div>
+              <div class="row"><button class="btn sm" id="txt-addf">Add a field</button><button class="btn sm" id="txt-bday">Use the birthday example</button></div>
+              <label class="l" for="txt-say">Announce this field</label>
+              <select id="txt-say" style="max-width:260px"></select>
+              <p class="help">This field is what gets spoken. It follows your instructions, the personality and the max length. The others are only written for the card. Leave its description blank to use your instructions as is.</p>
+              <p class="msg warn" id="txt-fnote"></p>
+            </div>
             <label class="l" for="txt-file">File name</label>
             <input id="txt-file" autocomplete="off" spellcheck="false" style="max-width:360px">
             <p class="help">Added to the topic prefix from Facts &gt; Settings. Type a full topic (with a slash) to override. Publishes to <code id="txt-topic"></code></p>
@@ -184,7 +198,7 @@
             <label class="l" for="txt-yaml">Card YAML</label>
             <textarea id="txt-yaml" class="code" readonly spellcheck="false"></textarea>
             <p class="help">If you picked a show / hide switch above, the copied card is wrapped in it so it only shows while the announcement is up.</p>
-            <div class="row" style="margin-top:10px"><button class="btn primary" id="txt-copy">Copy card YAML</button><button class="btn" id="txt-prev">Preview it</button></div>
+            <div class="row" style="margin-top:10px"><button class="btn primary" id="txt-copy">Copy card YAML</button><button class="btn" id="txt-prev">Preview it</button><button class="btn" id="txt-cards" title="Open the Cards tab with this announcement's sensor, fields and switch filled in">Design a custom card in Cards</button></div>
             <div class="msg" id="txt-msg" role="status" aria-live="polite"></div>
             <div id="txt-res" style="margin-top:12px"></div>
           </div>
@@ -250,142 +264,6 @@
 <script src="ui.js"></script>
 <script src="sources.js"></script>
 <script src="announcements.js"></script>
-<script>
-/* Optional "Save the text to a file" for announcements: the script also publishes what it says over MQTT (like Facts),
-   and the editor writes a glass-style dashboard card for it with a live preview (like Cards). Added on top of
-   announcements.js so everything else keeps working as before. Off by default. */
-(function () {
-  if (typeof makeYaml !== "function" || typeof st !== "function" || typeof applyState !== "function" || typeof gen !== "function") return;
-  let PREFIX = "file_reader/overwrite/";
-  const escH = t => String(t).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
-  const jq = t => String(t).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-  const frameDoc = (title, html) => '<!doctype html><meta charset="utf-8"><style>html,body{margin:0;min-height:100%}body{padding:14px;background:linear-gradient(135deg,#1c2b4d,#3b1d5e 55%,#0e3b3d);color:#fff;font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}ha-card{display:block;position:relative;border-radius:12px;box-sizing:border-box;overflow:hidden}.t{font-size:20px;padding:14px 16px 0}</style><ha-card>'
-    + (title ? '<div class="t">' + escH(title) + "</div>" : "") + html + "</ha-card>";
-  const DEFT = {on: false, file: "", sensor: "", title: "", emoji: "\u{1F4E2}", scroll: true, cpl: 40, height: 300};
-  const nameNow = () => ($("#name").value || "").trim() || "Announcement";
-  const clean = f => String(f || "").replace(/[^A-Za-z0-9_\-./]/g, "");
-  const fileOf = (t, name) => clean(t.file) || ((slug(name) || "announcement").slice(0, 54) + ".txt");
-  const topicOf = (t, name) => { const f = fileOf(t, name); if (f.includes("/")) return f; const p = PREFIX && !PREFIX.endsWith("/") ? PREFIX + "/" : PREFIX; return p + f; };
-  const sensorOf = (t, name) => {
-    const s = String(t.sensor || "").trim(); if (s) return s;
-    const b = (fileOf(t, name).split("/").pop() || "").replace(/\.[^.]*$/, "");
-    return "sensor.read_" + (b || "announcement");
-  };
-  const txtGet = () => ({on: $("#txt-on").checked, file: $("#txt-file").value.trim(), sensor: $("#txt-sensor").value.trim(), title: $("#txt-title").value.trim(),
-    emoji: $("#txt-emoji").value.trim(), scroll: $("#txt-scroll").checked, cpl: +$("#txt-cpl").value || 40, height: +$("#txt-h").value || 300});
-  const txtSet = t => {
-    t = Object.assign({}, DEFT, t || {});
-    $("#txt-on").checked = !!t.on; $("#txt-file").value = t.file || ""; $("#txt-sensor").value = t.sensor || ""; $("#txt-title").value = t.title || "";
-    $("#txt-emoji").value = t.emoji || ""; $("#txt-scroll").checked = !!t.scroll; $("#txt-cpl").value = t.cpl || 40; $("#txt-h").value = t.height || 300;
-  };
-
-  /* the glass card, same look as the Facts and Cards tabs */
-  function baseYaml(t, name) {
-    const sensor = jq(sensorOf(t, name)), H = Math.max(120, +t.height || 300), HW = H - 64, CPL = Math.max(10, +t.cpl || 40);
-    const title = escH(((t.emoji ? t.emoji + " " : "") + (t.title || name)).trim());
-    const L = ["{% set raw = (state_attr('" + sensor + "', 'content') or '') | trim %}", "{% set len = raw | length %}"];
-    if (t.scroll) L.push("{% set fsize = 18 %}", "{% set overflow = [((len / " + CPL + ") | round(0, 'ceil')) * 24 - " + HW + ", 0] | max %}");
-    else L.push("{% if len > 600 %}", "  {% set fsize = 13 %}", "{% elif len > 400 %}", "  {% set fsize = 15 %}", "{% elif len > 250 %}", "  {% set fsize = 17 %}",
-      "{% elif len > 120 %}", "  {% set fsize = 20 %}", "{% else %}", "  {% set fsize = 23 %}", "{% endif %}");
-    L.push("<style>",
-      "  ha-card {",
-      "    background: rgba(255, 255, 255, 0.06) !important;",
-      "    backdrop-filter: blur(28px) saturate(200%) !important;",
-      "    -webkit-backdrop-filter: blur(28px) saturate(200%) !important;",
-      "    border: 1px solid rgba(255, 255, 255, 0.2) !important;",
-      "    border-radius: 20px !important;",
-      "    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3) !important;",
-      "    color: rgba(255,255,255,0.9);",
-      "    height: " + H + "px !important;",
-      "    overflow: hidden !important;",
-      "  }",
-      "  .card-title { font-size: 25px; font-weight: 600; padding: 14px 16px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }",
-      "  .content-wrap { height: " + HW + "px; overflow: hidden; padding: 4px 16px 0; box-sizing: border-box; }",
-      "  .content-text { font-size: {{ fsize }}px; line-height: 1.3; width: 100%;" + (t.scroll ? " {% if overflow > 0 %}--sc: -{{ overflow }}px; animation: txt-scroll {{ [(len / 8) | round(0, 'ceil'), 8] | max }}s linear infinite;{% endif %}" : "") + " }");
-    if (t.scroll) L.push("  @keyframes txt-scroll {", "    0%, 10% { transform: translateY(0); }", "    90%, 100% { transform: translateY(var(--sc)); }", "  }");
-    L.push("</style>", '<div class="card-title">' + title + "</div>", '<div class="content-wrap">', '  <div class="content-text">{{ raw if raw else \'Nothing announced yet.\' }}</div>', "</div>");
-    return "type: custom:html-template-card\nignore_line_breaks: true\ncontent: |\n" + L.map(x => "  " + x).join("\n") + "\n";
-  }
-  /* wrapped in the show / hide switch from the Dashboard card section, if one is picked */
-  function cardYaml(t, name, sw) {
-    const y = baseYaml(t, name);
-    if (!/^input_boolean\.[a-z0-9_]+$/.test(String(sw || ""))) return y;
-    return "type: conditional\nconditions:\n  - condition: state\n    entity: " + sw + "\n    state: 'on'\ncard:\n" + y.trimEnd().split("\n").map(l => l ? "  " + l : l).join("\n") + "\n";
-  }
-
-  async function copyText(t) {
-    try { await navigator.clipboard.writeText(t); return true; } catch (e) { /* the app's frame may block the clipboard */ }
-    const ta = el("textarea", {style: "position:fixed;top:0;left:0;opacity:0"}); ta.value = t; document.body.append(ta); ta.focus(); ta.select();
-    try { ta.setSelectionRange(0, t.length); } catch (e) { /* ignore */ }
-    let ok = false; try { ok = document.execCommand("copy"); } catch (e) { /* ignore */ }
-    ta.remove(); return ok;
-  }
-  async function showPreview(box, yaml) {
-    box.replaceChildren(el("p", {class: "dim small"}, el("span", {class: "spin"}), "Asking Home Assistant to render it..."));
-    let r;
-    try { r = await api("cards/preview", {yaml}); } catch (e) { r = {ok: false, error: String(e)}; }
-    box.replaceChildren();
-    if (!r || !r.ok) { box.append(el("div", {class: "note bad"}, el("div", {}, (r && r.error) || "That failed."))); return; }
-    if (r.note) box.append(el("div", {class: "note"}, el("div", {}, r.note)));
-    (r.items || []).forEach((it, i) => {
-      box.append(el("div", {class: "prevhead"}, el("b", {}, "Card " + (i + 1)), el("span", {class: "pill plain"}, it.type)));
-      if (it.error) { box.append(el("div", {class: "note bad"}, el("div", {}, el("b", {}, "Home Assistant could not render it"), el("pre", {}, it.error)))); return; }
-      const h = (it.html.match(/ha-card[^}]*?height:\s*(\d+)px/) || [])[1];
-      box.append(el("iframe", {class: "prev", sandbox: "", srcdoc: frameDoc(it.title, it.html), style: "height:" + Math.min(Math.max((+h || 320) + 50, 180), 820) + "px;resize:vertical"}));
-    });
-    if ((r.items || []).length) box.append(el("p", {class: "help"}, "Scrolling cards animate, so give it a few seconds. The card reads the sensor above, so if it says nothing announced yet, push the announcement and run it once with this switched on."));
-  }
-
-  function refresh() {
-    const t = txtGet(), name = nameNow();
-    $("#txt-opts").hidden = !t.on;
-    $("#txt-cplwrap").hidden = !t.scroll;
-    $("#txt-topic").textContent = topicOf(t, name);
-    $("#txt-file").placeholder = fileOf(Object.assign({}, t, {file: ""}), name);
-    $("#txt-sensor").placeholder = sensorOf(Object.assign({}, t, {sensor: ""}), name);
-    $("#txt-title").placeholder = name;
-    $("#txt-yaml").value = cardYaml(t, name, typeof CARD === "object" ? CARD.sw : "");
-  }
-
-  /* hook into the existing editor */
-  const origSt = st;
-  st = function () { const s = origSt(); if (!rawMode) s.txt = txtGet(); return s; };
-  const origApply = applyState;
-  applyState = function (s) { origApply(s); txtSet(s && s.txt); gen(); };
-  const origGen = gen;
-  gen = function () { origGen(); refresh(); };
-  const origMake = makeYaml;
-  makeYaml = function (s0, o) {
-    const y = origMake(s0, o), t = s0 && s0.txt;
-    if (!t || !t.on || s0.raw != null || (o && o.silent)) return y;  /* tests without sound never write the file */
-    const step = "  - alias: Save announcement text\n    action: mqtt.publish\n    data:\n      topic: " + JSON.stringify(topicOf(t, s0.name || "Announcement")) + "\n      payload: '{{ speech }}'\n";
-    const re = /(  - variables:\n      speech: [^\n]*\n)/;
-    return re.test(y) ? y.replace(re, m => m + step) : y;
-  };
-  if (typeof libCard === "function") {
-    const origCard = libCard;
-    libCard = function (it) {
-      const c = origCard(it), t = it && it.state && it.state.txt, meta = c.querySelector(".meta");
-      if (t && t.on && meta) meta.append(el("span", {class: "pill plain", title: topicOf(t, it.name || it.id)}, "Saves text to " + fileOf(t, it.name || it.id)));
-      return c;
-    };
-  }
-
-  $("#txt-copy").onclick = async () => {
-    const m = $("#txt-msg"), ta = $("#txt-yaml"), ok = await copyText(ta.value);
-    m.className = "msg " + (ok ? "ok" : "warn");
-    m.textContent = ok ? "Copied. In your dashboard, add a Manual card and paste." : "Your browser blocked copying. Tap the box, select all, and copy.";
-    if (!ok) { ta.removeAttribute("readonly"); ta.focus(); ta.select(); }
-  };
-  $("#txt-prev").onclick = async () => {
-    const b = $("#txt-prev"); b.disabled = true;
-    await showPreview($("#txt-res"), baseYaml(txtGet(), nameNow()));
-    b.disabled = false;
-  };
-
-  txtSet({}); refresh();
-  api("facts/options").then(f => { if (f && typeof f.mqtt_prefix === "string") { PREFIX = f.mqtt_prefix; refresh(); } }).catch(() => {});
-})();
-</script>
+<script src="ann-file.js"></script>
 </body>
 </html>
