@@ -13,6 +13,44 @@ const DEF = "Default", DEF_STYLE = "Sound natural and friendly. No special perso
 const persList = () => (S.personalities && S.personalities.length ? S.personalities : [{name: DEF, style: DEF_STYLE}]);
 
 
+/* ---------- save to a file (plain text, or separate JSON fields for a card) ---------- */
+let TXT_PREFIX = "file_reader/overwrite/";  /* the MQTT topic prefix from Facts > Settings, loaded at start */
+const TXT_ROLES = [["title", "Title (top)"], ["text", "Text (middle)"], ["small", "Bottom line (small)"], ["hide", "Don't show"]];
+const txtClean = f => String(f || "").replace(/[^A-Za-z0-9_\-./]/g, "");
+const fieldKey = k => String(k || "").toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40);
+/* the fields mode is only used when it is switched on and has at least one field. Returns null otherwise. */
+function annFields(s) {
+  const t = s && s.txt;
+  if (!t || !t.on || t.mode !== "fields" || s.raw != null) return null;
+  const seen = new Set(), fields = [];
+  (t.fields || []).forEach(f => {
+    const key = fieldKey(f.key);
+    if (!key || seen.has(key) || key === "notification") return;
+    seen.add(key); fields.push({key, hint: String(f.hint || "").trim(), as: ["title", "text", "small", "hide"].includes(f.as) ? f.as : "text"});
+  });
+  if (!fields.length) return null;
+  const say = fields.some(f => f.key === t.say) ? t.say : (fields.find(f => f.as === "text") || fields[0]).key;
+  return {fields, say};
+}
+const txtFileOf = (t, name) => txtClean(t.file) || ((slug(name) || "announcement").slice(0, 54) + (t.mode === "fields" ? ".json" : ".txt"));
+const txtTopicOf = (t, name) => { const f = txtFileOf(t, name); if (f.includes("/")) return f; const p = TXT_PREFIX && !TXT_PREFIX.endsWith("/") ? TXT_PREFIX + "/" : TXT_PREFIX; return p + f; };
+const txtSensorOf = (t, name) => {
+  const s = String(t.sensor || "").trim(); if (s) return s;
+  const b = (txtFileOf(t, name).split("/").pop() || "").replace(/\.[^.]*$/, "");
+  return "sensor.read_" + (b || "announcement");
+};
+/* what the saved file looks like, told to the Cards AI so it can build a card before the file has data */
+function annShape(t, name) {
+  const F = annFields({txt: Object.assign({}, t, {on: true})});
+  if (t.mode === "fields" && F) {
+    const role = {title: "title", text: "main text", small: "small bottom line", hide: "not shown"};
+    return "Its content attribute holds ONE JSON object written by the \"" + name + "\" announcement, for example {" + F.fields.map(f => JSON.stringify(f.key) + ": \"...\"").join(", ") + "}. "
+      + "Fields: " + F.fields.map(f => f.key + " = " + (f.key === F.say ? "the spoken announcement" : (f.hint || "short text")) + " (show as " + role[f.as] + ")").join("; ") + ". "
+      + "Strip ```json and ``` then parse with from_json(default={}). If it is not JSON, show the raw text.";
+  }
+  return "Its content attribute holds the plain text of the last \"" + name + "\" announcement (what it said out loud).";
+}
+
 /* ---------- presets ---------- */
 const PRE = {
   "Weather & News": {name: "Weather and News", types: ["household", "locations", "weather", "news"], task: "Give a quick weather rundown for today and the week ahead, then the top news: local first, then US, then world."},
@@ -127,6 +165,7 @@ async function loadLib() {
   const d = await ann("library");
   if (d.error) { flash(d.error, "bad"); return; }
   LIB = d.items || []; FOUND = d.found || [];
+  if ((d.renamed || []).length) flash("Picked up from Home Assistant: " + d.renamed.map(x => x.from + " is now " + x.to).join(", ") + ".", "ok");
   $("#libcount").textContent = LIB.length + FOUND.length;
   renderLib();
 }
@@ -192,7 +231,8 @@ function libCard(it) {
       st.cardSw ? el("span", {class: "pill plain", title: st.cardSw}, "Card switch") : null,
       st.auto && st.auto.on ? (!it.auto_in_ha ? el("span", {class: "pill warn"}, "Schedule not pushed") : it.auto_on ? el("span", {class: "pill ok"}, "Runs " + autoSummary(st.auto)) : el("span", {class: "pill warn"}, "Schedule is off in HA")) : null,
       el("span", {class: "pill plain"}, "Edited " + ago(it.updated))),
-    el("div", {class: "acts"}, el("button", {class: "btn primary sm", onclick: () => openItem(it)}, "Edit"), run, dup, del), msg);
+    el("div", {class: "acts"}, el("button", {class: "btn primary sm", onclick: () => openItem(it)}, "Edit"), run, dup,
+      renameButton(it.name || it.id, n => api("rename", {lib: "ann", id: it.id, name: n}), r => { flash(r.in_ha ? "Renamed in Home Assistant too. The script id stays script." + it.id + "." : "Renamed. Push it to use the new name in Home Assistant.", "ok"); loadLib(); }), del), msg);
 }
 
 async function removeAnn(id, alsoScript, found) {
@@ -326,6 +366,7 @@ function makeYaml(s0, o) {
   const chosen = s.src.map(id => usable().find(x => x.id === id)).filter(Boolean), n = JSON.stringify(s.name || "Announcement"), A = O.speaker || "media_player.SET_ME", players = O.music_players || [], flag = O.talking_flag,
     sp_on = s.outs.includes("tts") && !!O.tts_entity && !!O.speaker, al = (O.alexa_targets || []).filter(a => s.outs.includes("a:" + a)), nt = (O.notify_targets || []).filter(a => s.outs.includes("n:" + a)), speak = sp_on || al.length > 0;
   s.json = s.json || nt.length > 0;
+  const F = annFields(s0), tx = s0.txt && s0.txt.on && s0.raw == null && !o.silent ? s0.txt : null;  /* tests without sound never write the file */
   const cs = String(s.cardSw || "").trim(), cardOn = /^input_boolean\.[a-z0-9_]+$/.test(cs);
   const cardStep = alias => `  - alias: ${alias}\n    action: input_boolean.turn_on\n    target:\n      entity_id: ${cs}\n`;
   let y = "alias: " + n + "\ndescription: " + ASK + "\nsequence:\n  - variables:\n      current_time: '{{ now().strftime(''%A, %B %-d %Y %-I:%M %p %Z'') }}'\n";
@@ -338,8 +379,11 @@ function makeYaml(s0, o) {
     const L = ["Current time: {{ current_time }}. Use this to understand what 'tonight', 'this morning', 'Friday' etc. mean."];
     chosen.forEach(c => L.push(c.label.toUpperCase() + ":\n{{ src_" + c.id + " }}"));
     L.push("YOUR TASK: " + (s.task || "Give a short, useful rundown of the information above."));
-    L.push("STYLE: " + r + "\nNo markdown, bullet points, quotation marks or emojis. Keep it under " + s.len + " characters. One continuous flowing monologue that sounds natural read aloud by text-to-speech.");
-    if (s.json) L.push('Output ONLY a JSON object, no code fences, no other text, exactly like this:\n{"speech": "the full monologue", "notification": "one short sentence banner under 100 characters"}');
+    L.push("STYLE" + (F ? " (for the spoken part)" : "") + ": " + r + "\nNo markdown, bullet points, quotation marks or emojis. Keep it under " + s.len + " characters. One continuous flowing monologue that sounds natural read aloud by text-to-speech.");
+    if (F) L.push("Output ONLY a JSON object, no code fences, no other text, with exactly these keys:\n" + F.fields.map(f => JSON.stringify(f.key) + ": " + (f.key === F.say
+      ? "the full spoken announcement. Follow YOUR TASK and STYLE above for this one" + (f.hint ? " (" + f.hint + ")" : "") + "."
+      : (f.hint || "short text") + ". Short plain text for a dashboard card, no markdown.")).join("\n") + (nt.length ? '\n"notification": one short sentence banner under 100 characters.' : ""));
+    else if (s.json) L.push('Output ONLY a JSON object, no code fences, no other text, exactly like this:\n{"speech": "the full monologue", "notification": "one short sentence banner under 100 characters"}');
     return "- action: ai_task.generate_data\n  data:\n    task_name: " + n + "\n    entity_id: " + (O.ai_task_entity || "ai_task.SET_ME") + "\n    instructions: |-\n" + ind(L.join("\n\n"), 6) + "\n  response_variable: announcement";
   };
   const styleFor = k => s.pers[k] ?? s.pers[DEF] ?? DEF_STYLE;
@@ -349,14 +393,23 @@ function makeYaml(s0, o) {
     Object.keys(s.pers).forEach(k => { y += `      - conditions:\n          - condition: state\n            entity_id: ${O.personality_select}\n            state: ${JSON.stringify(k)}\n        sequence:\n` + ind(task(s.pers[k]), 10) + "\n" });
     y += "    default:\n" + ind(task(styleFor(DEF)), 6) + "\n";  /* dropdown on something unknown: use Default instead of saying nothing */
   } else y += ind(task(styleFor(s.one)), 2) + "\n";
-  const sp = s.json ? "{{ (announcement.data | from_json).speech }}" : "{{ announcement.data }}";
-  y += `  - variables:\n      speech: '${sp}'\n`;
+  if (F) {  /* the answer is a JSON object: read it safely (code fences stripped), keep only the fields, speak the one picked */
+    const item = F.fields.map(f => `'${f.key}': ((ann_json.get('${f.key}') or '') | string | trim)`).join(", ");
+    y += "  - alias: Read the answer\n    variables:\n      ann_json: |-\n" + ind("{% set raw = announcement.data %}\n{% set d = (raw | string | replace('```json', '') | replace('```', '') | trim | from_json(default={})) if raw is string else raw %}\n{{ d if d is mapping else {} }}", 8) + "\n";
+    y += "  - variables:\n      ann_fields: |-\n" + ind("{{ {" + item + "} }}", 8) + "\n      speech: |-\n" + ind(`{{ ann_fields.get('${F.say}', '') or ann_json.get('speech', '') or '' }}`, 8) + "\n";
+    y += "  - alias: Stop if the AI answer was not usable\n    if:\n      - condition: template\n        value_template: \"{{ speech | length == 0 }}\"\n    then:\n"
+      + (cardOn && s.cardWhen === "start" ? `      - action: input_boolean.turn_off\n        target:\n          entity_id: ${cs}\n` : "") + "      - stop: The AI answer was not usable JSON\n";
+  } else {
+    const sp = s.json ? "{{ (announcement.data | from_json).speech }}" : "{{ announcement.data }}";
+    y += `  - variables:\n      speech: '${sp}'\n`;
+  }
+  if (tx) y += "  - alias: Save announcement " + (F ? "fields" : "text") + "\n    action: mqtt.publish\n    data:\n      topic: " + JSON.stringify(txtTopicOf(tx, s0.name || "Announcement")) + "\n      payload: '" + (F ? "{{ ann_fields | tojson }}" : "{{ speech }}") + "'\n";
   if (cardOn && s.cardWhen !== "start") y += cardStep("Show dashboard card");
   y += "  - alias: Deliver\n    parallel:\n";
   if (sp_on) y += `      - action: tts.speak\n        target:\n          entity_id: ${O.tts_entity}\n        data:\n          message: '{{ speech }}'\n          media_player_entity_id: ${A}\n`;
   if (al.length) y += "      - action: notify.alexa_media\n        data:\n          target:\n" + al.map(a => "            - " + a).join("\n") + "\n          message: '{{ speech }}'\n          data:\n            type: tts\n";
   const isSvc = id => { const e = ENT.find(x => x.id === id); return e ? !!e.svc : /^notify\.mobile_app_/.test(id) };
-  const ne = nt.filter(i => !isSvc(i)), ns = nt.filter(isSvc), msg = "          title: " + n + "\n          message: '{{ (announcement.data | from_json).notification }}'\n";
+  const ne = nt.filter(i => !isSvc(i)), ns = nt.filter(isSvc), msg = "          title: " + n + "\n          message: " + (F ? "\"{{ ann_json.get('notification', '') or speech[:100] }}\"" : "'{{ (announcement.data | from_json).notification }}'") + "\n";
   if (ne.length) y += "      - action: notify.send_message\n        target:\n          entity_id:\n" + ne.map(a => "            - " + a).join("\n") + "\n        data:\n" + msg;
   ns.forEach(a => { y += "      - action: " + a + "\n        data:\n" + msg });
   if (!sp_on && !al.length && !nt.length) y += "      - delay:\n          seconds: 1\n";
@@ -412,12 +465,12 @@ function recover(cfg) {
   }
   const ai = acts.filter(x => x.action === "ai_task.generate_data");
   const text = ai.length ? String((ai[0].data || {}).instructions || "") : "";
-  const m = text.match(/YOUR TASK: ([\s\S]*?)\n\nSTYLE: /);
+  const m = text.match(/YOUR TASK: ([\s\S]*?)\n\nSTYLE[^:\n]*: /);
   if (m) s.task = m[1].trim();
   else if (text) { s.task = text.trim(); s.pers = {[DEF]: "Follow the voice and tone given in the task."}; s.one = DEF; notes.push("Your own prompt was kept word for word as the instructions, and the style line only points back to it."); }
   const l = text.match(/under (\d+) characters/); if (l) s.len = +l[1];
   s.json = text.includes("Output ONLY a JSON object");
-  const styleOf = t => { const z = String(t || "").match(/STYLE: ([\s\S]*?)\nNo markdown/); return z ? z[1] : null };
+  const styleOf = t => { const z = String(t || "").match(/STYLE[^:\n]*: ([\s\S]*?)\nNo markdown/); return z ? z[1] : null };
   const ps = acts.find(x => Array.isArray(x.choose) && x.choose.some(c => JSON.stringify(c).includes("ai_task.generate_data")));
   if (ps && O.personality_select) {
     s.usePers = true;
@@ -478,6 +531,7 @@ async function openFound(f, msgEl) {
 function say(text, cls) { const m = $("#msg"); m.className = "msg " + (cls || ""); m.textContent = text; }
 async function persist(push) {
   const s = st();
+  if (s.txt && s.txt.on && !s.txt.file) { s.txt.file = txtFileOf(s.txt, s.name); $("#txt-file").value = s.txt.file; }  /* fixed from now on, so a rename keeps the same file and sensor */
   if (push) { const bad = autoProblem(s); if (bad) { say(bad, "bad"); return; } }
   if (!cur.id) cur.id = uniqueId(slug(s.name));
   const btns = [$("#save"), $("#push")]; btns.forEach(b => b.disabled = true);
@@ -487,7 +541,7 @@ async function persist(push) {
   else r = await ann("library/save", {id: cur.id, name: s.name, state: s});
   btns.forEach(b => b.disabled = false);
   if (!(r.ok)) { say(r.detail || r.error || "That failed.", "bad"); if (!cur.saved && !cur.pushed && !cur.fixedId) cur.id = null; paintState(); return; }
-  cur.saved = true; cur.isNew = false; if (push) cur.pushed = true; dirty = false; paintState();
+  cur.saved = true; cur.isNew = false; if (push) cur.pushed = true; dirty = false; paintState(); notifyChanged("ann");
   const am = push ? (s.auto.on ? " It runs " + autoSummary(s.auto) + "." : r.auto === "removed" ? " The old schedule was removed." : "") : "";
   say(push ? "Done. script." + cur.id + " is up to date in Home Assistant." + am : "Saved. Home Assistant still has the previous version." + (cur.pushed ? " Push to update it." : ""), "ok");
 }
@@ -546,6 +600,10 @@ function showTest(r) {
   if (r.status === "running") { b.append(el("p", {class: "dim small"}, el("span", {class: "spin"}), "Running. With sound this can take a couple of minutes.")); return; }
   if (r.status === "error") { b.append(el("div", {class: "note bad"}, el("div", {}, el("b", {}, "Test failed"), pre(r.error)))); return; }
   if (r.speech != null) b.append(el("b", {}, "What it said"), pre(r.speech));
+  if (r.fields && typeof r.fields === "object" && Object.keys(r.fields).length) {  /* fields mode: what goes on the card */
+    b.append(el("b", {style: "display:block;margin-top:10px"}, "What goes on the card"),
+      el("div", {class: "list"}, Object.entries(r.fields).map(([k, v]) => el("div", {class: "li"}, el("div", {class: "t"}, el("b", {}, k), el("small", {}, String(v == null ? "" : v)))))));
+  } else if (r.fields === "" || (r.fields && !Object.keys(r.fields).length)) b.append(el("div", {class: "note warn", style: "margin-top:10px"}, el("div", {}, "The AI's answer was not usable JSON, so nothing would be spoken or saved. Try again, or make the field descriptions clearer.")));
   const d = el("details", {open: r.speech == null, style: "margin-top:10px"}, el("summary", {}, "What the AI saw"));
   Object.entries(r.sources || {}).forEach(([k, v]) => d.append(el("p", {class: "dim small", style: "margin-top:8px"}, k.replace("src_", "")), pre(v)));
   b.append(d);
@@ -795,6 +853,9 @@ $("#setfill").onclick = () => {
   let n = 0; Object.values(FIELDS).flat().forEach(([k, , d, m]) => { if (m || S[k]) return; const c = ENT.filter(e => d.includes(e.id.split(".")[0])); if (c.length === 1) { S[k] = c[0].id; n++ } });
   drawSettings(); $("#smsg").className = "msg"; $("#smsg").textContent = "Filled " + n + " (only where there was one match). Save to keep.";
 };
+
+/* another tab renamed or changed something: refresh the list (not while editing, so nothing typed is lost) */
+onChanged(() => { if (view === "lib") loadLib(); });
 
 /* ---------- start ---------- */
 Promise.all([api("ann/options"), api("ann/entities").then(r => Array.isArray(r) ? r : []), api("facts/options")]).then(async ([o, e, f]) => {
