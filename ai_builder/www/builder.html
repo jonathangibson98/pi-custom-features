@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Build</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  #req{min-height:130px}
+  .kindrow{margin-top:14px}
+</style>
+</head>
+<body>
+<main class="page narrow">
+  <div class="head">
+    <div>
+      <h1>Build</h1>
+      <p class="sub">Say what you want in plain English. Your AI task entity writes it, you read it, then create it.</p>
+    </div>
+    <span class="pill plain" id="conn">Connecting...</span>
+  </div>
+  <div id="banners" class="stack" style="margin-bottom:14px"></div>
+
+  <nav class="tabs">
+    <button class="tab on" data-tab="build">New request</button>
+    <button class="tab" data-tab="mine">Made so far</button>
+  </nav>
+
+  <section id="build" class="stack">
+    <div class="card">
+      <label class="l" for="req">What do you want?</label>
+      <textarea id="req" placeholder="When the entry temperature passes 76 and someone is home, run the fans for 20 minutes. / A Movie Night scene. / An AppDaemon app that texts me when the garage is open 10 minutes."></textarea>
+
+      <label class="l kindrow">Make it as</label>
+      <div class="chips" id="kinds"></div>
+
+      <label class="l kindrow" for="target">Or change something that already exists</label>
+      <select id="target"><option value="">Nothing, make something new</option></select>
+      <p class="help">Pick one and describe the change above. The AI gets its current config to edit.</p>
+
+      <button class="btn primary wide" id="go" style="margin-top:16px">Build it</button>
+    </div>
+    <div id="out" class="stack"></div>
+  </section>
+
+  <section id="mine" class="stack" hidden></section>
+</main>
+
+<script src="ui.js"></script>
+<script>
+const KINDS = [["auto","Let AI decide"],["automation","Automation"],["scene","Scene"],["script","Script"],["template","Template sensor"],["helper","Helper"],["appdaemon","AppDaemon app"],["pyscript","Pyscript"],["blueprint","Blueprint"],["addon","Add-on"]];
+const KIND_LABEL = {automation:"Automation", scene:"Scene", script:"Script", template:"Template entity", helper:"Helper", appdaemon:"AppDaemon app", pyscript:"Pyscript", blueprint:"Blueprint", addon:"Add-on", announcement:"Announcement", fact:"Fact", answer:"Answer"};
+let kind = "auto", current = null, targets = [];
+
+function renderChips() {
+  const box = $("#kinds"); box.replaceChildren();
+  for (const [k, label] of KINDS) box.append(el("button", {class: "chip" + (k === kind ? " on" : ""), onclick: () => { kind = k; renderChips(); }}, label));
+}
+
+async function init() {
+  renderChips();
+  const s = await api("status");
+  const b = $("#banners"), c = $("#conn");
+  if (s.error) { c.textContent = "Offline"; c.className = "pill bad"; b.append(el("div", {class: "note bad"}, s.error)); return; }
+  if (s.ha_ok && s.entity_found) { c.className = "pill ok"; c.textContent = "Connected" + (s.version ? " · HA " + s.version : ""); c.title = "Using " + s.entity; }
+  else { c.className = "pill warn"; c.textContent = s.ha_ok ? "AI task not found" : "Waiting for Home Assistant"; }
+  if (!s.ha_ok) b.append(el("div", {class: "note warn"}, "Can't talk to Home Assistant yet. Give it a minute and reload."));
+  if (s.ha_ok && !s.entity_found) b.append(el("div", {class: "note warn"}, "Can't find " + s.entity + ". Fix the AI task entity name in the add-on's Configuration tab."));
+  if (!s.package_included) {
+    const f = s.template_file || "ai_builder/package.yaml";
+    b.append(el("div", {class: "note warn"}, el("div", {},
+      el("b", {}, "Template sensors need a one-time setup"),
+      el("p", {class: "dim small", style: "margin-top:4px"}, "Everything else works now. Add this to configuration.yaml, then restart Home Assistant. If you already have a packages: section, add only the last line under it. If you load a packages folder with !include_dir_named, set the template_file option to a file inside it instead."),
+      el("pre", {}, "homeassistant:\n  packages:\n    ai_builder: !include " + f))));
+  }
+  targets = await api("targets");
+  const sel = $("#target");
+  if (Array.isArray(targets)) {
+    let grp = null, last = "";
+    targets.forEach((t, i) => {
+      if (t.kind !== last) { last = t.kind; grp = el("optgroup", {label: (KIND_LABEL[t.kind] || t.kind) + "s"}); sel.append(grp); }
+      grp.append(el("option", {value: i}, t.name));
+    });
+  }
+}
+
+const chosenTarget = () => { const v = $("#target").value; return v === "" ? null : {kind: targets[v].kind, id: targets[v].id}; };
+const busy = msg => $("#out").replaceChildren(el("div", {class: "card"}, el("span", {class: "spin"}), msg));
+
+async function generate(feedback) {
+  const request = $("#req").value.trim();
+  if (!request) { $("#req").focus(); return; }
+  $("#go").disabled = true;
+  busy(feedback ? "Revising..." : "Thinking. Some AI backends take a minute or two.");
+  const body = {request, kind, target: chosenTarget()};
+  if (feedback && current) { body.previous = {summary: current.summary, items: current.items.map(i => ({kind: i.kind, id: i.id, summary: i.summary, config: i.config}))}; body.feedback = feedback; }
+  const res = await api("generate", body);
+  $("#go").disabled = false;
+  if (res.error) {
+    const c = el("div", {class: "card tone-bad"}, el("b", {class: "bad"}, "That didn't work"), el("p", {style: "margin-top:6px"}, res.error));
+    if (res.raw) c.append(el("details", {}, el("summary", {}, "What the AI said"), el("pre", {}, res.raw)));
+    $("#out").replaceChildren(c); return;
+  }
+  current = res; renderResult();
+}
+
+function itemCard(it) {
+  const card = el("div", {class: "card"});
+  const title = it.config.alias || it.config.name || it.config.slug || it.config.filename || (it.kind === "answer" ? "" : "Untitled");
+  card.append(el("div", {class: "row"}, el("span", {class: "pill acc plain"}, KIND_LABEL[it.kind] || it.kind), title ? el("b", {}, title) : null));
+  if (it.kind === "answer") { card.append(el("p", {style: "white-space:pre-wrap;margin-top:10px"}, it.config.text || it.summary)); return card; }
+  if (it.summary) card.append(el("p", {class: "dim", style: "margin:8px 0"}, it.summary));
+  const c = it.checks || {}, notes = el("div", {class: "stack", style: "margin-top:8px"});
+  if (c.preview != null) notes.append(el("div", {class: "note ok"}, el("div", {}, "Right now this would show: " + c.preview)));
+  if (c.error) notes.append(el("div", {class: "note bad"}, el("div", {}, "Problem: " + c.error)));
+  for (const f of c.fixes || []) notes.append(el("div", {class: "note ok"}, el("div", {}, "Fixed automatically: " + f)));
+  for (const n of c.notes || []) notes.append(el("div", {class: "note warn"}, el("div", {}, "Heads up: " + n)));
+  if (c.unknown && c.unknown.length) notes.append(el("div", {class: "note warn"}, el("div", {}, "Not found in your Home Assistant: " + c.unknown.join(", "))));
+  if (notes.children.length) card.append(notes);
+  card.append(el("details", {style: "margin-top:8px"}, el("summary", {}, "See the code"), el("pre", {}, it.yaml || "")));
+  const status = el("div", {class: "msg"});
+  const isEdit = it.edit_id || (it.kind === "template" && it.config.unique_id && targets.some(t => t.id === it.config.unique_id));
+  const btn = el("button", {class: "btn good", onclick: () => make(it, btn, status)}, isEdit ? "Save changes" : "Create");
+  const copy = el("button", {class: "btn", onclick: async () => { try { await navigator.clipboard.writeText(it.yaml); copy.textContent = "Copied"; } catch (e) { copy.textContent = "Press and hold the code to copy"; } }}, "Copy");
+  card.append(el("div", {class: "row", style: "margin-top:12px"}, btn, copy), status);
+  it._btn = btn; it._status = status;
+  return card;
+}
+
+async function make(it, btn, status, overwrite) {
+  btn.disabled = true; status.replaceChildren(el("span", {class: "spin"}), "Creating...");
+  const r = await api("create", {overwrite: !!overwrite, item: {kind: it.kind, id: it.id, edit_id: it.edit_id, config: it.config}});
+  if (r.ok) {
+    btn.textContent = "Done";
+    status.replaceChildren(el("div", {class: "ok"}, "Done" + (r.entity ? ": " + r.entity : "") + "."));
+    if (r.note) status.append(el("div", {class: "dim"}, r.note));
+    if (r.needs_setup) status.append(el("div", {class: "warn"}, "It won't show up until you add the one-time packages line (see the top of this page) and restart Home Assistant."));
+    return true;
+  }
+  btn.disabled = false;
+  if (r.exists) {
+    status.replaceChildren(el("div", {class: "warn"}, r.error + " Overwriting keeps a backup copy of the old file."),
+      el("div", {class: "row", style: "margin-top:8px"}, el("button", {class: "btn", onclick: () => make(it, btn, status, true)}, "Overwrite it")));
+    return false;
+  }
+  status.replaceChildren(el("div", {class: "bad"}, "That failed: " + r.error),
+    el("div", {class: "row", style: "margin-top:8px"}, el("button", {class: "btn", onclick: () => { $("#fix").value = "Home Assistant rejected it with this error, please fix it: " + r.error; refine(); }}, "Ask AI to fix it")));
+  return false;
+}
+
+function renderResult() {
+  const out = $("#out"); out.replaceChildren();
+  if (current.summary) out.append(el("div", {class: "card tone-ok"}, el("b", {}, "What I built"), el("p", {style: "margin-top:6px"}, current.summary)));
+  for (const w of current.warnings || []) out.append(el("div", {class: "note warn"}, el("div", {}, "Heads up: " + w)));
+  current.items.forEach(it => out.append(itemCard(it)));
+  const makeable = current.items.filter(i => i.kind !== "answer");
+  if (makeable.length > 1)
+    out.append(el("button", {class: "btn primary wide", onclick: async e => {
+      e.target.disabled = true;
+      const order = {helper:0, template:1, scene:2, script:2, pyscript:3, appdaemon:3, automation:4, blueprint:5, addon:5};
+      for (const it of [...makeable].sort((a, b) => order[a.kind] - order[b.kind])) { if (!(await make(it, it._btn, it._status))) break; }
+      e.target.disabled = false;
+    }}, "Create all " + makeable.length));
+  out.append(el("div", {class: "card"},
+    el("label", {class: "l", for: "fix"}, "Not quite right? Say what to change"),
+    el("input", {id: "fix", placeholder: "Only run on weekdays, and use the Entry fan instead"}),
+    el("div", {class: "row", style: "margin-top:10px"}, el("button", {class: "btn", onclick: refine}, "Revise"))));
+}
+function refine() { const f = $("#fix").value.trim(); if (f) generate(f); }
+
+async function renderMine() {
+  const box = $("#mine"); box.replaceChildren(el("div", {class: "dim"}, "Loading..."));
+  const d = await api("mine"); box.replaceChildren();
+  if (d.error) { box.append(el("div", {class: "note bad"}, d.error)); return; }
+  const t = el("div", {class: "card"}, el("div", {class: "ch"}, el("h2", {}, "Template sensors I manage"), el("p", {}, "Stored in the template file. Don't edit that file by hand.")));
+  if (!d.templates.length) t.append(el("p", {class: "dim"}, "None yet."));
+  const tl = el("div", {class: "list"});
+  for (const x of d.templates) {
+    const del = el("button", {class: "btn danger sm"}, "Delete");
+    confirmTap(del, "Tap again", async () => { await api("delete_template", {id: x.id}); renderMine(); });
+    tl.append(el("div", {class: "li"}, el("div", {class: "t"}, el("b", {}, x.name), el("span", {class: "dim"}, "  " + x.platform)), del));
+  }
+  t.append(tl); box.append(t);
+  const h = el("div", {class: "card"}, el("div", {class: "ch"}, el("h2", {}, "Recently created")));
+  if (!d.history.length) h.append(el("p", {class: "dim"}, "Nothing yet."));
+  const hl = el("div", {class: "list"});
+  for (const x of d.history) hl.append(el("div", {class: "li"}, el("div", {class: "t"}, el("b", {}, x.name || x.entity), el("div", {class: "dim small"}, (KIND_LABEL[x.kind] || x.kind) + (x.entity ? " · " + x.entity : ""))), el("span", {class: "dim small"}, ago(x.time))));
+  h.append(hl); box.append(h);
+}
+
+$$(".tab").forEach(b => b.addEventListener("click", () => {
+  $$(".tab").forEach(x => x.classList.toggle("on", x === b));
+  $("#build").hidden = b.dataset.tab !== "build"; $("#mine").hidden = b.dataset.tab !== "mine";
+  if (b.dataset.tab === "mine") renderMine();
+}));
+$("#go").addEventListener("click", () => generate());
+init();
+</script>
+</body>
+</html>

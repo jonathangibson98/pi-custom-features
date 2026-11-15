@@ -1,0 +1,56 @@
+name: "Creator & AI Builder"
+version: "2.13.0"
+slug: ai_builder
+"image": "ghcr.io/jonathangibson98/{arch}-addon-ai_builder"
+description: "Build Home Assistant automations, scenes, scripts, helpers and more from plain English with your ai_task entity, make AI voice announcements and dashboard facts, and back it all up."
+url: "https://github.com/jonathangibson98/ha-ai-builder"
+arch:
+  - aarch64
+  - amd64
+init: false
+ingress: true
+panel_icon: mdi:robot-happy-outline
+panel_title: Creator & AI Builder
+homeassistant_api: true
+map:
+  - type: homeassistant_config
+    read_only: false
+    path: /homeassistant
+  - type: all_addon_configs
+    read_only: false
+  - type: addons
+    read_only: false
+  - type: addon_config
+    read_only: false
+  - type: share
+    read_only: false
+  - type: media
+    read_only: false
+  - type: backup
+    read_only: false
+  - type: ssl
+    read_only: false
+options:
+  log_level: info
+  ai_task_entity: ai_task.gemini_pro_ai_task
+  request_timeout: 180
+  template_file: ai_builder/package.yaml
+  appdaemon_apps_dir: /addon_configs/a0d7b954_appdaemon/apps
+  ha_token: ""
+  ha_url: "http://homeassistant:8123"
+  helper_ai_task_entity: ""
+  backup_path: /share/ai_builder_backups
+  backup_keep: 20
+  facts_file_path: ""
+schema:
+  log_level: list(debug|info|warning|error)
+  ai_task_entity: str
+  request_timeout: int(30,600)
+  template_file: str
+  appdaemon_apps_dir: str
+  ha_token: password?
+  ha_url: str?
+  helper_ai_task_entity: str?
+  backup_path: str
+  backup_keep: int(1,200)
+  facts_file_path: str?

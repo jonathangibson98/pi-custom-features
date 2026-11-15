@@ -1,0 +1,34 @@
+configuration:
+  log_level:
+    name: Log level
+    description: How chatty the add-on log is. Use debug when troubleshooting, warning or error to keep it quiet.
+  ai_task_entity:
+    name: AI task entity
+    description: The Home Assistant ai_task entity used to write configs and announcements, for example ai_task.gemini_pro_ai_task.
+  request_timeout:
+    name: AI request timeout (seconds)
+    description: How long to wait for the AI before giving up (30 to 600).
+  template_file:
+    name: Template sensor file
+    description: Where template sensors are written, relative to your Home Assistant config folder. Must end in .yaml.
+  appdaemon_apps_dir:
+    name: AppDaemon apps folder
+    description: Your AppDaemon apps folder. Must be under /addon_configs or your Home Assistant config folder.
+  ha_token:
+    name: Long-lived access token (optional)
+    description: Leave blank unless the default Supervisor access to Home Assistant fails.
+  ha_url:
+    name: Home Assistant URL
+    description: Only used when a long-lived access token is set.
+  helper_ai_task_entity:
+    name: Announcement helper AI task (optional)
+    description: A separate ai_task entity for the Announcements helper tab. Blank uses the Announcements AI task.
+  backup_path:
+    name: Backup path
+    description: Where Backup saves to and imports from. A folder (each save makes a new dated file, for example /share/ai_builder_backups) or a single .json file (each save overwrites it). Use a folder under /share, /media, /backup or /homeassistant so it survives an uninstall.
+  backup_keep:
+    name: Backups to keep
+    description: When backup_path is a folder, the newest this many ai_builder_backup_*.json files are kept and older ones are deleted.
+  facts_file_path:
+    name: Facts file path
+    description: The MQTT topic folder where Facts saves its text files, for example file_reader/overwrite/ (a fact named random_fact.txt is saved as file_reader/overwrite/random_fact.txt). When set here it wins over the Facts settings page. Letters, numbers, underscores, dashes, dots and slashes only.

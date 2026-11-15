@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cards</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  .n{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:.8rem;font-weight:700;margin-right:10px}
+  .card>.ch h2{display:flex;align-items:center}
+  textarea#request{min-height:130px}
+  textarea#yaml{min-height:360px;white-space:pre;overflow:auto}
+  iframe.prev{width:100%;height:380px;border:1px solid var(--line);border-radius:var(--r-sm);background:#111}
+  .prevhead{display:flex;align-items:center;gap:8px;margin:12px 0 6px}
+</style>
+</head>
+<body>
+<main class="page">
+
+  <div id="chrome">
+    <div class="head">
+      <div>
+        <h1>Cards</h1>
+        <p class="sub">Describe a dashboard card in plain English. Your AI Task writes the Lovelace YAML in your glass style, Home Assistant previews it with live data, and you paste it into a Manual card.</p>
+      </div>
+    </div>
+    <div id="setupnote" style="margin-bottom:14px"></div>
+  </div>
+
+  <!-- ===== library ===== -->
+  <div id="v-lib" class="stack">
+    <div class="row">
+      <div class="grow"><h2>Your cards</h2><p class="dim small" id="libsub"></p></div>
+      <button class="btn primary" id="newcard">New card</button>
+    </div>
+    <div id="libmsg" class="msg"></div>
+    <div id="cards" class="cards"></div>
+  </div>
+
+  <!-- ===== editor ===== -->
+  <div id="v-edit" hidden>
+    <div class="bar">
+      <div class="row">
+        <button class="btn quiet sm" id="back">&larr; All cards</button>
+        <span class="ttl grow" id="etitle">New card</span>
+        <span class="pill" id="estate"></span>
+        <button class="btn primary" id="save" title="Keep this card in the add-on so you can open it again">Save</button>
+      </div>
+      <div class="msg" id="msg" role="status" aria-live="polite"></div>
+    </div>
+
+    <div class="stack" style="max-width:860px">
+      <section class="card">
+        <div class="ch"><h2><span class="n">1</span>Name</h2></div>
+        <label class="l" for="name">Card name</label>
+        <input id="name" value="My card" autocomplete="off">
+      </section>
+
+      <section class="card">
+        <div class="ch"><h2><span class="n">2</span>What should it show?</h2><p>Say it your way. Mention the look, scrolling or rotating, sizes, emoji, anything.</p></div>
+        <label class="l" for="request">Describe the card</label>
+        <textarea id="request" placeholder="e.g. A card that rotates through the songs in my new music list, one at a time. Show the song name big, the artist underneath, and the release date small and dim. Add a little 🎵 in the title."></textarea>
+
+        <label class="l">Data the card reads</label>
+        <div id="entpick"></div>
+        <p class="help">Pick the sensors, helpers or entities it should use. The AI is shown their live state and attributes, so it knows the exact field names. Add the file_reader sensor for a fact or list (for example sensor.read_new_songs).</p>
+
+        <label class="l">Show / hide switch (optional)</label>
+        <div id="swpick"></div>
+        <div class="row" style="margin-top:8px"><button class="btn sm" id="swmake">Create a switch for me</button></div>
+        <p class="help">Wraps the card so it only shows while this input_boolean is on. Pair it with the Dashboard card switch in an announcement, and the announcement turns the card on and off by itself.</p>
+
+        <label class="l" for="style">Look</label>
+        <select id="style" style="max-width:340px">
+          <option value="glass">Glass (matches your other cards)</option>
+          <option value="plain">Plain Home Assistant</option>
+          <option value="any">Let the AI choose</option>
+        </select>
+
+        <div class="row" style="margin-top:14px"><button class="btn primary" id="build">Build the card</button></div>
+        <div id="bres"></div>
+      </section>
+
+      <section class="card" id="cardsec" hidden>
+        <div class="ch"><h2><span class="n">3</span>The card</h2><p>You can edit the YAML by hand. Copy it into a Manual card on your dashboard.</p></div>
+        <div id="notes"></div>
+        <textarea id="yaml" class="code" spellcheck="false"></textarea>
+        <div class="row" style="margin-top:10px">
+          <button class="btn primary" id="copy">Copy card YAML</button>
+          <button class="btn" id="chk">Check my edits</button>
+        </div>
+        <div class="msg" id="ymsg" role="status" aria-live="polite"></div>
+
+        <label class="l" for="feedback" style="margin-top:18px">Change something</label>
+        <textarea id="feedback" style="min-height:80px" placeholder="e.g. Make the title bigger, slow the rotation to 12 seconds, and show the person whose music it is in small text."></textarea>
+        <div class="row" style="margin-top:10px"><button class="btn" id="revise">Revise with AI</button></div>
+      </section>
+
+      <section class="card" id="prevsec" hidden>
+        <div class="ch"><h2><span class="n">4</span>Preview with live data</h2><p>Home Assistant renders the card's template with your real entities. Your dashboard theme and card height can look a little different.</p></div>
+        <div class="row"><button class="btn" id="preview">Preview it</button></div>
+        <div id="pres" style="margin-top:12px"></div>
+      </section>
+    </div>
+  </div>
+</main>
+<script src="ui.js"></script>
+<script src="sources.js"></script>
+<script src="cards.js"></script>
+</body>
+</html>

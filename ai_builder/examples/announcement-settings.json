@@ -1,0 +1,55 @@
+{
+ "ai_task_entity": "ai_task.gemini_pro_ai_task",
+ "tts_entity": "tts.home_assistant_cloud",
+ "speaker": "media_player.entry_airplay",
+ "alexa_targets": [
+  "media_player.our_bathroom",
+  "media_player.our_bedroom_dot",
+  "media_player.kitchen_echo_pop",
+  "media_player.bathroom_dot"
+ ],
+ "notify_targets": [
+  "notify.jon",
+  "notify.mj"
+ ],
+ "music_players": [
+  "media_player.jon_spotify",
+  "media_player.mj_spotify"
+ ],
+ "talking_flag": "input_boolean.report_talking",
+ "personality_select": "input_select.ai_personality",
+ "combined_info_entity": "sensor.combined_info",
+ "combined_info_attribute": "everyone",
+ "locations_entity": "sensor.everybodys_locations",
+ "weather_entity": "weather.home_weather",
+ "inside_temp_entity": "sensor.inside_temperature",
+ "news_entity": "sensor.all_news_feeds",
+ "todo_entity": "todo.things_need_done",
+ "trash_entity": "schedule.trash_pickup_tomorrow",
+ "calendar_entities": [],
+ "custom_sources": [
+  {
+   "label": "Upcoming calendar events",
+   "entity": "sensor.combined_calendar_upcoming_events",
+   "attribute": "events"
+  },
+  {
+   "label": "Concert 1",
+   "entity": "sensor.concert_countdown_1"
+  },
+  {
+   "label": "Concert 2",
+   "entity": "sensor.concert_countdown_2"
+  },
+  {
+   "label": "Upcoming sports",
+   "entity": "sensor.sports_calendar",
+   "attribute": "events"
+  },
+  {
+   "label": "Who is on PS5",
+   "entity": "sensor.ps5_status",
+   "attribute": "summary"
+  }
+ ]
+}

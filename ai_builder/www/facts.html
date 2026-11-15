@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Facts</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  .n{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:.8rem;font-weight:700;margin-right:10px}
+  .card>.ch h2{display:flex;align-items:center}
+  #v-set .page-dock-space{height:70px}
+  .srcrow .t small{display:block;color:var(--dim)}
+  textarea.tall{min-height:110px}
+  .pickrow{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:8px;align-items:start;margin-top:8px}
+  @media (max-width:560px){.pickrow{grid-template-columns:minmax(0,1fr)}}
+  .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .inline input,.inline select{width:auto;max-width:150px}
+</style>
+</head>
+<body>
+<main class="page">
+
+  <div id="chrome">
+    <div class="head">
+      <div>
+        <h1>Facts</h1>
+        <p class="sub">AI-written facts for your dashboard. Each one is a Home Assistant script that asks your AI Task for a fact and saves it to a text file (MQTT), with an optional schedule.</p>
+      </div>
+    </div>
+    <div id="setupnote" style="margin-bottom:14px"></div>
+    <nav class="tabs" id="tabs">
+      <button class="tab on" data-v="lib">My facts <span class="count" id="libcount">0</span></button>
+      <button class="tab" data-v="help">Helper</button>
+      <button class="tab" data-v="set">Settings</button>
+    </nav>
+  </div>
+
+  <!-- ===== library ===== -->
+  <div id="v-lib" class="stack">
+    <div class="row">
+      <div class="grow"><h2>Everything you've made</h2><p class="dim small" id="libsub"></p></div>
+      <button class="btn" id="copyall">Copy all cards</button>
+      <button class="btn" id="updall" hidden>Update all in Home Assistant</button>
+      <button class="btn" id="importbtn">Import my script</button>
+      <button class="btn primary" id="newfact">New fact</button>
+    </div>
+
+    <section class="card" id="importbox" hidden>
+      <div class="ch"><h2>Import your script or automation</h2><p>Paste a Home Assistant script or automation (YAML), such as one you made by hand. It is kept exactly as written.</p></div>
+      <textarea id="impyaml" class="code" spellcheck="false" style="min-height:220px" placeholder="alias: My fact&#10;sequence:&#10;  - action: ai_task.generate_data&#10;    ... (or an automation with triggers: and actions:)"></textarea>
+      <p class="help">Works with just the script, the script with its id on top (the way it looks in scripts.yaml), or only the list of steps.</p>
+      <label class="l" for="impid">Script or automation id (optional)</label>
+      <input id="impid" placeholder="e.g. city_cool_fact" autocomplete="off" style="max-width:320px">
+      <p class="help">Leave blank to make a new script. Type the id of a script you already have to take it over: pushing replaces it, and automations that call it keep working.</p>
+      <label class="l" for="imppick">Or load one you already have</label>
+      <div class="row"><select id="imppick" style="max-width:420px"></select><button class="btn sm" id="imppickgo">Load</button></div>
+      <label class="l" for="impauto">Automation (optional)</label>
+      <div class="row"><select id="impauto" style="max-width:420px"><option value="">None</option></select></div>
+      <p class="help">With a script pasted, this is the automation that runs it. With the box above empty, the automation is imported on its own. Pasting an automation that does everything itself (asks the AI and publishes) works too.</p>
+      <div class="row" style="margin-top:12px"><button class="btn primary" id="impgo">Import</button><button class="btn" id="impcancel">Cancel</button></div>
+      <div class="msg" id="impmsg" role="status" aria-live="polite"></div>
+    </section>
+
+    <div id="libmsg" class="msg"></div>
+    <div id="cards" class="cards"></div>
+  </div>
+
+  <!-- ===== helper ===== -->
+  <div id="v-help" class="stack" hidden style="max-width:720px"></div>
+
+  <!-- ===== settings ===== -->
+  <div id="v-set" class="stack" hidden style="max-width:760px"></div>
+
+  <!-- ===== editor ===== -->
+  <div id="v-edit" hidden>
+    <div class="bar">
+      <div class="row">
+        <button class="btn quiet sm" id="back">&larr; All facts</button>
+        <span class="ttl grow" id="etitle">New fact</span>
+        <span class="pill" id="estate"></span>
+        <button class="btn" id="save" title="Keep your changes here without changing the script in Home Assistant">Save</button>
+        <button class="btn primary" id="push" title="Save, then create or update the script (and schedule) in Home Assistant">Save and push</button>
+      </div>
+      <div class="msg" id="msg" role="status" aria-live="polite"></div>
+    </div>
+    <div id="enote" class="note warn" style="margin-bottom:14px" hidden><div></div></div>
+
+    <div class="split">
+      <div class="stack" id="form"></div>
+
+      <aside class="side stack">
+        <section class="card" id="trycard">
+          <div class="ch"><h2>Try it first</h2></div>
+          <p class="dim small" style="margin-bottom:10px">Runs a temporary copy of the script, then deletes it. Nothing is added to your Scripts list.</p>
+          <div class="stack" style="--gap:8px">
+            <button class="btn wide" id="t-data">Preview what it picks</button>
+            <button class="btn wide" id="t-text">Test, don't publish</button>
+            <button class="btn wide" id="t-full">Test and publish</button>
+          </div>
+          <div id="tres" style="margin-top:12px"></div>
+        </section>
+        <section class="card">
+          <div class="ch"><h2>The script</h2><p>Read it before you push.</p></div>
+          <details id="ymldet"><summary>Show script YAML</summary><pre id="out"></pre></details>
+          <details id="autodet"><summary>Show schedule YAML</summary><pre id="autoout"></pre></details>
+          <div class="row" style="margin-top:10px">
+            <button class="btn sm" id="run" title="Run the version that is saved in Home Assistant">Run saved script</button>
+            <button class="btn sm" id="copy">Copy script YAML</button>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <div id="dock" class="dock" hidden><div class="in">
+    <button class="btn primary" id="setsave">Save settings</button>
+    <span class="msg grow" id="smsg" style="margin:0"></span>
+  </div></div>
+</main>
+<script src="ui.js"></script>
+<script src="sources.js"></script>
+<script src="js-yaml.min.js"></script>
+<script src="autoform.js"></script>
+<script src="facts.js"></script>
+</body>
+</html>

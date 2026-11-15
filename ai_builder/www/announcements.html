@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Announcements</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  .n{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:.8rem;font-weight:700;margin-right:10px}
+  .card>.ch h2{display:flex;align-items:center}
+  #out{white-space:pre-wrap}
+  #v-set .page-dock-space{height:70px}
+  .srcrow .t small{display:block;color:var(--dim)}
+  textarea#task{min-height:110px}
+  .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .inline input,.inline select{width:auto;max-width:150px}
+  #autoout{white-space:pre-wrap}
+</style>
+</head>
+<body>
+<main class="page">
+
+  <div id="chrome">
+    <div class="head">
+      <div>
+        <h1>Announcements</h1>
+        <p class="sub">AI-written voice announcements. Each one is a Home Assistant script you can open, change and push again at any time, with an optional schedule.</p>
+      </div>
+    </div>
+    <div id="setupnote" style="margin-bottom:14px"></div>
+    <nav class="tabs" id="tabs">
+      <button class="tab on" data-v="lib">My announcements <span class="count" id="libcount">0</span></button>
+      <button class="tab" data-v="help">Helper</button>
+      <button class="tab" data-v="set">Settings</button>
+    </nav>
+  </div>
+
+  <!-- ===== library ===== -->
+  <div id="v-lib" class="stack">
+    <div class="row">
+      <div class="grow"><h2>Everything you've made</h2><p class="dim small" id="libsub"></p></div>
+      <button class="btn" id="updall" hidden>Update all in Home Assistant</button>
+      <button class="btn" id="importbtn">Import my script</button>
+      <button class="btn primary" id="newann">New announcement</button>
+    </div>
+
+    <section class="card" id="importbox" hidden>
+      <div class="ch"><h2>Import your script</h2><p>Paste a Home Assistant script (YAML). It becomes an announcement here, so you can edit, push and run it from this add-on.</p></div>
+      <textarea id="impyaml" class="code" spellcheck="false" style="min-height:220px" placeholder="alias: My announcement&#10;sequence:&#10;  - action: ai_task.generate_data&#10;    ..."></textarea>
+      <p class="help">Works with just the script, the script with its id on top (the way it looks in scripts.yaml), or only the list of steps.</p>
+      <label class="l" for="impid">Script id (optional)</label>
+      <input id="impid" placeholder="e.g. morning_report" autocomplete="off" style="max-width:320px">
+      <p class="help">Leave blank to make a new script. Type the id of a script you already have in Home Assistant to take it over: pushing replaces it, and automations that call it keep working.</p>
+      <label class="l" for="imppick">Or load one you already have</label>
+      <div class="row"><select id="imppick" style="max-width:420px"></select><button class="btn sm" id="imppickgo">Load</button></div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" id="impgo">Import</button><button class="btn" id="impcancel">Cancel</button></div>
+      <div class="msg" id="impmsg" role="status" aria-live="polite"></div>
+    </section>
+
+    <div id="libmsg" class="msg"></div>
+    <div id="legacy"></div>
+    <div id="cards" class="cards"></div>
+    <div id="found"></div>
+  </div>
+
+  <!-- ===== helper ===== -->
+  <div id="v-help" class="stack" hidden style="max-width:720px"></div>
+
+  <!-- ===== settings ===== -->
+  <div id="v-set" class="stack" hidden style="max-width:760px"></div>
+
+  <!-- ===== editor ===== -->
+  <div id="v-edit" hidden>
+    <div class="bar">
+      <div class="row">
+        <button class="btn quiet sm" id="back">&larr; All announcements</button>
+        <span class="ttl grow" id="etitle">New announcement</span>
+        <span class="pill" id="estate"></span>
+        <button class="btn" id="save" title="Keep your changes here without changing the script in Home Assistant">Save</button>
+        <button class="btn primary" id="push" title="Save, then create or update the script in Home Assistant">Save and push</button>
+      </div>
+      <div class="msg" id="msg" role="status" aria-live="polite"></div>
+    </div>
+    <div id="elegacy" class="note warn" style="margin-bottom:14px" hidden><div></div></div>
+
+    <div class="split">
+      <div class="stack">
+        <section class="card">
+          <div class="ch"><h2><span class="n">1</span>Name</h2></div>
+          <label class="l" for="name">Script name</label>
+          <input id="name" value="My announcement" autocomplete="off">
+          <p class="help" id="idhelp"></p>
+          <div id="presetwrap">
+            <label class="l">Start from</label>
+            <div class="chips" id="presets"></div>
+            <p class="msg warn" id="pnote"></p>
+          </div>
+        </section>
+
+        <section class="card" id="rawcard" hidden>
+          <div class="ch"><h2><span class="n">2</span>Your script</h2><p>Kept exactly as you wrote it. Edit the YAML here, then Save or Save and push.</p></div>
+          <textarea id="rawyaml" class="code" spellcheck="false" style="min-height:440px"></textarea>
+          <div class="row" style="margin-top:10px">
+            <button class="btn sm" id="rawcheck">Check YAML</button>
+            <button class="btn sm" id="rawform">Switch to the form tools</button>
+          </div>
+          <p class="help">The form tools (data sources, personalities, speakers, volume, the helper and the test panel) build the script from a form. Switching reads your script into the form first. Anything the form does not cover is dropped when you push, so leave without saving if it looks wrong.</p>
+        </section>
+
+        <div id="formcards" class="stack">
+        <section class="card">
+          <div class="ch"><h2><span class="n">2</span>What it says</h2></div>
+          <label class="l">Data to include</label>
+          <div class="pickgrid" id="srcs"></div>
+          <p class="help">Each one becomes a variable the AI reads. Add, edit or remove them in Settings.</p>
+          <label class="l" for="task">What should it do?</label>
+          <textarea id="task" placeholder="e.g. Look at the weather for the week and tell me about it, but only if my work calendar has something on."></textarea>
+          <div class="row" style="margin-top:8px"><button class="btn sm" id="gohelp">Help me write this</button></div>
+          <label class="l" for="len">Max length (characters)</label>
+          <input type="number" id="len" min="200" step="100" style="max-width:160px">
+        </section>
+
+        <section class="card">
+          <div class="ch"><h2><span class="n">3</span>Personality</h2></div>
+          <div id="selwrap"><label class="check"><input type="checkbox" id="usePers"> Follow my personality dropdown in Home Assistant</label></div>
+          <div id="onewrap"><label class="l" for="one">Always use</label>
+            <select id="one"></select></div>
+          <details style="margin-top:10px"><summary>Edit what each personality sounds like</summary><p class="help">This only changes this announcement. To add or remove personalities for everything, go to Settings.</p><div id="persbox"></div></details>
+        </section>
+
+        <section class="card">
+          <div class="ch"><h2><span class="n">4</span>Where it plays</h2><p>Phones get a short banner. Speakers get the full announcement.</p></div>
+          <div class="pickgrid" id="outs"></div>
+          <label class="l" for="vol">Speaker volume: <b id="volv"></b>%</label>
+          <input type="range" id="vol" min="10" max="100">
+          <label class="check" style="margin-top:6px"><input type="checkbox" id="pause" checked> Pause music while talking, then resume</label>
+        </section>
+
+        <section class="card">
+          <div class="ch"><h2><span class="n">5</span>Dashboard card</h2><p>Optional. Show a card on your dashboard while this runs.</p></div>
+          <label class="l">Show / hide switch</label>
+          <div id="cardpick"></div>
+          <div class="row" style="margin-top:8px"><button class="btn sm" id="cardmake">Create a switch for me</button></div>
+          <div class="msg" id="cardmsg" role="status" aria-live="polite"></div>
+          <p class="help">Pick the input_boolean your dashboard card is wrapped in (the Cards and Facts tabs can wrap a card with one). The announcement turns it on, then off again.</p>
+          <div id="cardopts">
+            <label class="l" for="cardwhen">Turn it on</label>
+            <select id="cardwhen" style="max-width:360px">
+              <option value="talk">When it starts talking</option>
+              <option value="start">Right away, before the AI writes it</option>
+            </select>
+            <label class="check" style="margin-top:6px"><input type="checkbox" id="cardoff" checked> Turn it off again when it finishes</label>
+            <label class="l" for="cardhold">Keep the card up this many extra seconds</label>
+            <input type="number" id="cardhold" min="0" step="5" value="0" style="max-width:160px">
+            <p class="help" id="cardhelp"></p>
+          </div>
+        </section>
+        </div>
+
+        <section class="card" id="autocard">
+          <div class="ch"><h2><span class="n" id="autonum">6</span>Run it automatically</h2><p>Optional. Makes a Home Assistant automation that runs this script, so it plays without you pressing anything. The script stays as it is, so your other automations can still call it.</p></div>
+          <label class="check"><input type="checkbox" id="auto-on"> Run on a schedule</label>
+          <div id="autoopts" hidden>
+            <label class="l" for="auto-every">Every</label>
+            <div class="inline"><input type="number" id="auto-every" min="0" step="1" style="width:90px"><select id="auto-unit"><option value="minutes">minutes</option><option value="hours">hours</option></select></div>
+            <p class="help">0 turns the repeat off. Minutes up to 59, hours up to 23.</p>
+            <label class="l" for="auto-at">And at this time every day (optional)</label>
+            <input type="time" id="auto-at" style="max-width:160px">
+            <label class="l">And when this entity changes (optional)</label>
+            <div id="autowatch"></div>
+            <div class="inline" id="autowatchopts" style="margin-top:8px" hidden>
+              <input id="auto-attr" placeholder="attribute (blank = state)" style="max-width:240px">
+              <span class="dim small">after it has held for</span>
+              <input type="number" id="auto-for" min="0" step="1" style="width:90px">
+              <span class="dim small">seconds</span>
+            </div>
+            <label class="l">Only when someone is home (optional)</label>
+            <div id="autohome"></div>
+            <p class="help">Runs only if any of these is on or home. A zone counts when it has someone in it.</p>
+            <div id="autodefault"></div>
+            <p class="help">If it is still talking when the next trigger comes, the new trigger is skipped. It does not cut the announcement off.</p>
+          </div>
+        </section>
+      </div>
+
+      <aside class="side stack">
+        <section class="card" id="trycard">
+          <div class="ch"><h2>Try it first</h2></div>
+          <p class="dim small" style="margin-bottom:10px">Runs a temporary copy of the script, then deletes it. Nothing is added to your Scripts list.</p>
+          <div class="stack" style="--gap:8px">
+            <button class="btn wide" id="t-data">Preview the data</button>
+            <button class="btn wide" id="t-text">Test, text only</button>
+            <button class="btn wide" id="t-full">Test with sound</button>
+          </div>
+          <div id="tres" style="margin-top:12px"></div>
+        </section>
+        <section class="card">
+          <div class="ch"><h2>The script</h2><p>Read it before you push.</p></div>
+          <details id="ymldet"><summary>Show YAML</summary><pre id="out"></pre></details>
+          <details id="autodet"><summary>Show schedule YAML</summary><pre id="autoout"></pre></details>
+          <div class="row" style="margin-top:10px">
+            <button class="btn sm" id="run" title="Run the version that is saved in Home Assistant">Run saved script</button>
+            <button class="btn sm" id="copy">Copy YAML</button>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <div id="dock" class="dock" hidden><div class="in">
+    <button class="btn primary" id="setsave">Save settings</button>
+    <button class="btn" id="setfill">Auto-fill empty</button>
+    <span class="msg grow" id="smsg" style="margin:0"></span>
+  </div></div>
+</main>
+<script src="ui.js"></script>
+<script src="sources.js"></script>
+<script src="announcements.js"></script>
+</body>
+</html>

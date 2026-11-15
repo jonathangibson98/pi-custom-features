@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Backup</title>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<main class="page narrow">
+  <div class="head">
+    <div>
+      <h1>Backup</h1>
+      <p class="sub">Saves this add-on's own data: the template sensors it manages, your announcements, facts and dashboard cards with their settings, and the "Made so far" history. Home Assistant automations, scripts and helpers are not included.</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <div class="ch"><h2>Save a backup</h2></div>
+      <div id="where" class="dim">Loading...</div>
+      <p class="help">Change the location with the <code>backup_path</code> option in the add-on's Configuration tab.</p>
+      <div class="row" style="margin-top:14px"><button class="btn primary" id="save">Save backup now</button></div>
+      <div id="msg" class="msg" role="status" aria-live="polite"></div>
+    </div>
+
+    <div class="card">
+      <div class="ch"><h2>Restore a backup</h2><p>Replaces your current data. A safety copy is saved first so you can undo it.</p></div>
+      <div id="list" class="list"></div>
+    </div>
+  </div>
+</main>
+<script src="ui.js"></script>
+<script>
+function say(text, cls) { const m = $("#msg"); m.className = "msg " + (cls || ""); m.textContent = text; }
+const counts = o => [o.templates + " template sensor" + (o.templates === 1 ? "" : "s"),
+  (o.announcements_count ?? (o.announcements ? 1 : 0)) + " announcement" + ((o.announcements_count ?? 0) === 1 ? "" : "s"),
+  (o.facts_count ?? 0) + " fact" + ((o.facts_count ?? 0) === 1 ? "" : "s"),
+  (o.cards_count ?? 0) + " card" + ((o.cards_count ?? 0) === 1 ? "" : "s"),
+  o.history + " history item" + (o.history === 1 ? "" : "s")].join(", ");
+
+async function load() {
+  const d = await api("backup");
+  if (d.error) { $("#where").textContent = d.error; return; }
+  $("#where").replaceChildren(d.mode === "file" ? "File: " : "Folder: ", el("code", {}, d.path),
+    el("div", {style: "margin-top:6px"}, "Right now: " + counts({templates: d.current.templates, announcements_count: d.current.announcements, facts_count: d.current.facts, cards_count: d.current.cards, history: d.current.history}) + "." +
+      (d.mode === "folder" ? " The newest " + d.keep + " backups are kept." : "")));
+  const list = $("#list"); list.replaceChildren();
+  if (!d.files.length) {
+    list.append(el("div", {class: "empty"}, el("h3", {}, "No backups yet"), el("p", {}, "Save one above, or copy a backup file into the backup location.")));
+    return;
+  }
+  for (const f of d.files) {
+    const b = el("button", {class: "btn danger sm"}, "Restore");
+    confirmTap(b, "Tap again to replace", async () => {
+      b.disabled = true; say("Restoring...");
+      const r = await api("backup/import", {file: f.file});
+      if (r.ok) say("Restored " + r.file + ": " + counts({templates: r.templates, announcements_count: r.announcements_count, facts_count: r.facts_count, cards_count: r.cards_count, history: r.history}) + ". Safety copy of what you had: " + r.safety + (r.note ? " " + r.note : ""), "ok");
+      else say(r.error || "Restore failed.", "bad");
+      load();
+    });
+    list.append(el("div", {class: "li"},
+      el("div", {class: "t"}, el("b", {}, f.file), el("div", {class: "dim small"}, f.modified + "  ·  " + counts({templates: f.templates, announcements_count: f.announcements_count, facts_count: f.facts_count, cards_count: f.cards_count, history: f.history}))), b));
+  }
+}
+$("#save").onclick = async () => {
+  $("#save").disabled = true; say("Saving...");
+  const r = await api("backup/save", {});
+  say(r.ok ? "Saved to " + r.path : (r.error || "Backup failed."), r.ok ? "ok" : "bad");
+  $("#save").disabled = false; load();
+};
+load();
+</script>
+</body>
+</html>
