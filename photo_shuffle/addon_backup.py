@@ -16,6 +16,7 @@ import io
 import json
 import os
 import shutil
+import sys
 import threading
 import time
 import urllib.request
@@ -32,6 +33,35 @@ ALWAYS_SKIP = ("__pycache__", "*.pyc", ".restore_pending.zip", "*.tmp")
 
 def _log(msg):
     print("[backup] " + msg, flush=True)
+
+
+def listen_stdin(on_backup):
+    """Home Assistant's hassio.addon_stdin action writes to the add-on's stdin (with stdin: true in config.yaml).
+    Sending "backup" there makes a backup now, so one script can back up every add-on at once."""
+    def run():
+        try:
+            fd = sys.stdin.fileno()
+            if os.isatty(fd):
+                return
+        except (OSError, ValueError, AttributeError):
+            return
+        tail = b""
+        while True:
+            try:
+                chunk = os.read(fd, 4096)
+            except OSError:
+                return
+            if not chunk:
+                return  # nothing attached (stdin off, or not running as an add-on)
+            tail = (tail + chunk)[-64:]
+            if b"backup" in tail.lower():
+                tail = b""
+                _log("Backup asked for by Home Assistant (hassio.addon_stdin)")
+                try:
+                    on_backup()
+                except Exception as e:  # noqa: BLE001
+                    _log("That backup failed: %s" % e)
+    threading.Thread(target=run, daemon=True).start()
 
 
 class Backup:
@@ -297,8 +327,16 @@ class Backup:
     # ---------------------------------------------------------------- schedule
     def start(self):
         threading.Thread(target=self._loop, daemon=True).start()
+        listen_stdin(self._backup_from_ha)
         folder, _, problem = self.target()
         _log("Backups: %s, every %s, keep %d" % (problem or folder, self.opts.get("backup_every") or "daily", self.keep()))
+
+    def _backup_from_ha(self):
+        try:
+            self.backup_now()
+        except Exception as e:  # noqa: BLE001
+            self.last_error = "The backup Home Assistant asked for failed: %s" % e
+            raise
 
     def _loop(self):
         time.sleep(300)  # let the add-on settle after a start

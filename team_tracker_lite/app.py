@@ -23,7 +23,7 @@ from zoneinfo import ZoneInfo
 
 import addon_backup
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 BACKUP = None  # set in main(), before the settings are read
 # Settings live in the add-on's config folder (/addon_configs/<id>_team_tracker_lite/data on the host).
 DATA = os.environ.get("TTL_DATA", "/config/data")

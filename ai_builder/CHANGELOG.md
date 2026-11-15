@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.16.1 - 2026-11-15
+
+- **Back up from Home Assistant.** The add-on now listens on stdin, so the `hassio.addon_stdin` action with `input: backup` makes a backup right away. One script can back up every add-on at once (see the repository README, "Back up all add-ons with one action")
+
 ## 2.16.0 - 2026-11-15
 
 - **Importing converts into the form.** **Import my script or automation** on Announcements and Facts now turns a hand-made script or automation into a normal announcement or fact you edit with the form, instead of raw YAML. Data the prompt reads becomes data sources (added to Settings, reusing ones you already have), speakers, Alexa and phones become outputs, volume, pause, card switch and MQTT file are filled in, and triggers and "is home" conditions become the schedule. Your AI Task splits the prompt into the instructions and the voice (per personality too), and for facts fills in the format and rules. Random lists become Random picks and the last-fact sensor becomes Avoid the last fact

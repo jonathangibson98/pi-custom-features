@@ -1,6 +1,7 @@
 import datetime as dt
 import json
 import os
+import sys
 import re
 import threading
 import time
@@ -1173,7 +1174,36 @@ def api_backup_restore():
         return jsonify({"error": str(e)}), 400
 
 
+def listen_stdin(on_backup, log_info, log_error):
+    """Home Assistant's hassio.addon_stdin action writes to this add-on's stdin (stdin: true in config.yaml).
+    Sending "backup" makes a backup now, so one script can back up every add-on at once."""
+    def run():
+        try:
+            fd = sys.stdin.fileno()
+            if os.isatty(fd):
+                return
+        except (OSError, ValueError, AttributeError):
+            return
+        tail = b""
+        while True:
+            try:
+                chunk = os.read(fd, 4096)
+            except OSError:
+                return
+            if not chunk:
+                return  # nothing attached
+            tail = (tail + chunk)[-64:]
+            if b"backup" in tail.lower():
+                tail = b""
+                try:
+                    log_info("Backup asked for by Home Assistant (hassio.addon_stdin): %s" % on_backup())
+                except Exception as e:  # noqa: BLE001
+                    log_error("That backup failed: %s" % e)
+    threading.Thread(target=run, daemon=True).start()
+
+
 if __name__ == "__main__":
     os.makedirs(DATA, exist_ok=True)
+    listen_stdin(make_backup, lambda m: print(m, flush=True), lambda m: print(m, flush=True))
     threading.Thread(target=worker, daemon=True).start()
     app.run(host="0.0.0.0", port=8099, threaded=True)

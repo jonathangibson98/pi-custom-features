@@ -809,7 +809,7 @@ async def main():
         log.info("HTTPS page listening on port 8443")
     else:
         log.info("Direct HTTPS page is off. Set a password in Configuration to turn it on.")
-    log.info("Voice Chat 2.3.0 ready (%s mode)", "add-on" if ADDON else "standalone")
+    log.info("Voice Chat 2.3.1 ready (%s mode)", "add-on" if ADDON else "standalone")
     try:
         for problem in (await compute_status())["problems"]:
             log.warning("Config problem: %s", problem)

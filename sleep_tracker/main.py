@@ -25,7 +25,7 @@ try:
 except Exception:  # paho missing: MQTT is skipped, the web UI still works
     paho = None
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 API = os.environ.get("ST_HA_API", "http://supervisor/core/api")
 HEADERS = {"Authorization": f"Bearer {TOKEN}"}
