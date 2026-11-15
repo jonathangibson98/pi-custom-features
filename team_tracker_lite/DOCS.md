@@ -27,8 +27,33 @@ Saved in `/addon_configs/<id>_team_tracker_lite/data/settings.json`.
 ## Options
 - `publish_team_selector`: also creates a `select` entity so automations and dashboards can switch teams (it includes the live game).
 - `log_level`: `debug`, `info`, `warning` or `error`. Use `debug` when troubleshooting.
+- `backup_enabled`, `backup_path`, `backup_keep`, `backup_interval_hours`, `restore_backup`: see [Backup and restore](#backup-and-restore).
 
 Refresh speeds and the calendar time are set in the panel, not here.
+
+## Backup and restore
+
+The add-on saves your teams and settings to a zip file so you can recover them after a reinstall or a failed SD card.
+
+| Option | Default | What it does |
+|---|---|---|
+| `backup_enabled` | `true` | Turns automatic backups on or off. |
+| `backup_path` | `/share/team_tracker_lite_backups` | Folder for the zip files. Use a folder inside `/share`. |
+| `backup_keep` | `20` | How many backups to keep. The oldest are deleted. |
+| `backup_interval_hours` | `24` | Hours between backups. `0` backs up only when the add-on starts. |
+| `restore_backup` | empty | File name of a backup to restore (see below). |
+
+A backup is made about a minute after the add-on starts and then every `backup_interval_hours`. If nothing changed since the last backup, no new file is made.
+
+A backup holds everything in the add-on's data folder (your saved teams, tracked team, refresh speeds and calendar time). Each zip also has `options_reference.json`, a copy of your settings with the MQTT password replaced by `***`. It is for reading only and is never restored.
+
+**To restore:**
+
+1. Open your backup folder (Samba or the File editor) and copy the name of the zip, for example `team_tracker_lite-20261115-021500.zip`. The add-on log also lists the newest backups each time it starts.
+2. Paste that name into `restore_backup` on the Configuration tab and save.
+3. Restart the add-on.
+
+The add-on first saves a safety copy of the current settings (named `team_tracker_lite-prerestore-...zip`), puts the backed up files back before it starts, and clears `restore_backup` itself. If the option does not clear, empty it by hand so the restore is not repeated.
 
 ## Not supported
 Golf, tennis, racing, UFC and custom API paths. Team sports only.
