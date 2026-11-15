@@ -1,0 +1,63 @@
+name: "SVG Maker"
+version: "1.0.1"
+slug: svg_maker
+description: "Turn photos into clean, scalable SVG icons and vector files, right from the Home Assistant sidebar."
+image: "ghcr.io/jonathangibson98/{arch}-addon-svg_maker"
+url: "https://github.com/jonathangibson98/my-home-assistant-apps"
+arch:
+  - aarch64
+  - amd64
+init: false
+ingress: true
+panel_icon: mdi:vector-curve
+panel_title: SVG Maker
+map:
+  - type: homeassistant_config
+    read_only: false
+    path: /homeassistant
+  - type: share
+    read_only: false
+  - type: media
+    read_only: false
+options:
+  log_level: info
+  svg_output_path: /homeassistant/custom_icons
+  svg_temp_path: /homeassistant/www/svg_maker/temp_icons
+  svg_auto_delete_temp: false
+  svg_auto_delete_after_days: 7
+  svg_filename_style: original_timestamp
+  svg_on_name_conflict: rename
+  svg_default_mode: color
+  svg_default_detail: 5
+  svg_path_style: spline
+  svg_max_image_dimension: 1600
+  svg_max_upload_mb: 25
+  svg_icon_names: true
+  svg_bw_follow_theme: true
+  svg_crop_editor: true
+  svg_auto_crop: true
+  svg_crop_shape: circle
+  svg_crop_padding: 15
+  svg_output_size: 512
+  svg_auto_enhance: true
+schema:
+  log_level: list(debug|info|warning|error)
+  svg_output_path: str
+  svg_temp_path: str
+  svg_auto_delete_temp: bool
+  svg_auto_delete_after_days: int(1,365)
+  svg_filename_style: list(original|timestamp|original_timestamp)
+  svg_on_name_conflict: list(rename|overwrite)
+  svg_default_mode: list(color|bw)
+  svg_default_detail: int(1,10)
+  svg_path_style: list(spline|polygon|none)
+  svg_max_image_dimension: int(400,4000)
+  svg_max_upload_mb: int(1,100)
+  svg_icon_names: bool
+  svg_bw_follow_theme: bool
+  svg_crop_editor: bool
+  svg_auto_crop: bool
+  svg_crop_shape: list(circle|rounded|square|none)
+  svg_crop_padding: int(0,60)
+  svg_output_size: int(128,2048)
+  svg_auto_enhance: bool
