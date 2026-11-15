@@ -2,6 +2,12 @@
 
 All notable changes to this add-on are documented here.
 
+## 1.5.0
+
+- **Backups.** New options `backup_enabled`, `backup_path` (default `/share/work_hours_backups`), `backup_keep` (default 20) and `backup_interval_hours` (default 24). The add-on saves your hours files (the CSV for each person) and your settings (people, zones and pay periods) to a zip a minute after it starts and then on that schedule. No new file is made when nothing changed.
+- **Restore.** Put a backup's file name in the new `restore_backup` option and restart. A safety copy of the current files is saved first, and the option clears itself afterwards. Files that are not in the backup are left alone.
+- Each zip also holds `options_reference.json`, a copy of your add-on options with the MQTT password hidden.
+
 ## 1.4.0
 
 - Pay period is now set per person instead of one setting for everybody, so people on different pay schedules each get their own totals, resets and history
