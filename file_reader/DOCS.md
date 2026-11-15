@@ -14,6 +14,7 @@ Files you edit outside the add-on (Samba, File editor) are picked up automatical
 | REST API token | Password for the REST API on port 8100. Empty means the REST API is off. |
 | MQTT host / port | Your broker. The defaults work with the Mosquitto add-on. |
 | MQTT username / password | Leave empty to use the login Home Assistant provides for the Mosquitto add-on automatically. Only fill in for an external broker. |
+| Backups on, Backup folder, Backups to keep, Hours between backups, Restore this backup | See [Backup and restore](#backup-and-restore). |
 
 ### Folder cheat sheet
 
@@ -28,6 +29,32 @@ Files you edit outside the add-on (Samba, File editor) are picked up automatical
 Use a **dedicated folder**. Every text file inside it (and below it) becomes a sensor. Binary files, hidden files, `secrets.yaml` and key/certificate/database files are ignored. The limit is 500 files.
 
 After changing the folder, restart the add-on. Existing files from `/data/files` are copied over once.
+
+## Backup and restore
+
+The add-on saves your files to a zip file so you can recover them after a reinstall, a bad edit or a failed SD card.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `backup_enabled` | `true` | Turns automatic backups on or off. |
+| `backup_path` | `/share/file_reader_backups` | Folder for the zip files. Use a folder this add-on can write to, such as one inside `/share`. |
+| `backup_keep` | `20` | How many backups to keep. The oldest are deleted. |
+| `backup_interval_hours` | `24` | Hours between backups. `0` backs up only when the add-on starts. |
+| `restore_backup` | empty | File name of a backup to restore (see below). |
+
+A backup is made about a minute after the add-on starts and then every `backup_interval_hours`. If nothing changed since the last backup, no new file is made.
+
+A backup holds everything in your Files folder (files larger than 25 MB are skipped) and the add-on's private data. Each zip also has `options_reference.json`, a copy of your settings with the API token, MQTT password and similar secrets replaced by `***`. It is for reading only and is never restored.
+
+**To restore:**
+
+1. Open your backup folder (Samba or the File editor) and copy the name of the zip, for example `file_reader-20261115-021500.zip`. The add-on log also lists the newest backups each time it starts.
+2. Paste that name into `restore_backup` on the Configuration tab and save.
+3. Restart the add-on.
+
+The add-on first saves a safety copy of the current files (named `file_reader-prerestore-...zip`), puts the backed up files back before it starts, and clears `restore_backup` itself. Files that are not in the backup are left alone. If the option does not clear, empty it by hand so the restore is not repeated.
+
+If you moved the Files folder since the backup was made, set the Files folder back to the old path before restoring.
 
 ## Sending updates from automations and scripts
 

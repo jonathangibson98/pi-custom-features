@@ -27,5 +27,20 @@ configuration:
   mqtt_password:
     name: MQTT password
     description: Leave empty if your broker has no login.
+  backup_enabled:
+    name: Backups on
+    description: Save your files to a zip file automatically (a minute after start and then on the schedule below).
+  backup_path:
+    name: Backup folder
+    description: Where the backup zip files are saved. Default /share/file_reader_backups. Use a folder this add-on can write to, such as one inside /share.
+  backup_keep:
+    name: Backups to keep
+    description: How many zip files to keep. Older ones are deleted. Default 20.
+  backup_interval_hours:
+    name: Hours between backups
+    description: How often to back up. 0 means only when the add-on starts. No file is made if nothing changed.
+  restore_backup:
+    name: Restore this backup
+    description: File name of a zip in the backup folder, for example file_reader-20261115-021500.zip. Save, then restart the add-on. The option clears itself after the restore.
 network:
   8100/tcp: REST API port (needs api_token)
