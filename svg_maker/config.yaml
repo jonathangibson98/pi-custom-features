@@ -1,5 +1,5 @@
 name: "SVG Maker"
-version: "1.2.0"
+version: "1.2.1"
 slug: svg_maker
 description: "Turn photos into clean, scalable SVG icons, or describe a logo and let your AI draw it, right from the Home Assistant sidebar."
 image: "ghcr.io/jonathangibson98/{arch}-addon-svg_maker"

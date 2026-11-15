@@ -89,7 +89,7 @@ Install the **Custom Icons** integration (HACS), enable the **Local** collection
 - "Home Assistant refused the add-on": restart the add-on once. If it persists, create a long-lived token in your Home Assistant profile and paste it into `ha_token`.
 - "The AI took longer than ...": raise `svg_ai_timeout`, or draw 1 idea at a time.
 - "The AI answered, but not with a usable SVG": the add-on already retried once. Reword the request, or try again.
-- "The AI task call with your photo failed": your AI Task can't read images, or Home Assistant can't open the photo. Check that the AI integration supports attachments, and that **Media > My media > svg_maker > ai_photos** shows the photo. If your Home Assistant uses custom `media_dirs` without `local: /media`, attachments can't be found.
+- "The AI task call with your photo failed": your AI Task can't read images, or Home Assistant can't open the photo. Check that the AI integration supports attachments, and that **Media > My media > svg_maker > ai_photos** shows the photo. Custom `media_dirs` are fine as long as one of them points at `/media`; the add-on finds it by itself.
 
 ## If a conversion fails
 - "The tracer failed: killed by signal ..." means the tracing program crashed or ran out of memory. The add-on retries automatically at 60% and then 35% of the image size before giving up. If it still fails, lower `svg_max_image_dimension` or `svg_output_size`, or use fewer detail steps.

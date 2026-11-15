@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1 - 2026-11-15
+
+- Fixed **"Unknown source directory"** when drawing from a photo. The add-on assumed Home Assistant's media folder is called `local`, but a `media_dirs` setting in `configuration.yaml` replaces it with your own names. It now asks Home Assistant which media folder holds its photos. If none of your media folders point at `/media`, the message says what to add
+
 ## 1.2.0 - 2026-11-15
 
 - **AI logo can work from a photo.** Add a photo under **Base it on a photo** and your AI Task looks at it while drawing. Choose **Turn it into a logo**, **Stay close to the photo** or **Just inspiration**. The description becomes optional
