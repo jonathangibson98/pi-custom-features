@@ -1,5 +1,5 @@
 {
- "ai_task_entity": "ai_task.gemini_pro_ai_task",
+ "ai_task_entity": "ai_task.google_ai_task",
  "tts_entity": "tts.home_assistant_cloud",
  "speaker": "media_player.entry_airplay",
  "alexa_targets": [
@@ -9,12 +9,12 @@
   "media_player.bathroom_dot"
  ],
  "notify_targets": [
-  "notify.jon",
-  "notify.mj"
+  "notify.alex",
+  "notify.sam"
  ],
  "music_players": [
-  "media_player.jon_spotify",
-  "media_player.mj_spotify"
+  "media_player.alex_spotify",
+  "media_player.sam_spotify"
  ],
  "talking_flag": "input_boolean.report_talking",
  "personality_select": "input_select.ai_personality",

@@ -69,7 +69,7 @@ AppDaemon apps, pyscripts and add-ons are real code that runs on your system. Re
 
 The **Made so far** tab lists the template sensors the add-on manages, everything made in the Announcements, Facts and Cards tabs, and what the Builder created recently, with the names Home Assistant shows now. **Rename** works on all of them (scripts, automations, scenes, helpers and template sensors) and changes the name in Home Assistant and in the add-on at the same time.
 
-The Builder's AI is also told about your announcements and facts, so you can ask for things like *"when MJ gets home, run my Birthdays announcement"* and it uses the right script.
+The Builder's AI is also told about your announcements and facts, so you can ask for things like *"when Sam gets home, run my Birthdays announcement"* and it uses the right script.
 
 When you rename, push or save in one tab, the other tabs refresh their lists by themselves.
 
@@ -83,7 +83,7 @@ Scripts, scenes and automations written directly in YAML can't be loaded this wa
 
 | Option | Default | Description |
 |---|---|---|
-| `ai_task_entity` | `ai_task.gemini_pro_ai_task` | The AI task entity used to write configs |
+| `ai_task_entity` | `ai_task.google_ai_task` | The AI task entity used to write configs |
 | `request_timeout` | `180` | Seconds to wait for the AI before giving up (30 to 600) |
 | `appdaemon_apps_dir` | `/addon_configs/a0d7b954_appdaemon/apps` | Your AppDaemon apps folder. Must be under `/addon_configs` or your HA config folder |
 | `ha_token` | blank | Optional long-lived token. Leave blank unless the default Supervisor access fails (Profile -> Security in Home Assistant) |
@@ -210,7 +210,7 @@ Already have an announcement script or automation? Tap **Import my script or aut
 - **Helper:** (1) describe what you want and the AI writes the instructions and ticks the data it needs; (2) test an entity and add it as an info source.
 - **Settings:** your entities and notify targets, plus info sources. Each source has a template you can edit to fix it, and a reset button to go back to the auto-generated one.
 
-Phone notifications: entities (`notify.jon`) and services (`notify.mobile_app_*`, shown as "service") both work, and you can type an id that isn't listed.
+Phone notifications: entities (`notify.alex`) and services (`notify.mobile_app_*`, shown as "service") both work, and you can type an id that isn't listed.
 
 Setups you saved in your browser with an older version can be moved into My announcements from that tab.
 

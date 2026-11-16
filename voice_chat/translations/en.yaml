@@ -73,7 +73,7 @@ configuration:
     description: Safety cap on how much household info is sent. 0 means no cap.
   speaker_name:
     name: Who is talking
-    description: Your name, for example Jon, so the AI knows who "I", "me" and "my" mean. Leave empty if several people use the page.
+    description: Your name, for example Alex, so the AI knows who "I", "me" and "my" mean. Leave empty if several people use the page.
   backup_path:
     name: Backup folder
     description: >-

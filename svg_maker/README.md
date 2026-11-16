@@ -25,5 +25,5 @@ SVG Maker used to be a tab inside Creator & AI Builder. It is now this separate 
 ## Requirements
 
 - Home Assistant OS or Supervised (needs the add-on system), on a 64-bit Pi (aarch64) or an amd64 machine
-- For the AI logo tab: an `ai_task` entity (default `ai_task.gemini_pro_ai_task`). Photo conversion needs nothing
+- For the AI logo tab: an `ai_task` entity (default `ai_task.google_ai_task`). Photo conversion needs nothing
 - To use saved icons as `local:<name>`, install the Custom Icons integration (HACS)

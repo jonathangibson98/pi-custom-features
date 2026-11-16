@@ -67,7 +67,7 @@ The add-on can see `/homeassistant`, `/share` and `/media`. SVG Maker only write
 
 | Option | Default | What it does |
 |---|---|---|
-| `svg_ai_task_entity` | `ai_task.gemini_pro_ai_task` | The `ai_task` entity that draws logos |
+| `svg_ai_task_entity` | `ai_task.google_ai_task` | The `ai_task` entity that draws logos |
 | `svg_ai_timeout` | `180` | Seconds to wait for one logo before giving up |
 | `svg_ai_default_style` | `flat` | Starting style (`auto`, `flat`, `line`, `gradient`, `badge`, `mascot`, `geometric`, `sketch`) |
 | `svg_ai_default_count` | `1` | Starting number of ideas (1 to 3) |

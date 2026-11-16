@@ -65,7 +65,7 @@ DEFAULTS = {
     "history_limit": (int, 100),
     # 2.1 - household context (who is who, nicknames, places, music...)
     "context_enabled": (bool, True),
-    "context_entity": (str, "sensor.combined_info"),
+    "context_entity": (str, ""),
     "context_attributes": (str, "household_text,friends_text,notable_people,places"),
     "context_skip_agents": (str, "conversation.home_assistant"),
     "context_max_chars": (int, 40000),
@@ -262,8 +262,8 @@ async def wait_playback(mp: str) -> None:
 # ------------------------------------------------------------- household context
 #
 # Reads your combined info sensor (sensor.combined_info) and hands it to the AI
-# agent with the first message of a conversation, so it knows who Jon, MJ, Von,
-# Justin... are when you mention them. The text is NOT stored in chat history and
+# agent with the first message of a conversation, so it knows who Alex, Sam, Chris,
+# Taylor... are when you mention them. The text is NOT stored in chat history and
 # NOT shown on the page.
 
 CONTEXT_CACHE: dict = {"ts": 0.0, "text": "", "facts": ""}
@@ -383,8 +383,7 @@ LIVE_SKIP_ATTRS = {"friendly_name", "icon", "entity_picture", "supported_feature
 LIVE_ENTITY_CHARS = 4000
 LIVE_TOTAL_CHARS = 15000
 LIVE_MAX_ITEMS = 40
-DEFAULT_LIVE = [{"entity_id": "sensor.everybodys_locations", "label": "Where everyone is right now",
-                 "attributes": ""}]
+DEFAULT_LIVE: list[dict] = []  # add entities on the Live info tab
 CONV_LIVE: dict[str, str] = {}  # conversation_id -> hash of the live info the AI last saw
 
 

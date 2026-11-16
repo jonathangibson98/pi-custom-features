@@ -44,7 +44,7 @@ if USER_TOKEN:  # optional long-lived token: talk to Home Assistant directly ins
     WS_URL = re.sub(r"^http", "ws", _base) + "/api/websocket"
 HDR = {"Authorization": f"Bearer {TOKEN}"}
 
-ENTITY = OPTS.get("ai_task_entity") or "ai_task.gemini_pro_ai_task"
+ENTITY = OPTS.get("ai_task_entity") or "ai_task.google_ai_task"
 TIMEOUT = int(OPTS.get("request_timeout") or 180)
 
 

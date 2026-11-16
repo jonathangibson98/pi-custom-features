@@ -77,7 +77,7 @@ Template sensors need a one-time `configuration.yaml` change. See [DOCS.md](DOCS
 
 - Home Assistant OS or Supervised (needs the add-on system)
 - Home Assistant 2025.8 or newer (for `ai_task`)
-- A working `ai_task` entity. The default is `ai_task.gemini_pro_ai_task`
+- A working `ai_task` entity. The default is `ai_task.google_ai_task`
 - For announcements: a text-to-speech engine and a speaker. Alexa speakers need the `alexa_media` custom integration
 
 ## Support

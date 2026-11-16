@@ -91,7 +91,7 @@ Removing a person from the sidebar page removes their sensors.
 
 Each person gets a CSV named after them. The name comes from the person
 entity's name the first time they are saved, with spaces turned into
-underscores, for example `Jonathan Gibson` becomes `Jonathan_Gibson.csv`:
+underscores, for example `Alex Smith` becomes `Alex_Smith.csv`:
 
 ```
 date,zone,start,end,hours

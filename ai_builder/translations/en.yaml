@@ -4,7 +4,7 @@ configuration:
     description: How chatty the add-on log is. Use debug when troubleshooting, warning or error to keep it quiet.
   ai_task_entity:
     name: AI task entity
-    description: The Home Assistant ai_task entity used to write configs and announcements, for example ai_task.gemini_pro_ai_task.
+    description: The Home Assistant ai_task entity used to write configs and announcements, for example ai_task.google_ai_task.
   request_timeout:
     name: AI request timeout (seconds)
     description: How long to wait for the AI before giving up (30 to 600).

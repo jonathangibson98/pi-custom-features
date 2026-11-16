@@ -33,7 +33,7 @@ map:
     read_only: false
 options:
   log_level: info
-  ai_task_entity: ai_task.gemini_pro_ai_task
+  ai_task_entity: ai_task.google_ai_task
   request_timeout: 180
   template_file: ai_builder/package.yaml
   appdaemon_apps_dir: /addon_configs/a0d7b954_appdaemon/apps

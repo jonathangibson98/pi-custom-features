@@ -26,11 +26,11 @@ mic (phone/browser) → speech-to-text → conversation agent → text-to-speech
 | `browser_playback` | Offer "This device" as a speaker. |
 | `save_history` / `history_limit` | Keep past chats (and how many). |
 | `context_enabled` | On: the AI gets your household info (below). |
-| `context_entity` | Sensor that holds it, default `sensor.combined_info`. |
+| `context_entity` | Sensor that holds it (blank by default), for example `sensor.combined_info`. |
 | `context_attributes` | Which attributes to send, default `household_text,friends_text,notable_people,places`. |
 | `context_skip_agents` | Agents that must not get it, default `conversation.home_assistant` (the built-in one matches fixed sentences only). |
 | `context_max_chars` | Safety cap, default 40000. |
-| `speaker_name` | Who is talking, e.g. `Jon`, so "I" and "my" make sense to the AI. |
+| `speaker_name` | Who is talking, e.g. `Alex`, so "I" and "my" make sense to the AI. |
 | `password` | Turns on the direct HTTPS page (below). |
 | `certfile` / `keyfile` | Certificate names in `/ssl`. A self-signed one is generated if missing. |
 
@@ -50,7 +50,7 @@ With `context_enabled` on, the first message of each conversation carries the te
 
 ### Live info (locations and anything else that changes)
 
-Tap **Live info** on the page, search for an entity (for example `sensor.everybodys_locations`), tap it to add it, rename it if you like, and press **Save**. Each entry can also list the attributes to send (for example `jon,mj,von`); leave it blank to send the state and every attribute. Add the word `state` to the list to include the state too. Up to 40 entities.
+Tap **Live info** on the page, search for an entity (for example `sensor.everybodys_locations`), tap it to add it, rename it if you like, and press **Save**. Each entry can also list the attributes to send (for example `alex,sam,chris`); leave it blank to send the state and every attribute. Add the word `state` to the list to include the state too. Up to 40 entities.
 
 Their current values are read from Home Assistant at the moment you send a message. The AI gets them with the first message of a conversation and again whenever they have changed since it last saw them. Press **Preview what the AI sees** to check the text. The list lives in `/data/live_entities.json`.
 

@@ -40,7 +40,7 @@
 
 ## 1.1.0
 
-- Added **people**. Tag each show or movie with who cares about it (you, MJ, anybody you add in Settings).
+- Added **people**. Tag each show or movie with who cares about it (you, Sam, anybody you add in Settings).
 - Every person gets their own sensors: `sensor.release_tracker_<name>_upcoming` and `binary_sensor.release_tracker_<name>_releasing_today`.
 - The main "Releasing Today" sensor now has a `by_person` attribute.
 - Tap a name on any tracked card to change who it belongs to.

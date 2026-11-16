@@ -41,7 +41,7 @@ options:
   save_history: true
   history_limit: 100
   context_enabled: true
-  context_entity: sensor.combined_info
+  context_entity: ""
   context_attributes: "household_text,friends_text,notable_people,places"
   context_skip_agents: conversation.home_assistant
   context_max_chars: 40000

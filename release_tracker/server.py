@@ -34,7 +34,7 @@ DEFAULTS = {
     "region": "US",
     "refresh_hours": 6,
     "window_days": 60,
-    "people": ["Jon", "MJ"],
+    "people": [],
     "mqtt_host": "",
     "mqtt_port": 1883,
     "mqtt_user": "",
@@ -619,7 +619,7 @@ T = {"releases": "release_tracker/releases"}
 DEVICE = {
     "identifiers": ["release_tracker"],
     "name": "Release Tracker",
-    "manufacturer": "Jon",
+    "manufacturer": "jonathangibson98",
     "model": "Release Tracker add-on",
 }
 

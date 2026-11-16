@@ -61,7 +61,7 @@ configuration:
     description: Boosts contrast, smooths texture noise and simplifies colors so photos trace into clean shapes with smaller files. Changeable on the page.
   svg_ai_task_entity:
     name: AI logo - AI Task entity
-    description: The Home Assistant ai_task entity that draws logos in the AI logo tab. Default ai_task.gemini_pro_ai_task.
+    description: The Home Assistant ai_task entity that draws logos in the AI logo tab. Default ai_task.google_ai_task.
   svg_ai_timeout:
     name: AI logo - timeout (seconds)
     description: How long to wait for the AI to draw one logo before giving up. Raise it if your AI is slow.

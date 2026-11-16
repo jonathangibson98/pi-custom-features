@@ -68,7 +68,7 @@ Tap **×** next to a night under **Recent** (twice) to delete a wrong one.
 ## Entities
 
 Made over MQTT on a **Sleep Tracker** device (needs the Mosquitto broker add-on, or set your own broker in Configuration).
-`<name>` is the person's id, for example `jon`.
+`<name>` is the person's id, for example `alex`.
 
 | Entity | What |
 |---|---|
@@ -96,12 +96,12 @@ actions:
   - action: script.turn_off_lights_and_lock_door
 ```
 
-Good-morning announcement when Jon gets up:
+Good-morning announcement when Alex gets up:
 
 ```yaml
 triggers:
   - trigger: state
-    entity_id: binary_sensor.jon_asleep
+    entity_id: binary_sensor.alex_asleep
     from: "on"
     to: "off"
 conditions:
@@ -112,9 +112,9 @@ actions:
   - action: notify.mobile_app_jons_iphone
     data:
       message: >
-        Morning. You slept {{ states('sensor.jon_last_sleep') }} hours
-        ({{ state_attr('sensor.jon_last_sleep', 'went_to_sleep_time') }} to
-        {{ state_attr('sensor.jon_last_sleep', 'woke_up_time') }}).
+        Morning. You slept {{ states('sensor.alex_last_sleep') }} hours
+        ({{ state_attr('sensor.alex_last_sleep', 'went_to_sleep_time') }} to
+        {{ state_attr('sensor.alex_last_sleep', 'woke_up_time') }}).
 ```
 
 ## Configuration tab

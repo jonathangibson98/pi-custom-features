@@ -2,7 +2,7 @@
 
 ## Using it
 1. Type an address or place in the search box and press Enter. You can also paste
-   coordinates like `34.5230, -82.4940`.
+   coordinates like `40.7128, -74.0060`.
 2. Tap a result. The map jumps there and drops a pin.
 3. Drag the pin or tap the map to adjust. Change the radius if needed.
 4. Set the name and icon (or let the AI do it), then tap **Create zone**.
@@ -13,7 +13,7 @@ New zones appear immediately under Settings > Areas, labels & zones > Zones.
 
 | Option | Default | What it does |
 |---|---|---|
-| `ai_task_entity` | blank | An `ai_task` entity used to suggest a name and icon. Blank turns the AI button off. Example: `ai_task.gemini_pro_ai_task` |
+| `ai_task_entity` | blank | An `ai_task` entity used to suggest a name and icon. Blank turns the AI button off. Example: `ai_task.google_ai_task` |
 | `default_radius` | `100` | Starting radius in meters (10 to 5000) |
 
 Restart the add-on after changing options.

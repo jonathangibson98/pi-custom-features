@@ -26,7 +26,7 @@ import svg_tool
 log = logging.getLogger("svg_maker.ai")
 
 DEFAULTS = {
-    "svg_ai_task_entity": "ai_task.gemini_pro_ai_task",
+    "svg_ai_task_entity": "ai_task.google_ai_task",
     "svg_ai_timeout": 180,
     "svg_ai_default_style": "flat",
     "svg_ai_default_count": 1,
