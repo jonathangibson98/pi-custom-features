@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.17.1
+
+- Removed personal names, places and home-specific entity IDs from the defaults, examples and docs, so new installs start clean.
+
 ## 2.17.0 - 2026-11-15
 
 - **Convert what's already here.** Facts and announcements you imported before converting existed (the "kept exactly as you wrote it" step editor) now have a **Convert to the normal form** button at the top of the editor. It runs the same converter as a new import: data sources, format and rules, fields, random picks, the file, speakers and the schedule are filled in, and your AI Task splits the prompt. The id stays the same, so pushing updates the same automation or script in Home Assistant (a copy of an automation it replaces is saved first). **Use my original instead** goes back until you push
