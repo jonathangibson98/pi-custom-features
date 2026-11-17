@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0 - 2026-11-17
+
+- **Score lights** (replaces the `sports_score_lights` AppDaemon app): two groups of color lights show the teams' colors and swap every 30 seconds (adjustable). When someone scores they flash that team's colors: field goals and touchdowns in football (not the extra point on its own), threes in basketball, any score in other sports, or every score if you prefer. Celebrates when your team wins. Optional "only when" helper (for example a mode select set to Sports), only on game day, brightness, **Test flash**. Remembers the score across restarts so nothing is missed.
+- Team colors are now filled in from ESPN's team page when the schedule leaves them out, so `team_colors` and `opponent_colors` aren't empty (Party Lights' team colors theme uses them too).
+
 ## 0.7.1 - 2026-11-17
 
 - With `ai_task_entity` empty, the AI uses your **default AI**, picked at the top of Personalized Info (`select.default_ai_task`), then the first AI Task.

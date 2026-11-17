@@ -75,6 +75,8 @@
   details summary { cursor: pointer; color: var(--text); min-height: 28px; }
   details ol { padding-left: 20px; margin: 8px 0; }
   details b { color: var(--text); }
+.slchips{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0}.slchip{display:inline-flex;align-items:center;gap:4px;background:#1f2535;border:1px solid var(--line);border-radius:99px;padding:2px 4px 2px 10px;color:var(--text);font-size:.85rem}.slchip button{min-height:0;padding:2px 6px}
+.chk span{display:flex;gap:8px;align-items:center;color:var(--text)}.chk input{min-height:0;width:18px;height:18px}
 .aibar{display:flex;gap:8px;margin:10px 0 0;flex-wrap:wrap}.aibar select{width:auto}.aiout{white-space:pre-wrap;margin-top:10px;line-height:1.5;padding:12px;border-radius:12px;background:rgba(127,127,127,.12)}
 </style>
 </head>
@@ -750,6 +752,28 @@ window.__hbAddon = "team_tracker_lite";
   <button class="primary" id="add" disabled>Add team</button>
 </div>
 
+<h2>Score lights</h2>
+<div class="card form" id="sl">
+  <div class="note">Two groups of color lights show the teams' colors and swap every so often. When someone scores they flash that team's colors (field goals and touchdowns in football, threes in basketball, any score elsewhere), and they celebrate when your team wins. Replaces the sports_score_lights AppDaemon app.</div>
+  <label class="chk"><span><input type="checkbox" id="sl-on"> Turn on score lights</span></label>
+  <label>Group 1 (main color)<div id="sl-g1"></div></label>
+  <label>Group 2 (second color)<div id="sl-g2"></div></label>
+  <div class="inline">
+    <label style="flex:1">Swap teams every (s)<input type="number" id="sl-alt" min="5" max="600"></label>
+    <label style="flex:1">Brightness %<input type="number" id="sl-bri" min="5" max="100"></label>
+  </div>
+  <div class="inline">
+    <label style="flex:1">Flashes per score<input type="number" id="sl-fc" min="1" max="10"></label>
+    <label style="flex:1">Flash on<select id="sl-fon"><option value="big">Big plays</option><option value="every">Every score</option></select></label>
+  </div>
+  <label>Only when this entity…<select id="sl-cent"><option value="">Any time</option></select></label>
+  <label>…is in this state<input id="sl-cst" placeholder="e.g. Sports"></label>
+  <label class="chk"><span><input type="checkbox" id="sl-day"> Only on game day</span></label>
+  <label class="chk"><span><input type="checkbox" id="sl-win"> Celebrate a win</span></label>
+  <div class="inline"><button class="primary" id="sl-save">Save</button><button id="sl-test">Test flash</button></div>
+  <div class="note" id="sl-status"></div>
+</div>
+
 <h2>How often to refresh</h2>
 <div class="card form">
   <label>When no game is live
@@ -865,8 +889,36 @@ function drawTeams(s) {
   }
 }
 
+let SLE = [], slInit = false;
+const SLV = {group1: [], group2: []};
+function slPicker(box, key) {
+  const lights = SLE.filter(e => e.id.startsWith("light."));
+  const nm = id => (lights.find(e => e.id === id) || {name: id}).name;
+  const sel = el("select", {onchange: e => { if (e.target.value) { SLV[key].push(e.target.value); slPicker(box, key); } }},
+    el("option", {value: ""}, "+ Add a light…"), ...lights.filter(e => !SLV[key].includes(e.id)).map(e => el("option", {value: e.id}, e.name)));
+  box.replaceChildren(el("div", {class: "slchips"}, ...SLV[key].map((id, i) => el("span", {class: "slchip"}, nm(id),
+    el("button", {class: "ghost", onclick: () => { SLV[key].splice(i, 1); slPicker(box, key); }}, "×")))), sel);
+}
+async function drawScoreLights(s) {
+  const c = Object.assign({}, s.score_lights.defaults, s.settings.score_lights || {});
+  $("sl-status").textContent = "Now: " + s.score_lights.status;
+  if (slInit) return;
+  slInit = true;
+  try { SLE = await api("entities"); } catch (e) { SLE = []; }
+  SLV.group1 = [...c.group1]; SLV.group2 = [...c.group2];
+  slPicker($("sl-g1"), "group1"); slPicker($("sl-g2"), "group2");
+  $("sl-on").checked = c.enabled; $("sl-alt").value = c.alternate_seconds; $("sl-bri").value = c.brightness; $("sl-fc").value = c.flash_count;
+  $("sl-fon").value = c.flash_on; $("sl-cst").value = c.condition_state; $("sl-day").checked = c.only_game_day; $("sl-win").checked = c.celebrate_win;
+  SLE.filter(e => !e.id.startsWith("light.")).forEach(e => $("sl-cent").append(el("option", {value: e.id}, e.name)));
+  $("sl-cent").value = c.condition_entity;
+}
+$("sl-save").onclick = () => act("score_lights", {enabled: $("sl-on").checked, group1: SLV.group1, group2: SLV.group2, alternate_seconds: +$("sl-alt").value,
+  brightness: +$("sl-bri").value, flash_count: +$("sl-fc").value, flash_on: $("sl-fon").value, condition_entity: $("sl-cent").value,
+  condition_state: $("sl-cst").value.trim(), only_game_day: $("sl-day").checked, celebrate_win: $("sl-win").checked}).then(ok => ok && say("Saved.", true));
+$("sl-test").onclick = () => api("score_lights/test", {});
 function draw(s) {
   drawBoard(s.sensor);
+  drawScoreLights(s);
   drawTeams(s);
   drawCalendar(s);
   $("dot").className = "dot" + (s.mqtt ? " ok" : "");
