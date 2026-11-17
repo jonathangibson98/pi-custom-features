@@ -83,13 +83,55 @@ input[type=text],input[type=number],select{width:100%;padding:8px 10px;border-ra
 textarea{width:100%;font:inherit;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--input);color:var(--text);min-height:90px;resize:vertical}
 .hint{font-size:12px;color:var(--muted);margin-top:6px;word-break:break-all}
 [hidden]{display:none!important}
+.tabs{overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{white-space:nowrap;min-width:max-content;padding:9px 12px}
+.sl{display:grid;grid-template-columns:92px 1fr 40px;gap:8px;align-items:center;margin:6px 0;font-size:13px}
+.sl span:last-child{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.sl input{width:100%;accent-color:var(--accent)}
+.wpprev img{transition:filter .15s}
+.ed{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr);gap:14px;align-items:start}
+@media (max-width:760px){.ed{grid-template-columns:1fr}}
+.edstage{position:sticky;top:8px;z-index:2}
+@media (max-width:760px){.edstage{top:0;padding:4px 0;background:var(--bg)}#ecv{max-height:36vh}}
+.canvasbox{position:relative;border-radius:14px;overflow:hidden;background:repeating-conic-gradient(rgba(128,128,128,.18) 0 25%,transparent 0 50%) 0 0/18px 18px;display:flex;align-items:center;justify-content:center;min-height:220px;touch-action:none}
+#ecv{max-width:100%;max-height:62vh;display:block}
+#ecrop{position:absolute;border:2px solid #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.5);cursor:move;touch-action:none}
+#ecrop i{position:absolute;width:22px;height:22px;right:-11px;bottom:-11px;background:#fff;border-radius:50%;cursor:nwse-resize;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+#ecrop:before,#ecrop:after{content:"";position:absolute;inset:33.3% 0;border-top:1px solid rgba(255,255,255,.45);border-bottom:1px solid rgba(255,255,255,.45);pointer-events:none}
+#ecrop:after{inset:0 33.3%;border:0;border-left:1px solid rgba(255,255,255,.45);border-right:1px solid rgba(255,255,255,.45)}
+.edbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.edbar button{padding:6px 10px;font-size:13px}
+.edbar .grow{flex:1;font-size:12px;color:var(--muted);min-width:120px}
+.etabs{display:flex;gap:4px;margin-bottom:10px}
+.etabs button{flex:1;padding:7px 2px;font-size:13px;min-width:0;white-space:nowrap}
+.etabs button.on{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;border:0}
+.edtools .card{padding:12px;gap:4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.chips button{font-size:12px;padding:5px 9px;border-radius:99px}
+.chips button.on{border-color:var(--accent);color:var(--accent);font-weight:600}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:8px}
+.fgrid button{padding:0;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;font-size:11px}
+.fgrid canvas{width:100%;aspect-ratio:1;display:block;object-fit:cover}
+.fgrid span{padding:4px 2px}
+.fgrid button.on{border:2px solid var(--accent)}
+.recent{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+.recent button{padding:0;flex:0 0 72px;height:72px;border-radius:8px;overflow:hidden}
+.recent img{width:100%;height:100%;object-fit:cover;display:block}
+.srcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px}
+.busy{position:absolute;inset:0;background:rgba(0,0,0,.45);color:#fff;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;font-size:14px;text-align:center;padding:20px}
+.spin{width:30px;height:30px;border-radius:50%;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.emsg{font-size:13px;margin-top:8px;min-height:1em}
+.emsg.bad{color:var(--bad)}.emsg.ok{color:var(--good)}
+#svgf{width:100%;border:0;min-height:600px;display:block;background:transparent}
+.lnk{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;font-size:inherit}
 </style>
 </head>
 <body>
-<!-- ha-theme v1.2.0: copied from .shared/ha-theme.js, edit it there -->
+<!-- ha-theme v1.3.0: copied from .shared/ha-theme.js, edit it there -->
 <script>
 window.__hbAddon = "photo_shuffle";
-/* HA Theme Bridge v1.2.0
+/* HA Theme Bridge v1.3.0
  * Makes an add-on web UI follow the active Home Assistant theme (colors, dark/light,
  * dashboard wallpaper, glass blur, card corners and shadows) and updates live when
  * the theme changes. It reads the theme from the Home Assistant page that holds the
@@ -100,6 +142,8 @@ window.__hbAddon = "photo_shuffle";
  * The add-on option:
  *   empty = use the theme's wallpaper, "none" = no wallpaper, or an image:
  *   /local/pic.jpg (= /config/www/pic.jpg), just pic.jpg, /config/www/..., or https://...
+ * Readability: over a wallpaper it measures the picture's bright and dark areas and dims (dark
+ * themes) or lightens (light themes) it just enough for text to reach a 4.5:1 contrast.
  * Opt out on a page: <html data-ha-theme-off>
  * Variables you can use in new pages: --hb-bg --hb-card --hb-text --hb-text2 --hb-line
  * --hb-primary --hb-accent --hb-on --hb-error --hb-warning --hb-success --hb-field,
@@ -511,6 +555,60 @@ window.__hbAddon = "photo_shuffle";
     return c[3] < 1 ? 'rgba(' + rgbStr(c) + ',' + (Math.round(c[3] * 1000) / 1000) + ')' : 'rgb(' + rgbStr(c) + ')';
   }
 
+  /* ---------- wallpaper readability ---------- */
+  var dimCache = {};           /* wallpaper url -> {dark: alpha, light: alpha} */
+  function lin(v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
+  function relLum(c) { return 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]); }
+  function contrast(a, b) { return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); }
+  function wallUrl(w) { var m = /url\(\s*["']?([^"')]+)["']?\s*\)/.exec(w || ''); return m ? m[1] : ''; }
+  /* smallest overlay alpha so text over the worst part of the picture still reads */
+  function needed(stats, th) {
+    /* browsers mix a see-through layer in screen (sRGB) values, so blend those, then measure */
+    var out = 0.12, bg = th.bg;
+    [[th.text, 4.5], [th.text2, 3.2]].forEach(function (t) {
+      var tl = relLum(t[0]), worst = tl > 0.5 ? stats.hi : stats.lo;
+      for (var a = 0.12; a <= 0.85; a += 0.02) {
+        var mix = [0, 1, 2].map(function (i) { return a * bg[i] + (1 - a) * worst[i]; });
+        if (contrast(tl, relLum(mix)) >= t[1]) { out = Math.max(out, a); return; }
+      }
+      out = Math.max(out, 0.85);
+    });
+    return Math.round(out * 100) / 100;
+  }
+  function measure(url, th) {
+    if (dimCache[url] || !window.Image) return;
+    dimCache[url] = { pending: true };
+    var img = new Image();
+    if (/^https?:/.test(url) && url.indexOf(location.origin) !== 0) img.crossOrigin = 'anonymous';
+    img.onload = function () {
+      try {
+        var cv = doc.createElement('canvas'), n = 48;
+        cv.width = cv.height = n;
+        var cx = cv.getContext('2d');
+        cx.drawImage(img, 0, 0, n, n);
+        var px = cx.getImageData(0, 0, n, n).data, ls = [];
+        for (var i = 0; i < px.length; i += 4) {
+          var c = [px[i], px[i + 1], px[i + 2]];
+          ls.push({ l: relLum(c), c: c });
+        }
+        ls.sort(function (a, b) { return a.l - b.l; });
+        /* 5% darkest / brightest areas: what text over the busiest part of the picture sits on */
+        dimCache[url] = { lo: ls[Math.floor(ls.length * 0.05)].c, hi: ls[Math.floor(ls.length * 0.95)].c };
+      } catch (e) { dimCache[url] = { failed: true }; }  /* other site without CORS: use a safe default */
+      lastKey = ''; apply();
+    };
+    img.onerror = function () { dimCache[url] = { failed: true }; };
+    img.src = url;
+  }
+  function dimFor(th) {
+    var url = wallUrl(th.wall);
+    if (!url) return 0;
+    var st = dimCache[url];
+    if (!st) { measure(url, th); return 0.35; }
+    if (st.pending || st.failed) return 0.35;
+    return needed(st, th);
+  }
+
   function apply() {
     var th;
     try { th = readTheme(); } catch (e) { return; }
@@ -549,8 +647,12 @@ window.__hbAddon = "photo_shuffle";
     set('--hb-shadow', th.shadow);
     set('--hb-card-border', th.cardBorder);
     set('--hb-card-border-width', th.cardBorderW);
-    set('--hb-page', th.wall || css(th.bg));
+    var dim = th.wall ? dimFor(th) : 0, veil = 'rgba(' + rgbStr(th.bg) + ',' + dim + ')';
+    set('--hb-dim', String(dim));
+    set('--hb-page', th.wall ? (dim ? 'linear-gradient(' + veil + ',' + veil + ') fixed, ' : '') + th.wall : css(th.bg));
     root.style.setProperty('color-scheme', th.dark ? 'dark' : 'light');
+    /* a frame whose page and frame element disagree on color-scheme gets an opaque backdrop; keep them equal */
+    try { if (window.frameElement) window.frameElement.style.colorScheme = th.dark ? 'dark' : 'light'; } catch (e) { /* cross-origin */ }
     root.classList.toggle('hb-dark', th.dark);
     root.classList.toggle('hb-light', !th.dark);
     root.classList.toggle('hb-wallpaper', !!th.wall);
@@ -566,7 +668,9 @@ window.__hbAddon = "photo_shuffle";
     s.textContent =
       'html.hb-themed{background:' + page + ' !important;min-height:100%}' +
       'html.hb-themed body{background:transparent !important;color:var(--hb-text)}' +
-      (th.wall ? 'html.hb-themed iframe{background:transparent !important}' : '') +
+      (th.wall ? 'html.hb-themed iframe{background:transparent !important}' +
+        'html.hb-themed.hb-wallpaper body{text-shadow:0 1px 3px rgba(' + rgbStr(th.bg) + ',.55)}' +
+        'html.hb-themed.hb-wallpaper input,html.hb-themed.hb-wallpaper textarea,html.hb-themed.hb-wallpaper select{text-shadow:none}' : '') +
       'html.hb-themed ::placeholder{color:var(--hb-text2);opacity:.8}';
     root.classList.add('hb-themed');
   }
@@ -679,7 +783,9 @@ window.__hbAddon = "photo_shuffle";
   <div class="tabs">
     <button data-tab="folders" class="on">Folders</button>
     <button data-tab="unsplash">Unsplash</button>
-    <button data-tab="wallpaper">Add-on wallpaper</button>
+    <button data-tab="wallpaper">Wallpaper</button>
+    <button data-tab="editor">Photo Editor</button>
+    <button data-tab="svg">SVG Maker</button>
   </div>
 
   <section id="pane-folders">
@@ -719,6 +825,16 @@ window.__hbAddon = "photo_shuffle";
         <div class="card"><b>Follow a shuffle or collection</b>
           <div class="meta">The wallpaper changes every time it shows a new photo.</div>
           <div class="row"><select id="wsrc"></select><button id="wfollow" type="button">Use</button></div></div>
+        <div class="card"><b>Look &amp; readability</b>
+          <div class="meta">Kept every time the wallpaper changes. Text on the add-on pages also gets an automatic veil when it needs one.</div>
+          <div class="sl"><span>Lighten / Darken</span><input type="range" id="wa-darken" min="-100" max="100" value="0"><span></span></div>
+          <div class="sl"><span>Blur</span><input type="range" id="wa-blur" min="0" max="40" value="0"><span></span></div>
+          <div class="sl"><span>Saturation</span><input type="range" id="wa-saturation" min="-100" max="100" value="0"><span></span></div>
+          <div class="sl"><span>Contrast</span><input type="range" id="wa-contrast" min="-100" max="100" value="0"><span></span></div>
+          <div class="sl"><span>Warmth</span><input type="range" id="wa-warmth" min="-100" max="100" value="0"><span></span></div>
+          <div class="chips" id="wapre"><button type="button" data-p="0,0,0,0,0">None</button><button type="button" data-p="35,8,-10,0,0">Soft dark</button><button type="button" data-p="60,14,-25,0,0">Very dark</button><button type="button" data-p="-40,10,-20,-10,0">Soft light</button><button type="button" data-p="20,30,10,0,10">Frosted</button><button type="button" data-p="25,0,-100,10,0">Mono</button></div>
+          <div class="row"><button id="wareset" type="button">Reset</button><button class="primary" id="wasave" type="button">Save look</button></div>
+          <button class="lnk" id="waedit" type="button" style="margin-top:6px;text-align:left">More edits in the Photo Editor &rarr;</button></div>
         <div class="card"><b>Off</b>
           <div class="meta">Add-ons use your Home Assistant theme's wallpaper.</div>
           <button class="danger" id="woff" type="button">Turn off</button></div>
@@ -727,6 +843,77 @@ window.__hbAddon = "photo_shuffle";
     <div class="note">This is the wallpaper behind every add-on's page (Photo Hub, Sleep Tracker, AI Builder, Travel Times…). An add-on's own <b>Wallpaper</b> option on its Configuration tab still wins, if you set one.</div>
   </section>
 
+  <section id="pane-editor" hidden>
+    <div id="ebanners"></div>
+    <div id="estart" class="empty" style="padding:24px 12px">
+      <b style="font-size:16px">Open a photo to edit</b>
+      <div class="srcs">
+        <button class="primary" data-src="upload" type="button">Upload from device</button>
+        <button data-src="folders" type="button">Photo folders</button>
+        <button data-src="wallpaper" type="button">Current wallpaper</button>
+      </div>
+      <div class="meta" style="margin-top:10px">Or tap <b>Edit photo</b> on a folder shuffle or <b>Edit</b> under an Unsplash photo.</div>
+      <div id="erecentwrap" style="margin-top:16px;text-align:left" hidden><div class="meta" style="margin-bottom:6px">Recent edits</div><div class="recent" id="erecent"></div></div>
+    </div>
+    <input type="file" id="efile" accept="image/*" hidden>
+    <div class="ed" id="ework" hidden>
+      <div class="edstage">
+        <div class="canvasbox" id="ebox"><canvas id="ecv"></canvas><div id="ecrop" hidden><i></i></div><div class="busy" id="ebusy" hidden><div class="spin"></div><div id="ebusytxt">Working…</div></div></div>
+        <div class="edbar">
+          <button id="eundo" type="button" title="Undo">↶ Undo</button><button id="eredo" type="button" title="Redo">↷ Redo</button>
+          <button id="ecompare" type="button" title="Hold to see the original">Hold: before</button>
+          <span class="grow" id="einfo"></span>
+          <button id="eopen" type="button">Open another</button>
+        </div>
+      </div>
+      <div class="edtools">
+        <div class="etabs" id="etabs">
+          <button data-et="adjust" class="on" type="button">Adjust</button><button data-et="filters" type="button">Filters</button>
+          <button data-et="crop" type="button">Crop</button><button data-et="ai" type="button">✨ AI</button><button data-et="save" type="button">Save</button>
+        </div>
+        <div class="card" data-ep="adjust">
+          <div id="esliders"></div>
+          <div class="row" style="margin-top:6px"><button id="eautoai" type="button">✨ AI auto-adjust</button><button id="eadjreset" type="button">Reset sliders</button></div>
+          <div class="emsg" id="eadjmsg"></div>
+        </div>
+        <div class="card" data-ep="filters" hidden>
+          <div class="fgrid" id="efilters"></div>
+          <div class="meta" style="margin-top:8px">A filter just moves the sliders, so you can fine-tune it on the Adjust tab.</div>
+        </div>
+        <div class="card" data-ep="crop" hidden>
+          <label style="margin-top:0">Shape</label>
+          <div class="chips" id="easpect"><button type="button" data-a="free" class="on">Free</button><button type="button" data-a="orig">Original</button><button type="button" data-a="1">Square</button><button type="button" data-a="1.7778">16:9</button><button type="button" data-a="0.5625">9:16 phone</button><button type="button" data-a="1.3333">4:3</button><button type="button" data-a="1.5">3:2</button></div>
+          <div class="meta">Drag the box to move it, the round handle to resize.</div>
+          <div class="row" style="margin-top:8px"><button id="ecropcancel" type="button">Cancel</button><button class="primary" id="ecropapply" type="button">Apply crop</button></div>
+          <label>Rotate &amp; flip</label>
+          <div class="row"><button data-rot="-90" type="button">⟲ Left</button><button data-rot="90" type="button">⟳ Right</button><button data-flip="h" type="button">⇋ Flip</button><button data-flip="v" type="button">⇵ Flip</button></div>
+          <label>Resize (longest side)</label>
+          <div class="row"><select id="esize"><option value="3840">3840 px (4K)</option><option value="2560">2560 px</option><option value="1920" selected>1920 px</option><option value="1280">1280 px</option><option value="1080">1080 px</option><option value="512">512 px</option></select><button class="fix" id="esizego" type="button">Resize</button></div>
+        </div>
+        <div class="card" data-ep="ai" hidden>
+          <b>Edit with AI</b>
+          <div class="meta">Say what to change. Your Home Assistant AI Task makes a new version, and Undo brings the old one back.</div>
+          <div class="chips" id="eaichips"></div>
+          <textarea id="eaiprompt" placeholder="Make it golden hour with warmer light, keep everything else the same"></textarea>
+          <label>AI</label><select id="eaient"></select>
+          <button class="primary" id="eaigo" type="button" style="margin-top:10px">✨ Make it</button>
+          <div class="emsg" id="eaimsg"></div>
+          <label>Send to SVG Maker</label>
+          <div class="row"><button id="e2svg" type="button">Trace as SVG</button><button id="e2logo" type="button">Use for AI logo</button></div>
+        </div>
+        <div class="card" data-ep="save" hidden>
+          <label style="margin-top:0">Name</label><input type="text" id="ename" maxlength="60">
+          <div class="row"><div><label>Format</label><select id="efmt"><option value="jpg">JPG</option><option value="png">PNG</option></select></div><div><label>Folder</label><select id="efolder"></select></div></div>
+          <div class="row" style="margin-top:10px"><button class="primary" id="esave" type="button">Save</button><button id="edl" type="button">Download</button></div>
+          <div class="row" style="margin-top:8px"><button id="ewall" type="button">Set as add-on wallpaper</button></div>
+          <div class="emsg" id="esavemsg"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section id="pane-svg" hidden>
+    <iframe id="svgf" title="SVG Maker"></iframe>
+  </section>
   <details open>
     <summary>Activity</summary>
     <div id="log"></div>
@@ -772,7 +959,7 @@ window.__hbAddon = "photo_shuffle";
 
 <div class="overlay" id="pickov">
   <div class="modal" style="max-width:640px">
-    <h2>Pick a wallpaper</h2>
+    <h2 id="ptitle">Pick a wallpaper</h2>
     <div class="mono" id="ppath"></div>
     <div class="list" id="pdirs" style="max-height:160px"></div>
     <div class="pgrid" id="pgrid"></div>
@@ -796,7 +983,8 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let S = null, skew = 0, sig = '', usig = '', editId = null, cEditId = null, browsePath = '';
 let tab = 'folders';
-try { tab = ['unsplash', 'wallpaper'].includes(localStorage.getItem('ph_tab')) ? localStorage.getItem('ph_tab') : 'folders'; } catch (e) {}
+const TABS = ['folders', 'unsplash', 'wallpaper', 'editor', 'svg'];
+try { tab = TABS.includes(localStorage.getItem('ph_tab')) ? localStorage.getItem('ph_tab') : 'folders'; } catch (e) {}
 
 async function api(path, method, body) {
   const r = await fetch(path, {method: method || 'GET', headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined});
@@ -874,6 +1062,7 @@ function drawCards() {
         '<button data-act="next">Next</button>' +
         '<button data-act="toggle">' + (s.enabled ? 'Pause' : 'Resume') + '</button>' +
         '<button data-act="edit">Edit</button>' +
+        (s.has_image ? '<button data-act="photo">Edit photo</button>' : '') +
         '<button data-act="del" class="danger">Delete</button>' +
       '</div></div>';
   }).join('') + '</div>';
@@ -898,6 +1087,7 @@ $('#cards').addEventListener('click', async ev => {
     if (b.dataset.act === 'next') { await api('api/shuffles/' + id + '/next', 'POST', {}); refresh(); }
     else if (b.dataset.act === 'toggle') { await api('api/shuffles/' + id, 'PUT', {enabled: !s.enabled}); refresh(); }
     else if (b.dataset.act === 'edit') openForm(s);
+    else if (b.dataset.act === 'photo') editorOpenUrl('api/shuffles/' + id + '/full.jpg?v=' + Date.now(), s.name);
     else if (b.dataset.act === 'del') {
       if (confirm('Delete "' + s.name + '"? Its Home Assistant entities will be removed.')) { await api('api/shuffles/' + id, 'DELETE'); refresh(); }
     }
@@ -965,10 +1155,14 @@ function showTab(t) {
   $('#pane-folders').hidden = t !== 'folders';
   $('#pane-unsplash').hidden = t !== 'unsplash';
   $('#pane-wallpaper').hidden = t !== 'wallpaper';
+  $('#pane-editor').hidden = t !== 'editor';
+  $('#pane-svg').hidden = t !== 'svg';
+  if (t === 'svg' && !$('#svgf').getAttribute('src')) $('#svgf').src = 'svg/';
+  if (t === 'svg') setTimeout(resizeSvg, 50);
+  if (t === 'editor') editorShown();
 }
 document.querySelector('.tabs').addEventListener('click', ev => { const b = ev.target.closest('button[data-tab]'); if (b) showTab(b.dataset.tab); });
-showTab(tab);
-
+setTimeout(() => showTab(tab), 0);
 // ---------------------------------------------------------------- unsplash
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const slugify = n => n.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -999,7 +1193,7 @@ function drawU() {
       const m = im.meta || {};
       const who = m.photographer ? (m.photo_url ? '<a href="' + esc(m.photo_url) + '" target="_blank" rel="noopener">' + esc(m.photographer) + '</a>' : esc(m.photographer)) : '';
       return '<figure><img loading="lazy" alt="" src="api/unsplash/thumb/' + esc(im.key) + '.jpg?v=' + Math.round(m.fetched_at || 0) + '">' +
-        '<figcaption>' + esc(cap(o)) + (who ? ' · ' + who : '') + '</figcaption></figure>';
+        '<figcaption>' + esc(cap(o)) + (who ? ' · ' + who : '') + ' · <a href="#" data-uedit="' + esc(im.key) + '">Edit</a></figcaption></figure>';
     }).join('');
     const bad = imgs.some(([o, im]) => im.error);
     const badge = bad ? '<span class="pill bad">Problem</span>' : '<span class="pill ok">Running</span>';
@@ -1021,6 +1215,8 @@ function drawU() {
 function pollSoon() { [1500, 5000, 10000, 20000].forEach(ms => setTimeout(refresh, ms)); }
 
 $('#ucards').addEventListener('click', async ev => {
+  const ue = ev.target.closest('a[data-uedit]');
+  if (ue) { ev.preventDefault(); editorOpenUrl('api/unsplash/full/' + ue.dataset.uedit + '.jpg?v=' + Date.now(), ue.dataset.uedit); return; }
   const b = ev.target.closest('button[data-act]');
   if (!b) return;
   const id = b.closest('.card').dataset.id;
@@ -1094,6 +1290,8 @@ function drawW() {
   sel.innerHTML = srcs.length ? srcs.map(([k, id, l]) => '<option value="' + k + ':' + esc(id) + '"' + (W.mode === k && W.source === id ? ' selected' : '') + '>' + esc(l) + '</option>').join('')
     : '<option value="">No shuffles or collections yet</option>';
   $('#wfollow').disabled = !srcs.length;
+  if (!waDirty) waSet(W.adjust || {}); else waPreview();
+  $('#waedit').hidden = !W.has_image;
 }
 function wrefresh() { try { window.haThemeBridge && window.haThemeBridge.reloadWallpaper && window.haThemeBridge.reloadWallpaper(); } catch (e) {} }
 function wnote(m) { $('#wstatus').insertAdjacentHTML('beforeend', ' · <b>' + esc(m) + '</b>'); }
@@ -1133,14 +1331,403 @@ async function pickGo(path) {
     $('#pinfo').textContent = f.files.length ? 'Tap a picture to use it' + (f.more ? ' (first 400 shown)' : '') : 'No pictures in this folder';
   } catch (e) { $('#pinfo').textContent = e.message; }
 }
-$('#wpick').onclick = () => { $('#pickov').classList.add('show'); pickGo(pickPath); };
+let pickMode = 'wall';
+function openPicker(mode) { pickMode = mode; $('#ptitle').textContent = mode === 'edit' ? 'Open a photo' : 'Pick a wallpaper'; $('#pickov').classList.add('show'); pickGo(pickPath); }
+$('#wpick').onclick = () => openPicker('wall');
 $('#pcancel').onclick = () => $('#pickov').classList.remove('show');
 $('#pdirs').onclick = ev => { const b = ev.target.closest('button[data-p]'); if (b) pickGo(b.dataset.p); };
 $('#pgrid').onclick = async ev => {
   const b = ev.target.closest('button[data-f]'); if (!b) return;
+  if (pickMode === 'edit') { $('#pickov').classList.remove('show'); editorOpenUrl('api/image.jpg?raw=1&path=' + encodeURIComponent(b.dataset.f), b.dataset.f.split('/').pop()); return; }
   $('#pinfo').textContent = 'Saving…';
   if (await wset({mode: 'file', path: b.dataset.f}, 'Saved')) $('#pickov').classList.remove('show');
   else $('#pinfo').textContent = '';
+};
+// ---------------------------------------------------------------- wallpaper look (darken, lighten, blur...)
+const WA = ['darken', 'blur', 'saturation', 'contrast', 'warmth'];
+let waDirty = false;
+function waGet() { const o = {}; WA.forEach(k => { o[k] = +$('#wa-' + k).value; }); return o; }
+function waLabels() { WA.forEach(k => { const el = $('#wa-' + k); el.nextElementSibling.textContent = el.value; }); }
+function waSet(a) { WA.forEach(k => { $('#wa-' + k).value = a[k] || 0; }); waLabels(); }
+function waFilter(a, px) {
+  const d = a.darken, br = d > 0 ? 1 - d * 0.0085 : 1 - d * 0.004, ct = (1 + a.contrast / 100) * (d < 0 ? 1 + d * 0.004 : 1);
+  return 'blur(' + (a.blur * px / 1600).toFixed(1) + 'px) saturate(' + (1 + a.saturation / 100) + ') contrast(' + ct.toFixed(3) + ') brightness(' + br.toFixed(3) + ')' +
+    (a.warmth > 0 ? ' sepia(' + (a.warmth / 300).toFixed(3) + ')' : a.warmth < 0 ? ' hue-rotate(' + (a.warmth * 0.25).toFixed(1) + 'deg)' : '');
+}
+function waPreview() {
+  waLabels();
+  if (!waDirty || !S || !S.wallpaper.has_image) return;
+  let img = $('#wprev img.orig');
+  if (!img) { $('#wprev').innerHTML = '<img class="orig" alt="" src="api/wallpaper/original.jpg?v=' + Math.round(S.wallpaper.updated) + '">'; img = $('#wprev img.orig'); }
+  img.style.filter = waFilter(waGet(), img.clientWidth || 400);
+}
+WA.forEach(k => { $('#wa-' + k).addEventListener('input', () => { waDirty = true; waPreview(); }); });
+$('#wapre').onclick = ev => {
+  const b = ev.target.closest('button[data-p]'); if (!b) return;
+  const v = b.dataset.p.split(',').map(Number);
+  waSet({darken: v[0], blur: v[1], saturation: v[2], contrast: v[3], warmth: v[4]}); waDirty = true; waPreview();
+};
+$('#wareset').onclick = () => { waSet({}); waDirty = true; waPreview(); };
+$('#wasave').onclick = async () => {
+  $('#wasave').disabled = true;
+  try {
+    S.wallpaper = await api('api/wallpaper/adjust', 'PUT', waGet());
+    waDirty = false; wsig = ''; drawW(); wnote('Look saved'); wrefresh();
+  } catch (e) { alert(e.message); }
+  $('#wasave').disabled = false;
+};
+$('#waedit').onclick = () => editorOpenUrl('api/wallpaper/original.jpg?v=' + Date.now(), 'wallpaper');
+
+// ---------------------------------------------------------------- photo editor
+const SL = [['brightness', 'Brightness', -100, 100], ['contrast', 'Contrast', -100, 100], ['saturation', 'Saturation', -100, 100],
+  ['warmth', 'Warmth', -100, 100], ['tint', 'Tint', -100, 100], ['shadows', 'Shadows', -100, 100], ['highlights', 'Highlights', -100, 100],
+  ['fade', 'Fade', 0, 100], ['sepia', 'Vintage', 0, 100], ['sharpen', 'Sharpen', 0, 100], ['blur', 'Blur', 0, 100],
+  ['vignette', 'Vignette', 0, 100], ['grain', 'Grain', 0, 100]];
+const ZERO = Object.fromEntries(SL.map(s => [s[0], 0]));
+const FILTERS = [['none', 'Original', {}], ['vivid', 'Vivid', {contrast: 15, saturation: 35, sharpen: 15}],
+  ['warm', 'Warm', {warmth: 35, saturation: 10}], ['cool', 'Cool', {warmth: -35, tint: -5}],
+  ['golden', 'Golden', {warmth: 45, shadows: 20, saturation: 15, fade: 10}], ['mono', 'Mono', {saturation: -100, contrast: 10}],
+  ['noir', 'Noir', {saturation: -100, contrast: 45, vignette: 40, brightness: -8}], ['sepia', 'Vintage', {sepia: 80, fade: 15, grain: 15}],
+  ['fade', 'Faded', {fade: 45, saturation: -20, contrast: -10}], ['drama', 'Dramatic', {contrast: 40, shadows: -20, highlights: -30, vignette: 35, saturation: -10}],
+  ['dreamy', 'Dreamy', {blur: 8, fade: 25, brightness: 10, saturation: -10}], ['wall', 'Wallpaper', {blur: 30, brightness: -35, saturation: -15}]];
+const AI_PRE = [['Enhance', 'Enhance this photo: better lighting, color and sharpness, still natural looking.'],
+  ['Remove background', 'Remove the background and replace it with plain white. Keep the main subject exactly as it is.'],
+  ['Remove people', 'Remove any people in the background and fill those areas in naturally.'],
+  ['Golden hour', 'Change the lighting to warm golden-hour sunset light.'], ['Night', 'Turn this into a night scene with realistic lighting.'],
+  ['Sky swap', 'Replace the sky with a dramatic sky with soft clouds, matching the lighting.'],
+  ['Watercolor', 'Turn this into a watercolor painting.'], ['Cartoon', 'Turn this into a clean cartoon illustration.'],
+  ['Restore old photo', 'Restore this old photo: fix scratches, fading and noise, and sharpen faces naturally.'],
+  ['Phone wallpaper', 'Turn this into a calm, minimal phone wallpaper: keep the subject, soften and simplify the background.']];
+const MAX_WORK = 3000, MAX_PREV = 1200, HIST_MAX = 8;
+const E = {base: null, orig: null, prev: null, prevOrig: null, name: 'photo', adj: {...ZERO}, hist: [], fut: [], filter: 'none',
+  sliding: false, compare: false, crop: null, aspect: 'free', ai: null};
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; };
+const FILTER_OK = (() => { try { const x = mk(2, 1).getContext('2d'); if (!('filter' in x)) return false; x.filter = 'blur(1px)'; return x.filter === 'blur(1px)'; } catch (e) { return false; } })();
+function scaled(src, max) {
+  const k = Math.min(1, max / Math.max(src.width, src.height)), c = mk(src.width * k, src.height * k), x = c.getContext('2d');
+  x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, c.width, c.height); return c;
+}
+function blurInto(x, src, r) {
+  const w = src.width, h = src.height;
+  if (FILTER_OK) { x.drawImage(src, 0, 0); x.filter = 'blur(' + r + 'px)'; x.drawImage(src, 0, 0); x.filter = 'none'; return; }
+  const k = Math.max(1, r / 2), t = scaled(src, Math.max(8, Math.max(w, h) / k)), t2 = scaled(t, Math.max(4, Math.max(t.width, t.height) / 2));
+  x.imageSmoothingQuality = 'high'; x.drawImage(t2, 0, 0, w, h);
+}
+function needsPixels(a) { return SL.some(([k]) => k !== 'blur' && a[k]); }
+function process(src, a) {
+  const w = src.width, h = src.height, c = mk(w, h), x = c.getContext('2d', {willReadFrequently: true});
+  if (a.blur > 0) blurInto(x, src, a.blur / 100 * Math.max(w, h) * 0.02); else x.drawImage(src, 0, 0);
+  if (!needsPixels(a)) return c;
+  const id = x.getImageData(0, 0, w, h), d = id.data;
+  const B = a.brightness, cf = a.contrast ? (259 * (a.contrast * 1.28 + 255)) / (255 * (259 - a.contrast * 1.28)) : 1;
+  const sat = 1 + a.saturation / 100, wr = a.warmth * 0.3, ti = a.tint * 0.25, sh = a.shadows / 100, hl = a.highlights / 100;
+  const fd = a.fade / 100, vg = a.vignette / 100, gr = a.grain * 0.6, sp = a.sepia / 100;
+  const cx = w / 2, cy = h / 2, md = Math.sqrt(cx * cx + cy * cy);
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    let r = d[i], g = d[i + 1], b = d[i + 2];
+    if (B) { r += B; g += B; b += B; }
+    if (sh || hl) { const L = (0.299 * r + 0.587 * g + 0.114 * b) / 255, v = sh * 70 * (1 - L) * (1 - L) + hl * 70 * L * L; r += v; g += v; b += v; }
+    if (cf !== 1) { r = (r - 128) * cf + 128; g = (g - 128) * cf + 128; b = (b - 128) * cf + 128; }
+    if (sat !== 1) { const L = 0.299 * r + 0.587 * g + 0.114 * b; r = L + (r - L) * sat; g = L + (g - L) * sat; b = L + (b - L) * sat; }
+    if (wr) { r += wr; b -= wr; }
+    if (ti) g -= ti;
+    if (sp) { const tr = 0.393 * r + 0.769 * g + 0.189 * b, tg = 0.349 * r + 0.686 * g + 0.168 * b, tb = 0.272 * r + 0.534 * g + 0.131 * b; r += (tr - r) * sp; g += (tg - g) * sp; b += (tb - b) * sp; }
+    if (fd) { r = r * (1 - 0.25 * fd) + 40 * fd; g = g * (1 - 0.25 * fd) + 40 * fd; b = b * (1 - 0.25 * fd) + 40 * fd; }
+    if (vg) { const X = (p % w) - cx, Y = ((p / w) | 0) - cy, dd = Math.sqrt(X * X + Y * Y) / md, f = 1 - vg * 0.8 * Math.pow(Math.max(0, (dd - 0.35) / 0.65), 1.6); r *= f; g *= f; b *= f; }
+    if (gr) { const n = (Math.random() - 0.5) * gr; r += n; g += n; b += n; }
+    d[i] = r; d[i + 1] = g; d[i + 2] = b;
+  }
+  if (a.sharpen) {
+    const s = a.sharpen / 100 * 1.2, o = new Uint8ClampedArray(d), row = w * 4;
+    for (let y = 1; y < h - 1; y++) for (let x2 = 1; x2 < w - 1; x2++) {
+      const i = y * row + x2 * 4;
+      for (let k = 0; k < 3; k++) d[i + k] = o[i + k] * (1 + 4 * s) - s * (o[i + k - 4] + o[i + k + 4] + o[i + k - row] + o[i + k + row]);
+    }
+  }
+  x.putImageData(id, 0, 0);
+  return c;
+}
+function busy(t) { $('#ebusy').hidden = !t; if (t) $('#ebusytxt').textContent = t; }
+function emsg(id, t, kind) { const el = $(id); el.textContent = t || ''; el.className = 'emsg' + (kind ? ' ' + kind : ''); }
+function blobToCanvas(blob) {
+  return new Promise((res, rej) => {
+    const u = URL.createObjectURL(blob), im = new Image();
+    im.onload = () => { const c = scaled(im, MAX_WORK); URL.revokeObjectURL(u); res(c); };
+    im.onerror = () => { URL.revokeObjectURL(u); rej(new Error("That file isn't a picture this browser can open")); };
+    im.src = u;
+  });
+}
+let drawQ = 0;
+function draw() {
+  if (drawQ) return;
+  drawQ = requestAnimationFrame(() => {
+    drawQ = 0;
+    if (!E.prev) return;
+    const out = E.compare ? E.prevOrig : process(E.prev, E.adj), cv = $('#ecv');
+    cv.width = out.width; cv.height = out.height; cv.getContext('2d').drawImage(out, 0, 0);
+    $('#einfo').textContent = (E.compare ? 'Before · ' : '') + E.base.width + ' × ' + E.base.height + ' px';
+    if (E.crop) placeCrop();
+  });
+}
+function syncSliders() {
+  document.querySelectorAll('#esliders input').forEach(el => { el.value = E.adj[el.dataset.k] || 0; el.nextElementSibling.textContent = el.value; });
+  document.querySelectorAll('#efilters button').forEach(b => b.classList.toggle('on', b.dataset.f === E.filter));
+  $('#eundo').disabled = !E.hist.length; $('#eredo').disabled = !E.fut.length;
+}
+function filterThumbs() {
+  const small = scaled(E.base, 140);
+  $('#efilters').innerHTML = FILTERS.map(f => '<button type="button" data-f="' + f[0] + '"><canvas></canvas><span>' + esc(f[1]) + '</span></button>').join('');
+  document.querySelectorAll('#efilters button').forEach((b, i) => {
+    const out = process(small, {...ZERO, ...FILTERS[i][2]}), cv = b.querySelector('canvas');
+    cv.width = out.width; cv.height = out.height; cv.getContext('2d').drawImage(out, 0, 0);
+  });
+}
+function setBase(c, fresh) {
+  E.base = c; E.prev = scaled(c, MAX_PREV);
+  if (fresh) { E.orig = c; E.prevOrig = E.prev; E.hist = []; E.fut = []; E.adj = {...ZERO}; E.filter = 'none'; }
+  E.crop = null; $('#ecrop').hidden = true;
+  $('#estart').hidden = true; $('#ework').hidden = false;
+  filterThumbs(); syncSliders(); draw();
+}
+function snap() { return {base: E.base, adj: {...E.adj}, filter: E.filter}; }
+function pushHist() { E.hist.push(snap()); if (E.hist.length > HIST_MAX) E.hist.shift(); E.fut = []; syncSliders(); }
+function restore(st) { const nb = st.base !== E.base; E.adj = st.adj; E.filter = st.filter; if (nb) setBase(st.base, false); else { syncSliders(); draw(); } }
+$('#eundo').onclick = () => { if (!E.hist.length) return; E.fut.push(snap()); restore(E.hist.pop()); syncSliders(); };
+$('#eredo').onclick = () => { if (!E.fut.length) return; E.hist.push(snap()); restore(E.fut.pop()); syncSliders(); };
+const cmp = $('#ecompare');
+cmp.addEventListener('pointerdown', () => { E.compare = true; draw(); });
+['pointerup', 'pointerleave', 'pointercancel'].forEach(t => cmp.addEventListener(t, () => { if (E.compare) { E.compare = false; draw(); } }));
+async function editorOpenBlob(blob, name) {
+  showTab('editor'); busy('Opening…');
+  try {
+    const c = await blobToCanvas(blob);
+    E.name = String(name || 'photo').replace(/\.[^.]+$/, '').replace(/[^\w .-]+/g, '').slice(0, 50) || 'photo';
+    $('#ename').value = E.name + '-edited';
+    setBase(c, true);
+  } catch (e) { alert(e.message); }
+  busy(false);
+}
+async function editorOpenUrl(url, name) {
+  showTab('editor'); busy('Opening…');
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('Could not open that picture (it may not be ready yet)');
+    await editorOpenBlob(await r.blob(), name);
+  } catch (e) { alert(e.message); busy(false); }
+}
+function editorShown() {
+  let b = '';
+  if (S && S.editor && !S.editor.writable) b = '<div class="banner warn">Photo Hub can\'t write to <span class="mono">' + esc(S.editor.folder) + '</span>, so saving to it won\'t work. Download still does.</div>';
+  $('#ebanners').innerHTML = b;
+  if (!E.base) { $('#estart').hidden = false; $('#ework').hidden = true; loadRecent(); }
+  else draw();
+}
+async function loadRecent() {
+  try {
+    const d = await api('api/edit/recent');
+    $('#erecentwrap').hidden = !d.files.length;
+    $('#erecent').innerHTML = d.files.map(f => '<button type="button" title="' + esc(f.name) + '" data-p="' + esc(f.path) + '"><img loading="lazy" alt="" src="api/preview.jpg?path=' + encodeURIComponent(f.path) + '"></button>').join('');
+  } catch (e) {}
+}
+$('#erecent').onclick = ev => { const b = ev.target.closest('button[data-p]'); if (b) editorOpenUrl('api/image.jpg?raw=1&path=' + encodeURIComponent(b.dataset.p), b.title); };
+$('#estart').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-src]'); if (!b) return;
+  if (b.dataset.src === 'upload') $('#efile').click();
+  else if (b.dataset.src === 'folders') openPicker('edit');
+  else if (b.dataset.src === 'wallpaper') editorOpenUrl('api/wallpaper/original.jpg?v=' + Date.now(), 'wallpaper');
+});
+$('#eopen').onclick = () => { E.base = null; editorShown(); };
+$('#efile').onchange = () => { const f = $('#efile').files[0]; if (f) editorOpenBlob(f, f.name); $('#efile').value = ''; };
+// tool tabs
+let etab = 'adjust';
+$('#etabs').onclick = ev => {
+  const b = ev.target.closest('button[data-et]'); if (!b) return;
+  etab = b.dataset.et;
+  document.querySelectorAll('#etabs button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('[data-ep]').forEach(p => { p.hidden = p.dataset.ep !== etab; });
+  if (etab === 'crop') startCrop(); else { E.crop = null; $('#ecrop').hidden = true; }
+  if (etab === 'ai') loadAi();
+  if (etab === 'save') fillFolders();
+};
+// sliders
+$('#esliders').innerHTML = SL.map(([k, l, mn, mx]) => '<div class="sl"><span>' + l + '</span><input type="range" data-k="' + k + '" min="' + mn + '" max="' + mx + '" value="0"><span>0</span></div>').join('');
+$('#esliders').addEventListener('input', ev => {
+  const el = ev.target; if (!el.dataset.k) return;
+  const v = +el.value;
+  if (!E.sliding) { E.sliding = true; pushHist(); }
+  el.value = v; E.adj[el.dataset.k] = v; el.nextElementSibling.textContent = el.value; E.filter = ''; draw();
+});
+$('#esliders').addEventListener('change', () => { E.sliding = false; syncSliders(); });
+$('#esliders').addEventListener('dblclick', ev => { const el = ev.target; if (!el.dataset.k) return; pushHist(); E.adj[el.dataset.k] = 0; syncSliders(); draw(); });
+$('#eadjreset').onclick = () => { pushHist(); E.adj = {...ZERO}; E.filter = 'none'; syncSliders(); draw(); };
+$('#efilters').onclick = ev => {
+  const b = ev.target.closest('button[data-f]'); if (!b) return;
+  pushHist(); E.filter = b.dataset.f; E.adj = {...ZERO, ...FILTERS.find(f => f[0] === E.filter)[2]}; syncSliders(); draw();
+};
+// export helpers
+function exportCanvas(max) { const c = process(E.base, E.adj); return max && Math.max(c.width, c.height) > max ? scaled(c, max) : c; }
+function toBlob(c, fmt, q) { return new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('Could not make the picture')), fmt === 'png' ? 'image/png' : 'image/jpeg', q || 0.92)); }
+async function exportBlob(fmt, max) { busy('Rendering…'); await new Promise(r => setTimeout(r, 30)); try { return await toBlob(exportCanvas(max), fmt); } finally { busy(false); } }
+// crop
+function aspectNum() { return E.aspect === 'free' ? 0 : E.aspect === 'orig' ? E.base.width / E.base.height : +E.aspect; }
+function startCrop() {
+  const A = aspectNum(), W = E.base.width, H = E.base.height;
+  let w = 0.9, h = 0.9;
+  if (A) { if (W * 0.9 / A <= H * 0.9) { w = 0.9; h = W * 0.9 / A / H; } else { h = 0.9; w = H * 0.9 * A / W; } }
+  E.crop = {x: (1 - w) / 2, y: (1 - h) / 2, w, h}; $('#ecrop').hidden = false; placeCrop();
+}
+function cvRect() { const cv = $('#ecv'), box = $('#ebox'), a = cv.getBoundingClientRect(), b = box.getBoundingClientRect(); return {l: a.left - b.left, t: a.top - b.top, w: a.width, h: a.height}; }
+function placeCrop() {
+  if (!E.crop) return;
+  const r = cvRect(), c = E.crop, el = $('#ecrop');
+  el.style.left = (r.l + c.x * r.w) + 'px'; el.style.top = (r.t + c.y * r.h) + 'px'; el.style.width = (c.w * r.w) + 'px'; el.style.height = (c.h * r.h) + 'px';
+}
+$('#easpect').onclick = ev => {
+  const b = ev.target.closest('button[data-a]'); if (!b) return;
+  E.aspect = b.dataset.a; document.querySelectorAll('#easpect button').forEach(x => x.classList.toggle('on', x === b)); startCrop();
+};
+(() => {
+  const el = $('#ecrop'); let drag = null;
+  el.addEventListener('pointerdown', ev => {
+    ev.preventDefault(); el.setPointerCapture(ev.pointerId);
+    drag = {mode: ev.target.tagName === 'I' ? 'size' : 'move', x: ev.clientX, y: ev.clientY, c: {...E.crop}, r: cvRect()};
+  });
+  el.addEventListener('pointermove', ev => {
+    if (!drag) return;
+    const dx = (ev.clientX - drag.x) / drag.r.w, dy = (ev.clientY - drag.y) / drag.r.h, c = {...drag.c}, A = aspectNum();
+    if (drag.mode === 'move') { c.x = Math.min(1 - c.w, Math.max(0, c.x + dx)); c.y = Math.min(1 - c.h, Math.max(0, c.y + dy)); }
+    else {
+      c.w = Math.min(1 - c.x, Math.max(0.05, c.w + dx)); c.h = Math.min(1 - c.y, Math.max(0.05, c.h + dy));
+      if (A) {  // keep the shape: width in pixels / height in pixels = A
+        const W = E.base.width, H = E.base.height;
+        let h = c.w * W / A / H;
+        if (c.y + h > 1) { h = 1 - c.y; c.w = h * H * A / W; }
+        c.h = h;
+      }
+    }
+    E.crop = c; placeCrop();
+  });
+  ['pointerup', 'pointercancel'].forEach(t => el.addEventListener(t, () => { drag = null; }));
+  window.addEventListener('resize', () => placeCrop());
+})();
+$('#ecropcancel').onclick = () => { $('#etabs button[data-et="adjust"]').click(); };
+$('#ecropapply').onclick = () => {
+  if (!E.crop) return;
+  const c = E.crop, W = E.base.width, H = E.base.height, out = mk(c.w * W, c.h * H);
+  out.getContext('2d').drawImage(E.base, c.x * W, c.y * H, c.w * W, c.h * H, 0, 0, out.width, out.height);
+  pushHist(); setBase(out, false); $('#etabs button[data-et="adjust"]').click();
+};
+document.querySelectorAll('[data-ep="crop"] [data-rot],[data-ep="crop"] [data-flip]').forEach(b => b.onclick = () => {
+  const s = E.base, rot = +b.dataset.rot || 0, out = rot ? mk(s.height, s.width) : mk(s.width, s.height), x = out.getContext('2d');
+  x.translate(out.width / 2, out.height / 2);
+  if (rot) x.rotate(rot * Math.PI / 180);
+  if (b.dataset.flip === 'h') x.scale(-1, 1);
+  if (b.dataset.flip === 'v') x.scale(1, -1);
+  x.drawImage(s, -s.width / 2, -s.height / 2);
+  pushHist(); setBase(out, false); if (etab === 'crop') startCrop();
+});
+$('#esizego').onclick = () => {
+  const n = +$('#esize').value, s = E.base, k = n / Math.max(s.width, s.height), out = mk(s.width * k, s.height * k), x = out.getContext('2d');
+  x.imageSmoothingQuality = 'high'; x.drawImage(s, 0, 0, out.width, out.height);
+  pushHist(); setBase(out, false); if (etab === 'crop') startCrop();
+};
+// AI
+$('#eaichips').innerHTML = AI_PRE.map((p, i) => '<button type="button" data-i="' + i + '">' + esc(p[0]) + '</button>').join('');
+$('#eaichips').onclick = ev => { const b = ev.target.closest('button[data-i]'); if (b) { $('#eaiprompt').value = AI_PRE[+b.dataset.i][1]; $('#eaiprompt').focus(); } };
+async function loadAi() {
+  if (E.ai) return;
+  try {
+    E.ai = await api('api/ai/settings');
+    const imgs = E.ai.entities.filter(e => e.images);
+    $('#eaient').innerHTML = imgs.length ? imgs.map(e => '<option value="' + esc(e.id) + '"' + (e.id === E.ai.image_entity ? ' selected' : '') + '>' + esc(e.name) + '</option>').join('')
+      : '<option value="">No AI that can make pictures</option>';
+    $('#eaigo').disabled = !imgs.length;
+    if (!imgs.length) emsg('#eaimsg', 'None of your AI Task entities can make pictures. Google Gemini and OpenAI can; add one under Settings > Devices & services.', 'bad');
+  } catch (e) { E.ai = null; emsg('#eaimsg', e.message, 'bad'); }
+}
+async function aiForm(extra, max) {
+  const blob = await toBlob(exportCanvas(max), 'jpg', 0.9), fd = new FormData();
+  fd.append('photo', blob, 'photo.jpg');
+  Object.entries(extra).forEach(([k, v]) => fd.append(k, v));
+  return fd;
+}
+$('#eaigo').onclick = async () => {
+  const ask = $('#eaiprompt').value.trim();
+  if (!ask) { emsg('#eaimsg', 'Say what the AI should change first.', 'bad'); return; }
+  $('#eaigo').disabled = true; emsg('#eaimsg', ''); busy('The AI is editing your photo… this can take a minute');
+  try {
+    const r = await fetch('api/ai/edit', {method: 'POST', body: await aiForm({instructions: ask, entity: $('#eaient').value}, 2048)});
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'The AI request failed (' + r.status + ')'); }
+    const c = await blobToCanvas(await r.blob());
+    pushHist(); E.adj = {...ZERO}; E.filter = 'none'; setBase(c, false);
+    emsg('#eaimsg', 'Done. Not right? Tap Undo, or change the request and try again.', 'ok');
+  } catch (e) { emsg('#eaimsg', e.message, 'bad'); }
+  busy(false); $('#eaigo').disabled = false;
+};
+$('#eautoai').onclick = async () => {
+  $('#eautoai').disabled = true; emsg('#eadjmsg', ''); busy('The AI is looking at your photo…');
+  try {
+    const saved = E.adj; E.adj = {...ZERO};
+    const fd = await aiForm({}, 1024); E.adj = saved;
+    const r = await fetch('api/ai/auto', {method: 'POST', body: fd}), d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'The AI request failed (' + r.status + ')');
+    pushHist(); E.adj = {...ZERO, ...d.values}; E.filter = ''; syncSliders(); draw();
+    emsg('#eadjmsg', d.note || 'Sliders set. Tweak anything you like.', 'ok');
+  } catch (e) { emsg('#eadjmsg', e.message, 'bad'); }
+  busy(false); $('#eautoai').disabled = false;
+};
+// SVG Maker hand-off
+function resizeSvg() {
+  const f = $('#svgf');
+  try { const w = f.contentDocument && f.contentDocument.querySelector('.wrap'); if (w) f.style.height = Math.max(600, Math.ceil(w.getBoundingClientRect().bottom) + 40) + 'px'; } catch (e) {}
+}
+async function toSvg(fn) {
+  const blob = await exportBlob('png', 1600), file = new File([blob], ($('#ename').value || E.name) + '.png', {type: 'image/png'});
+  showTab('svg');
+  for (let i = 0; i < 150; i++) {
+    try { const sm = $('#svgf').contentWindow.svgMaker; if (sm) { sm[fn](file); return; } } catch (e) {}
+    await new Promise(r => setTimeout(r, 100));
+  }
+  alert('SVG Maker is still starting. Try again in a few seconds.');
+}
+$('#e2svg').onclick = () => toSvg('loadPhoto');
+$('#e2logo').onclick = () => toSvg('loadAiPhoto');
+window.photoHub = {openInEditor: (blob, name) => editorOpenBlob(blob, name), resizeSvg};
+// save
+function fillFolders() {
+  const cur = $('#efolder').value, f = [S.editor.folder, ...S.roots.filter(r => r.exists && r.path !== S.editor.folder).map(r => r.path)];
+  $('#efolder').innerHTML = f.map((p, i) => '<option value="' + esc(p) + '">' + esc(i ? p : 'Edits (' + p + ')') + '</option>').join('');
+  if (cur && f.includes(cur)) $('#efolder').value = cur;
+}
+$('#esave').onclick = async () => {
+  $('#esave').disabled = true; emsg('#esavemsg', '');
+  try {
+    const fmt = $('#efmt').value, blob = await exportBlob(fmt);
+    const r = await fetch('api/edit/save?format=' + fmt + '&name=' + encodeURIComponent($('#ename').value || E.name) + '&folder=' + encodeURIComponent($('#efolder').value), {method: 'POST', body: blob});
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Save failed');
+    emsg('#esavemsg', 'Saved to ' + d.path, 'ok');
+  } catch (e) { emsg('#esavemsg', e.message, 'bad'); }
+  $('#esave').disabled = false;
+};
+$('#edl').onclick = async () => {
+  try {
+    const fmt = $('#efmt').value, blob = await exportBlob(fmt), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = ($('#ename').value || E.name) + '.' + fmt; document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) { emsg('#esavemsg', e.message, 'bad'); }
+};
+$('#ewall').onclick = async () => {
+  $('#ewall').disabled = true; emsg('#esavemsg', '');
+  try {
+    const blob = await exportBlob('jpg');
+    const r = await fetch('api/wallpaper/upload?name=' + encodeURIComponent($('#ename').value || E.name), {method: 'POST', body: blob});
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Could not set the wallpaper');
+    S.wallpaper = d; wsig = ''; drawW(); wrefresh();
+    const look = Object.values(d.adjust || {}).some(v => v);
+    emsg('#esavemsg', 'Every add-on now uses it as the wallpaper' + (look ? ' (your saved wallpaper Look is applied on top; change it on the Wallpaper tab).' : '.'), 'ok');
+  } catch (e) { emsg('#esavemsg', e.message, 'bad'); }
+  $('#ewall').disabled = false;
 };
 </script>
 <div style="text-align:center;margin:28px 0 14px;font-size:13px;opacity:.75"><a href="backups" style="color:inherit">&#x1F4BE; Backups</a></div>

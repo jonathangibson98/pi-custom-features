@@ -1,5 +1,21 @@
 # Changelog
 
+## 5.0.0 - 2026-11-17
+
+- **SVG Maker is now part of Photo Hub.** It has its own **SVG Maker** tab with everything the stand-alone add-on had: photo-to-SVG tracing with the crop editor, and AI logos (with or without a reference photo). Its options (`svg_*`, `ha_url`, `ha_token`) moved to Photo Hub's Configuration tab with the same names and defaults, so copy over anything you'd changed. The old SVG Maker add-on still works but won't get new features.
+- **New Photo Editor tab.** Open any photo (upload, your photo folders, the current wallpaper, a shuffle's current photo, an Unsplash photo, or an SVG from SVG Maker) and:
+  - **Adjust**: brightness, contrast, saturation, warmth, tint, shadows, highlights, fade, vintage, sharpen, blur, vignette and grain. Double-tap a slider to zero it.
+  - **Filters**: Vivid, Warm, Cool, Golden, Mono, Noir, Vintage, Faded, Dramatic, Dreamy and Wallpaper, with live previews.
+  - **Crop**: free, original, square, 16:9, 9:16 (phone), 4:3 and 3:2; rotate, flip and resize.
+  - **AI**: describe a change ("make it golden hour", "remove the people in the back") or tap a preset (enhance, remove background, sky swap, watercolor, cartoon, restore an old photo, phone wallpaper). Uses your Home Assistant AI Task entities that can make images (Google Gemini or OpenAI). **AI auto-adjust** looks at the photo and sets the sliders for you.
+  - Undo / redo, and hold **Before** to compare with the original.
+  - **Save** to the edits folder (or any of your photo folders), **Download**, **Set as add-on wallpaper**, or send it to SVG Maker to trace or to use for an AI logo.
+- **Wallpaper look.** The wallpaper tab has **Lighten / Darken**, **Blur**, **Saturation**, **Contrast** and **Warmth** sliders plus presets (Soft dark, Very dark, Soft light, Frosted, Mono). The look is kept every time the wallpaper changes and is always made from the untouched picture, so changes never stack up. **More edits in the Photo Editor** opens it for anything else.
+- Add-on pages get an automatic tint behind their text when the wallpaper is bright, so text stays readable.
+- New options: `edit_output_path` (default `/media/photo_hub/edited`, added to your photo paths automatically), `photo_ai_image_entity` and `photo_ai_data_entity` (both optional; empty picks one for you).
+- Photo Hub now has **read and write** access to `/media` (the Photo Editor saves there) and Home Assistant API access (for the AI tools). Restart it once after updating.
+- Runs on a Debian Python image now (SVG Maker's tracer doesn't work on Alpine).
+
 ## 4.4.1 - 2026-11-17
 
 - **Fixed:** picking an Unsplash collection for the add-on wallpaper failed ("Exception on /api/wallpaper"), and the 4.4.0 change could also stop Unsplash photos from refreshing. The wallpaper code reused a name the Unsplash code already used for its refresh timer.
