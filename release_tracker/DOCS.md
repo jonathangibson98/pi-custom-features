@@ -183,9 +183,9 @@ Show only one person's releases:
 
 ```yaml
 type: markdown
-title: MJ's releases
+title: Sam's releases
 content: |
-  {% for i in state_attr('sensor.release_tracker_releases','items') if 'MJ' in i.people %}
+  {% for i in state_attr('sensor.release_tracker_releases','items') if 'Sam' in i.people %}
   **{{ i.title }}**: {{ i.label }}, {{ i.date }}
   {% endfor %}
 ```
@@ -193,7 +193,7 @@ content: |
 ## Notify one person
 
 ```yaml
-alias: MJ release day
+alias: Sam release day
 trigger:
   - platform: time
     at: "08:00:00"
@@ -201,14 +201,14 @@ condition:
   - condition: template
     value_template: >
       {{ state_attr('sensor.release_tracker_releases','items')
-         | selectattr('days_until','eq',0) | selectattr('people','contains','MJ') | list | count > 0 }}
+         | selectattr('days_until','eq',0) | selectattr('people','contains','Sam') | list | count > 0 }}
 action:
   - service: notify.notify
     data:
       title: Dropping today
       message: >
         {{ state_attr('sensor.release_tracker_releases','items')
-           | selectattr('days_until','eq',0) | selectattr('people','contains','MJ')
+           | selectattr('days_until','eq',0) | selectattr('people','contains','Sam')
            | map(attribute='title') | join(', ') }}
 ```
 

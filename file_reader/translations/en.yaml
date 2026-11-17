@@ -1,0 +1,43 @@
+configuration:
+  files_path:
+    name: Files folder
+    description: >-
+      Folder where your files are stored. Must start with /data, /share, /media,
+      /homeassistant or /config (for example /share/file_reader). Use a dedicated
+      subfolder, because every file in it becomes an MQTT sensor.
+  scan_interval:
+    name: Scan interval (seconds)
+    description: >-
+      How often the add-on checks the folder for files you changed outside the
+      add-on (Samba, File editor, other add-ons). Default 30.
+  api_token:
+    name: REST API token
+    description: >-
+      Password for the REST API on port 8100 (for rest_command, curl and scripts).
+      Leave empty to keep the REST API turned off. MQTT updates do not need it.
+  mqtt_host:
+    name: MQTT host
+    description: Hostname of your MQTT broker. The default works with the Mosquitto add-on.
+  mqtt_port:
+    name: MQTT port
+    description: Port of your MQTT broker (usually 1883).
+  mqtt_user:
+    name: MQTT username
+    description: Leave empty to use the Mosquitto add-on login from Home Assistant automatically.
+  mqtt_password:
+    name: MQTT password
+    description: Leave empty if your broker has no login.
+  backup_path:
+    name: Backup folder
+    description: >-
+      Where backups are saved, inside /share, /media or /homeassistant. A folder keeps several dated backups.
+      A path ending in .zip keeps one file that is replaced each time. Open Backups in the add-on page to back up,
+      download or restore.
+  backup_every:
+    name: Automatic backups
+    description: How often a backup is made by itself (off, daily or weekly).
+  backup_keep:
+    name: Backups to keep
+    description: The newest this many backups are kept in the folder, older ones are deleted.
+network:
+  8100/tcp: REST API port (needs api_token)
