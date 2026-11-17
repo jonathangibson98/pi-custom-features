@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0 - 2026-11-17
+
+- **New page**, built for phones first: tabs at the bottom, a now-playing card with the current mode and running games, a grid of light modes with icons, sliders that stay in view, game cards with their own settings, filters and pop-up confirmations. Two columns on a computer.
+- **12 new light modes**: Twinkle, Comet, Ping pong, Heartbeat, Aurora, Ocean waves, Alternate, Fireworks, Spotlight, Glitch, Lava lamp and Shuffle shows. New color themes: Aurora, Candy cane and Tropical.
+- **13 new games and extras**: Freeze dance, Red light green light, Never have I ever, Truth or dare, Party trivia, Name that tune, Rule maker, Welcome arrivals, Last call, Hot potato, Light roulette, Cheers! and Dance battle. The prompt games use your AI, with a built-in list when there's no AI.
+- **Pick the mode without the page**: link a dropdown helper (or let the add-on make `input_select.party_lights_mode`). Pick a mode on a dashboard, in an automation or by voice; Off ends the party. It stays in step both ways. Also: `hassio.addon_stdin` commands (`off`, `disco`, `party on`, `game trivia on`), and MQTT switches and buttons for every new game.
+
 ## 1.0.0 - 2026-11-17
 
 - First release. Replaces the `media_lights_sync` and `art_color` AppDaemon apps (no AppDaemon needed) and adds light shows and party games:
