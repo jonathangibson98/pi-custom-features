@@ -1,9 +1,12 @@
 # Changelog
 
+## 1.4.1 - 2026-11-17
+
+- With `ai_task_entity` empty, the AI uses your **default AI**, picked at the top of Personalized Info (`select.default_ai_task`), then the first AI Task.
+
 ## 1.4.0 - 2026-11-17
 
 - **✨ Sleep insights**: one tap on a person's card and your Home Assistant AI Task reads their recent nights and explains them in plain words (average sleep, how regular bed and wake times are, weekdays vs weekends, wake-ups) with a tip or two. Set `ai_task_entity` to pick which AI (empty uses the first one).
-- With `ai_task_entity` empty it uses your **default AI** (picked in Personalized Info, `select.default_ai_task`), then the first AI Task.
 
 ## 1.3.2 - 2026-11-17
 
