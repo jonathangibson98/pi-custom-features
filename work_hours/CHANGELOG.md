@@ -5,6 +5,7 @@ All notable changes to this add-on are documented here.
 ## 1.8.0 - 2026-11-17
 
 - **✨ Ask about the hours**: each person's card has a question box ("how much overtime this month?", "when do I usually leave?"). Leave it empty for a quick summary. Answered by your Home Assistant AI Task from the logged hours. Set `ai_task_entity` to pick which AI (empty uses the first one).
+- With `ai_task_entity` empty it uses your **default AI** (picked in Personalized Info, `select.default_ai_task`), then the first AI Task.
 
 ## 1.7.2 - 2026-11-17
 

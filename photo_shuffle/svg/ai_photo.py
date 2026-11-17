@@ -79,7 +79,10 @@ class AiPhoto:
         ents = await self.entities()
         if chosen and any(e["id"] == chosen for e in ents):
             return chosen
+        await self.ai.resolve()  # picks up the household default AI Task when the configured one doesn't exist
         pref = self.image_entity if want == "images" else (self.data_entity or self.ai.entity)
+        if want == "images" and not pref:
+            pref = self.ai.entity  # the default AI Task, if it can make pictures
         if pref and any(e["id"] == pref and e[want] for e in ents):
             return pref
         for e in ents:

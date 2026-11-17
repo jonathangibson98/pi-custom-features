@@ -214,6 +214,8 @@ class AiLogo:
         self.maker = maker
         o = {k: opts.get(k, d) for k, d in DEFAULTS.items()}
         self.entity = str(o["svg_ai_task_entity"] or DEFAULTS["svg_ai_task_entity"]).strip()
+        self.configured = self.entity
+        self._resolved = 0.0
         try:
             self.timeout = max(30, min(600, int(o["svg_ai_timeout"])))
         except (TypeError, ValueError):
@@ -312,6 +314,7 @@ class AiLogo:
                            "under media_dirs, then restart Home Assistant." % PHOTO_SUB)
 
     async def ask(self, prompt, photo_id=None):
+        await self.resolve()
         body = {"entity_id": self.entity, "task_name": "SVG logo", "instructions": prompt}
         if photo_id:
             d = await self.find_media_dir(photo_id)
@@ -363,8 +366,34 @@ class AiLogo:
                 log.warning("AI answer rejected (attempt %d): %s", attempt + 1, problem)
         raise RuntimeError("The AI answered, but not with a usable SVG (%s). Try again or reword it." % problem)
 
+    async def resolve(self):
+        """Use the configured AI Task if it exists, otherwise the household default (picked in Personalized Info,
+        select.default_ai_task), otherwise the first AI Task Home Assistant has."""
+        if time.time() - self._resolved < 60:
+            return
+        self._resolved = time.time()
+        try:
+            async with self.http.get(self.api + "/states", headers=self.hdr, timeout=aiohttp.ClientTimeout(total=15)) as r:
+                states = await r.json() if r.status == 200 else []
+        except Exception:  # noqa: BLE001
+            return
+        ids = [x["entity_id"] for x in states if x["entity_id"].startswith("ai_task.")]
+        if self.configured in ids:
+            self.entity = self.configured
+            return
+        for x in states:
+            a = x.get("attributes") or {}
+            if x["entity_id"] in ("select.default_ai_task", "sensor.default_ai_task") or a.get("role") == "default_ai_task":
+                v = x.get("state") if str(x.get("state", "")).startswith("ai_task.") else a.get("ai_task_entity")
+                if str(v or "").startswith("ai_task."):
+                    self.entity = v
+                    return
+        if ids:
+            self.entity = ids[0]
+
     # ---- routes
     async def settings(self, request):
+        await self.resolve()
         found, err = None, None
         try:
             async with self.http.get(self.api + "/states/" + self.entity, headers=self.hdr,
