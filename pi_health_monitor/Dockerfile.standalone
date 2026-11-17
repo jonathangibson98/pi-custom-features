@@ -4,7 +4,7 @@ FROM python:3.13-alpine
 
 ENV PYTHONUNBUFFERED=1
 WORKDIR /app
-COPY app.py /app/app.py
+COPY app.py checks.py /app/
 
 EXPOSE 8099
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \

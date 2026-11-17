@@ -3,3 +3,9 @@ configuration:
     name: Wallpaper
     description: >-
       Background image for this add-on's web UI. Leave empty to use your Home Assistant theme's wallpaper, "none" for no wallpaper, or an image: put it in /config/www and enter its file name (pic.jpg) or /local/pic.jpg, or a full https:// link.
+  database_scan:
+    name: Scan the database twice a day
+    description: Looks at which entities fill Home Assistant's recorder database. Read only, and stops after 2 minutes. Turn off on a very slow SD card; Scan now still works.
+  ai_task_entity:
+    name: AI for fix tips (optional)
+    description: The AI Task entity used by "Ask AI what to fix". Leave empty to use the first one Home Assistant has.

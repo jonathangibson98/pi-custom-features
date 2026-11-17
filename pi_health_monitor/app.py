@@ -3,6 +3,8 @@ from urllib.parse import urlparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from concurrent.futures import ThreadPoolExecutor
 
+import checks
+
 TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 API = "http://supervisor"
 INTERVAL = 5
@@ -288,11 +290,39 @@ def collect():
     }
 
 
+def options():
+    try:
+        with open("/data/options.json") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def slow_checks():
+    """The deeper checks run every 10 minutes, the database scan twice a day. Each in its own thread so the live numbers never wait."""
+    last_db = 0
+    time.sleep(20)
+    while True:
+        if MODE == "supervisor":
+            try:
+                checks.run_all(dict(cache))
+            except Exception as e:  # noqa: BLE001
+                print("Health checks failed:", e, flush=True)
+            if time.time() - last_db > checks.DB_SCAN_EVERY * 2 and options().get("database_scan", True):
+                last_db = time.time()
+                threading.Thread(target=checks.db_scan, daemon=True).start()
+        time.sleep(600)
+
+
 def sampler():
+    n = 0
     while True:
         try:
             cache.update(collect())
             cache.pop("error", None)
+            if n % 12 == 0:  # one history point a minute
+                checks.record(cache)
+            n += 1
         except Exception as e:
             cache["error"] = str(e)
         time.sleep(INTERVAL)
@@ -312,6 +342,13 @@ table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;colo
 td{padding:7px 4px;border-top:1px solid #ffffff10}.r{text-align:right}.warn{color:#ffb703}.bad{color:#ff4d6d}.ok{color:#2ec4b6}
 .wrap{overflow-x:auto}
 button{font:inherit;font-weight:600;padding:9px 16px;border-radius:10px;border:0;background:#2ec4b6;color:#04121c;cursor:pointer}button:disabled{opacity:.6;cursor:default}
+button.ghost{background:#ffffff14;color:inherit}.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.grow{flex:1;min-width:0}
+.score{display:flex;gap:16px;align-items:center}.big{font-size:44px;font-weight:700;min-width:78px;text-align:center}
+.chk{display:flex;gap:10px;padding:10px 12px;margin-top:8px;border-radius:10px;background:#ffffff0a;border:1px solid #ffffff10}
+.chk .dot{width:10px;height:10px;border-radius:50%;margin-top:6px;flex:none}.chk b{font-weight:600}.chk .fix{font-size:12px;color:#aaa;margin-top:3px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.spark{width:100%;height:60px;display:block;margin:6px 0}
+details.card{margin-bottom:8px}summary{cursor:pointer;font-weight:600}.mono{font-family:ui-monospace,Menlo,monospace;font-size:12px;word-break:break-all}
+pre{white-space:pre-wrap;background:#00000040;border-radius:8px;padding:10px;font-size:12px}.aiout{white-space:pre-wrap;margin-top:10px;line-height:1.5}
 </style></head><body>
 <!-- ha-theme v1.3.0: copied from .shared/ha-theme.js, edit it there -->
 <script>
@@ -960,6 +997,24 @@ window.__hbAddon = "pi_health_monitor";
 <!-- /ha-theme -->
 <h1>&#10084;&#65039; Pi Health <span id="st" class="sub"></span></h1>
 <div class="grid" id="cards"></div>
+<div id="hwrap" hidden>
+<h2>Health checks <span id="hupd" class="sub"></span></h2>
+<div class="card"><div class="score"><div id="score" class="big">–</div><div class="grow"><div id="hsum" class="sub"></div>
+<div class="row"><button id="recheck" type="button" class="ghost">Check again</button><button id="aibtn" type="button">&#10024; Ask AI what to fix</button></div></div></div>
+<div id="checks"></div><div id="aiout" class="aiout" hidden></div></div>
+<h2>Last 24 hours</h2><div class="grid3"><div class="card"><div class="lbl">CPU %</div><svg id="sp-cpu" class="spark" viewBox="0 0 300 60" preserveAspectRatio="none"></svg><div class="sub" id="sl-cpu"></div></div>
+<div class="card"><div class="lbl">Temp °C</div><svg id="sp-temp" class="spark" viewBox="0 0 300 60" preserveAspectRatio="none"></svg><div class="sub" id="sl-temp"></div></div>
+<div class="card"><div class="lbl">Memory %</div><svg id="sp-mem" class="spark" viewBox="0 0 300 60" preserveAspectRatio="none"></svg><div class="sub" id="sl-mem"></div></div></div>
+<h2>Database <span class="sub">what fills the recorder</span></h2>
+<div class="card" id="db"><div id="dbinfo" class="sub">Not scanned yet.</div>
+<div class="wrap"><table id="dbt" hidden><thead><tr><th>Entity</th><th class="r">Rows</th><th class="r">Share</th><th class="r">About</th></tr></thead><tbody id="dbrows"></tbody></table></div>
+<div id="dbextra" class="sub"></div><pre id="dbyaml" hidden></pre>
+<div class="row"><button id="dbbtn" type="button" class="ghost">Scan now</button></div></div>
+<h2>More detail</h2>
+<details class="card"><summary>Unavailable entities <span id="uacnt" class="sub"></span></summary><div id="ua" class="sub mono"></div></details>
+<details class="card"><summary>Log: busiest sources</summary><div id="logsrc"></div></details>
+<details class="card"><summary>Biggest things in the config folder</summary><div id="csize"></div></details>
+</div>
 <h2>Throttling / power</h2><div class="card" id="thr"></div>
 <h2>Junk cleanup</h2><div class="card" id="junk"><div class="sub">Clears Docker build leftovers, old add-on images and Alexa voice clips older than 30 days. Runs monthly from Home Assistant; this is the same thing now.</div>
 <div id="jlast" class="sub" style="margin:8px 0"></div><button id="jbtn" type="button">Clean now</button></div>
@@ -993,12 +1048,66 @@ function junk(d){const c=d.cleanup||{},el=document.getElementById('jlast'),b=doc
  b.disabled=!!d.cleanup_running;b.textContent=d.cleanup_running?'Cleaning…':'Clean now';
  el.innerHTML=c.t?('Last run '+new Date(c.t*1000).toLocaleString()+' ('+(c.source||'')+'): freed <b>'+c.freed_text+'</b><br>'+(c.steps||[]).map(x=>'· '+x.replace(/</g,'&lt;')).join('<br>')):'Not run yet.';}
 document.getElementById('jbtn').onclick=async()=>{const b=document.getElementById('jbtn');b.disabled=true;b.textContent='Cleaning…';try{await fetch('api/cleanup',{method:'POST'})}catch(e){}setTimeout(tick,1500)};
-tick();setInterval(tick,5000);
+const LV={ok:'#2ec4b6',warn:'#ffb703',bad:'#ff4d6d',unknown:'#888'};
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function spark(id,pts,i,fmt){const el=document.getElementById('sp-'+id),v=pts.map(p=>p[i]).filter(x=>x!=null);if(v.length<2){el.innerHTML='';document.getElementById('sl-'+id).textContent='collecting…';return}
+ const lo=Math.min(...v),hi=Math.max(...v),r=(hi-lo)||1,xs=300/(v.length-1);
+ const d=v.map((y,k)=>(k?'L':'M')+(k*xs).toFixed(1)+' '+(56-(y-lo)/r*52).toFixed(1)).join(' ');
+ el.innerHTML='<path d="'+d+'" fill="none" stroke="#2ec4b6" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+ document.getElementById('sl-'+id).textContent='low '+fmt(lo)+' · high '+fmt(hi)+' · now '+fmt(v[v.length-1]);}
+function health(h){
+ document.getElementById('hwrap').hidden=false;
+ const sc=h.score;document.getElementById('score').textContent=sc==null?'…':sc;document.getElementById('score').style.color=sc==null?'':sc>=85?LV.ok:sc>=60?LV.warn:LV.bad;
+ const n=k=>h.checks.filter(c=>c.level===k).length;
+ document.getElementById('hsum').innerHTML=h.checks.length?`<b>${sc>=85?'Looking good':sc>=60?'A few things to look at':'Needs attention'}</b> · ${n('bad')} problem${n('bad')==1?'':'s'}, ${n('warn')} warning${n('warn')==1?'':'s'}, ${n('ok')} fine`:'Running the first checks…';
+ document.getElementById('hupd').textContent=h.updated?'checked '+new Date(h.updated*1000).toLocaleTimeString():'';
+ document.getElementById('checks').innerHTML=h.checks.map(c=>`<div class="chk"><span class="dot" style="background:${LV[c.level]}"></span><div><b>${esc(c.title)}</b>${c.detail?'<div class="sub">'+esc(c.detail)+'</div>':''}${c.fix?'<div class="fix">&#10148; '+esc(c.fix)+'</div>':''}</div></div>`).join('');
+ const hs=h.history||[];spark('cpu',hs,1,x=>x.toFixed(0)+'%');spark('temp',hs,2,x=>x.toFixed(0)+'°');spark('mem',hs,3,x=>x.toFixed(0)+'%');
+ const d=h.db,b=document.getElementById('dbbtn');b.disabled=h.db_running;b.textContent=h.db_running?'Scanning…':'Scan now';
+ if(d){document.getElementById('dbinfo').innerHTML=d.ok?`<b>${esc(d.size_text)}</b> · ${(d.states||0).toLocaleString()} state rows${d.days?' · keeps '+d.days+' days':''} · scanned ${new Date(d.t*1000).toLocaleString()} (${d.took}s)`:'<span class="warn">'+esc(d.error||'')+'</span>';
+  document.getElementById('dbt').hidden=!d.ok;
+  document.getElementById('dbrows').innerHTML=(d.entities||[]).map(e=>`<tr><td class="mono">${esc(e.entity_id)}</td><td class="r">${e.rows.toLocaleString()}</td><td class="r" style="color:${e.pct>10?LV.bad:e.pct>3?LV.warn:'inherit'}">${e.pct}%</td><td class="r">${esc(e.est)}</td></tr>`).join('');
+  document.getElementById('dbextra').innerHTML=(d.statistics?'<div style="margin-top:8px">Statistics: '+d.stat_series+' series. Most rows: '+d.statistics.slice(0,5).map(x=>esc(x.id)+' ('+x.rows.toLocaleString()+')').join(', ')+'</div>':'')+(d.events?'<div>Events: '+d.events.map(x=>esc(x.type)+' '+x.rows.toLocaleString()).join(', ')+'</div>':'')+(d.exclude_yaml?'<div style="margin-top:8px">To stop recording the busiest ones, add to configuration.yaml (they disappear from history graphs):</div>':'');
+  const y=document.getElementById('dbyaml');y.hidden=!d.exclude_yaml;y.textContent=d.exclude_yaml||'';}
+ document.getElementById('uacnt').textContent='('+h.unavailable.length+')';document.getElementById('ua').innerHTML=h.unavailable.map(esc).join('<br>')||'None';
+ document.getElementById('logsrc').innerHTML='<table>'+h.log_sources.map(x=>`<tr><td style="color:${x.level==='WARNING'?LV.warn:LV.bad}">${x.level}</td><td>${esc(x.source)}</td><td class="r">${x.count}</td></tr>`).join('')+'</table>';
+ document.getElementById('csize').innerHTML='<table>'+h.config_sizes.map(x=>`<tr><td class="mono">${esc(x.name)}</td><td class="r">${x.text}</td></tr>`).join('')+'</table>';
+}
+async function htick(){try{const h=await (await fetch('api/health')).json();if(h.checks.length||h.db||(h.history||[]).length)health(h)}catch(e){}}
+document.getElementById('dbbtn').onclick=async()=>{await fetch('api/db_scan',{method:'POST'});setTimeout(htick,1500)};
+document.getElementById('recheck').onclick=async e=>{e.target.disabled=true;e.target.textContent='Checking…';try{health(await (await fetch('api/recheck',{method:'POST'})).json())}catch(x){}e.target.disabled=false;e.target.textContent='Check again'};
+document.getElementById('aibtn').onclick=async e=>{const o=document.getElementById('aiout');e.target.disabled=true;o.hidden=false;o.textContent='The AI is reading the report…';
+ try{const r=await (await fetch('api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json();o.textContent=r.ok?r.text:'Error: '+r.error}catch(x){o.textContent='Error: '+x}e.target.disabled=false};
+tick();setInterval(tick,5000);htick();setInterval(htick,30000);
 </script></body></html>"""
 
 
 class H(BaseHTTPRequestHandler):
+    def send_json(self, obj, code=200):
+        body = json.dumps(obj).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_POST(self):
+        path = self.path.split("?")[0]
+        if path.endswith("api/db_scan"):
+            threading.Thread(target=checks.db_scan, daemon=True).start()
+            return self.send_json({"started": True})
+        if path.endswith("api/recheck"):
+            checks.run_all(dict(cache))
+            return self.send_json(checks.view())
+        if path.endswith("api/ai"):
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+                q = json.loads(self.rfile.read(n) or b"{}").get("question", "")[:1000] if n else ""
+                if not checks.state["checks"]:
+                    checks.run_all(dict(cache))
+                return self.send_json({"ok": True, "text": checks.ask_ai(str(options().get("ai_task_entity") or "").strip(), q)})
+            except Exception as e:  # noqa: BLE001
+                return self.send_json({"ok": False, "error": str(e)})
         if self.path.split("?")[0].endswith("api/cleanup"):
             threading.Thread(target=run_cleanup, daemon=True).start()
             time.sleep(0.3)
@@ -1012,6 +1121,8 @@ class H(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_GET(self):
+        if self.path.split("?")[0].endswith("api/health"):
+            return self.send_json(checks.view())
         if self.path.split("?")[0].endswith("api/stats"):
             body, ctype = json.dumps(dict(cache)).encode(), "application/json"
         else:
@@ -1030,5 +1141,6 @@ if __name__ == "__main__":
     cache["cleanup"] = load_clean()
     cache["cleanup_running"] = False
     threading.Thread(target=sampler, daemon=True).start()
+    threading.Thread(target=slow_checks, daemon=True).start()
     threading.Thread(target=stdin_listener, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", PORT), H).serve_forever()
