@@ -1,5 +1,5 @@
 name: "SVG Maker"
-version: "1.4.0"
+version: "1.5.0"
 slug: svg_maker
 description: "Turn photos into clean, scalable SVG icons, or describe a logo and let your AI draw it, right from the Home Assistant sidebar."
 image: "ghcr.io/jonathangibson98/{arch}-addon-svg_maker"
@@ -52,6 +52,7 @@ options:
   backup_path: /share/addon_backups/svg_maker
   backup_every: daily
   backup_keep: 10
+  wallpaper: ""
 schema:
   log_level: list(debug|info|warning|error)
   svg_output_path: str
@@ -82,3 +83,4 @@ schema:
   backup_path: str
   backup_every: list(off|daily|weekly)
   backup_keep: int(1,100)
+  wallpaper: str?

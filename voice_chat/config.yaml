@@ -1,5 +1,5 @@
 name: Voice Chat
-version: "2.4.0"
+version: "2.5.0"
 slug: voice_chat
 image: "ghcr.io/jonathangibson98/{arch}-addon-voice_chat"
 description: Hands-free voice conversation with any Home Assistant AI agent, answered out loud on the speaker you choose
@@ -49,6 +49,7 @@ options:
   backup_path: /share/addon_backups/voice_chat
   backup_every: daily
   backup_keep: 10
+  wallpaper: ""
 schema:
   conversation_agent: str
   media_player: str?
@@ -78,3 +79,4 @@ schema:
   backup_path: str
   backup_every: list(off|daily|weekly)
   backup_keep: int(1,100)
+  wallpaper: str?

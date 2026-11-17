@@ -32,3 +32,7 @@ configuration:
   facts_file_path:
     name: Facts file path
     description: The MQTT topic folder where Facts saves its text files, for example file_reader/overwrite/ (a fact named random_fact.txt is saved as file_reader/overwrite/random_fact.txt). When set here it wins over the Facts settings page. Letters, numbers, underscores, dashes, dots and slashes only.
+  wallpaper:
+    name: Wallpaper
+    description: >-
+      Background image for this add-on's web UI. Leave empty to use your Home Assistant theme's wallpaper, "none" for no wallpaper, or an image: put it in /config/www and enter its file name (pic.jpg) or /local/pic.jpg, or a full https:// link.
