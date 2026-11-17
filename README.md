@@ -256,3 +256,7 @@ from a phone or another app. It uses MQTT if available and Home Assistant API ac
 
 Logs the time you spend in chosen zones, one file per person (default `/homeassistant/work_hours`, kept 365 days), with MQTT sensors.
 Setup: [work_hours/DOCS.md](work_hours/DOCS.md).
+
+## Web UIs follow your Home Assistant theme
+
+Every add-on page carries [`.shared/ha-theme.js`](.shared/ha-theme.js). Inside Home Assistant it reads the active theme (colors, light/dark, dashboard wallpaper, glass blur, card corners) and remaps the page to it, live. Outside Home Assistant it does nothing. Edit `.shared/ha-theme.js`, then run `.shared/sync.sh` (or `python3 .shared/sync_theme.py`) to copy it into every page. To add it to a new page: `python3 .shared/sync_theme.py path/to/page.html`.
