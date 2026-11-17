@@ -172,6 +172,7 @@ class Shuffle:
         self.last = None
         self.current = None
         self.thumb = None
+        self.last_full = None
         self.changed_at = None
         self.next_at = None
         self.count = None
@@ -260,6 +261,8 @@ class Shuffle:
                 self.error = ERR_MQTT
                 return False
             self.thumb = thumb
+            self.last_full = full
+            wall.offer("shuffle", self.id, full, self.name)
             self.changed_at = time.time()
             self.error = None
             self._logged_error = None
@@ -518,6 +521,7 @@ class Unsplash:
     image entity (no custom integration, no files in /share)."""
 
     def __init__(self):
+        self.last_full = {}  # newest full-size photo per entity, for the add-on wallpaper
         self.lock = threading.RLock()
         self.collections = []  # [{id, name, search_terms, orientation}]
         self.published = []  # entity keys announced to Home Assistant (so stale ones can be removed)
@@ -682,6 +686,8 @@ class Unsplash:
             return ERR_MQTT
         with open(self.thumb_path(j["key"]), "wb") as f:
             f.write(thumb)
+        self.last_full[j["key"]] = full
+        wall.offer("unsplash", j["key"], full, j["label"])
         with self.lock:
             self.meta[j["key"]] = meta
         self.save_state()
@@ -872,6 +878,112 @@ class Unsplash:
 
 
 unsplash = Unsplash()
+
+
+# ---------------------------------------------------------------- add-on wallpaper
+# One wallpaper for the web UI of every add-on (their pages read /local/addon-wallpaper/wallpaper.json,
+# which Home Assistant serves from /config/www). An add-on's own "wallpaper" option still wins.
+WWW_DIR = os.environ.get("PS_WWW_DIR", "/homeassistant/www")
+WALL_DIR = os.path.join(WWW_DIR, "addon-wallpaper")
+WALL_IMG = os.path.join(WALL_DIR, "wallpaper.jpg")
+WALL_JSON = os.path.join(WALL_DIR, "wallpaper.json")
+WSTORE = os.path.join(DATA_DIR, "wallpaper.json")
+
+
+class Wallpaper:
+    """mode: off | image (a picked/uploaded photo) | shuffle (follows a folder shuffle) | unsplash (follows an entity)."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.mode, self.source, self.label, self.updated, self.error = "off", "", "", 0.0, None
+
+    def load(self):
+        try:
+            with open(WSTORE) as f:
+                d = json.load(f)
+            self.mode = d.get("mode", "off")
+            self.source, self.label = d.get("source", ""), d.get("label", "")
+            self.updated = float(d.get("updated", 0))
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            log.error("Could not read %s: %s", WSTORE, e)
+
+    def save(self):
+        write_json(WSTORE, {"mode": self.mode, "source": self.source, "label": self.label, "updated": self.updated})
+
+    def _publish(self):
+        """Write the small file every add-on page reads."""
+        os.makedirs(WALL_DIR, exist_ok=True)
+        url = f"/local/addon-wallpaper/wallpaper.jpg?v={int(self.updated)}" if self.mode != "off" and os.path.exists(WALL_IMG) else ""
+        write_json(WALL_JSON, {"url": url, "label": self.label if url else "", "updated": int(self.updated)})
+
+    def write_image(self, full, label):
+        os.makedirs(WALL_DIR, exist_ok=True)
+        tmp = WALL_IMG + ".tmp"
+        with open(tmp, "wb") as f:
+            f.write(full)
+        os.replace(tmp, WALL_IMG)
+        self.updated, self.label, self.error = time.time(), label, None
+        self._publish()
+        self.save()
+        log.info("Add-on wallpaper: %s", label)
+
+    def offer(self, kind, source, full, label):
+        """Called whenever a shuffle or Unsplash entity shows a new photo."""
+        if self.mode == kind and self.source == source:
+            try:
+                with self.lock:
+                    self.write_image(full, label)
+            except OSError as e:
+                self.error = f"Couldn't write the wallpaper: {e}"
+                log.warning(self.error)
+
+    def set_image(self, full, label):
+        with self.lock:
+            self.mode, self.source = "image", ""
+            self.write_image(full, label)
+
+    def follow(self, kind, source):
+        if kind == "shuffle":
+            s = mgr.get(source)
+            if s is None:
+                raise ValueError("That folder shuffle doesn't exist")
+            label, full = s.name, s.last_full
+            if full is None and s.last:
+                full = render(s.last)[0]
+        elif kind == "unsplash":
+            jobs = {j["key"]: j for j in unsplash.jobs()}
+            if source not in jobs:
+                raise ValueError("That Unsplash collection doesn't exist")
+            label, full = jobs[source]["label"], unsplash.last_full.get(source)
+        else:
+            raise ValueError("Unknown source")
+        with self.lock:
+            self.mode, self.source, self.label = kind, source, label
+            if full is not None:
+                self.write_image(full, label)
+            else:  # no photo in memory yet: use the next one it shows
+                self.save()
+                self._publish()
+        if full is None and kind == "unsplash":
+            unsplash.request([source])
+        elif full is None:
+            mgr.get(source).request_next(wait=0)
+
+    def off(self):
+        with self.lock:
+            self.mode, self.source, self.label = "off", "", ""
+            self.save()
+            self._publish()
+
+    def view(self):
+        return {"mode": self.mode, "source": self.source, "label": self.label, "updated": self.updated,
+                "error": self.error, "has_image": self.mode != "off" and os.path.exists(WALL_IMG),
+                "www_ok": os.access(WWW_DIR, os.W_OK)}
+
+
+wall = Wallpaper()
 
 
 # ---------------------------------------------------------------- mqtt
@@ -1121,6 +1233,7 @@ def api_state():
             "roots": [{"path": r, "exists": os.path.isdir(r)} for r in ROOTS],
             "shuffles": [s.view() for s in mgr.all()],
             "unsplash": unsplash.view(),
+            "wallpaper": wall.view(),
             "log": list(UI_LOG.buf)[-80:],
         }
     )
@@ -1227,6 +1340,93 @@ def api_u_thumb(key):
     return Response(data, mimetype="image/jpeg", headers={"Cache-Control": "no-cache"})
 
 
+# add-on wallpaper
+@app.put("/api/wallpaper")
+def api_wall_set():
+    d = request.get_json(silent=True) or {}
+    try:
+        if d.get("mode") == "off":
+            wall.off()
+        elif d.get("mode") in ("shuffle", "unsplash"):
+            wall.follow(d["mode"], str(d.get("source") or ""))
+        elif d.get("mode") == "file":
+            p = os.path.normpath(str(d.get("path") or ""))
+            if not in_roots(p) or not os.path.isfile(p) or not is_image(p):
+                return err("Pick a picture inside your photo paths")
+            wall.set_image(render(p)[0], os.path.basename(p))
+        else:
+            return err("Unknown choice")
+    except ValueError as e:
+        return err(str(e))
+    except OSError as e:
+        return err(f"Couldn't save the wallpaper: {e}")
+    return jsonify(wall.view())
+
+
+@app.post("/api/wallpaper/upload")
+def api_wall_upload():
+    data = request.get_data()
+    if not data:
+        return err("No picture was sent")
+    if len(data) > 40 * 1024 * 1024:
+        return err("That picture is over 40 MB")
+    try:
+        full = render(io.BytesIO(data))[0]
+    except Exception:
+        return err("That file isn't a picture I can read")
+    try:
+        wall.set_image(full, (request.args.get("name") or "Uploaded picture")[:80])
+    except OSError as e:
+        return err(f"Couldn't save the wallpaper: {e}")
+    return jsonify(wall.view())
+
+
+@app.get("/api/wallpaper/image.jpg")
+def api_wall_image():
+    try:
+        with open(WALL_IMG, "rb") as f:
+            data = f.read()
+    except OSError:
+        return Response(status=404)
+    return Response(data, mimetype="image/jpeg", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/api/files")
+def api_files():
+    """Pictures in one folder (for picking a wallpaper)."""
+    p = os.path.normpath(request.args.get("path", ""))
+    if not in_roots(p) or not os.path.isdir(p):
+        return err("Not an allowed folder")
+    files = []
+    try:
+        with os.scandir(p) as it:
+            for e in it:
+                if e.is_file() and is_image(e.name):
+                    files.append({"name": e.name, "path": e.path})
+    except OSError as e:
+        return err(str(e))
+    files.sort(key=lambda f: f["name"].lower())
+    return jsonify({"path": p, "files": files[:400], "more": len(files) > 400})
+
+
+@app.get("/api/preview.jpg")
+def api_preview():
+    p = os.path.normpath(request.args.get("path", ""))
+    if not in_roots(p) or not os.path.isfile(p) or not is_image(p):
+        return Response(status=404)
+    try:
+        with Image.open(p) as im:
+            if im.format == "JPEG":
+                im.draft("RGB", (320, 320))
+            im = ImageOps.exif_transpose(im).convert("RGB")
+            im.thumbnail((320, 320))
+            buf = io.BytesIO()
+            im.save(buf, "JPEG", quality=70)
+    except Exception:
+        return Response(status=404)
+    return Response(buf.getvalue(), mimetype="image/jpeg", headers={"Cache-Control": "max-age=3600"})
+
+
 @app.get("/api/browse")
 def api_browse():
     p = request.args.get("path", "")
@@ -1260,6 +1460,12 @@ def main():
     mgr.load()
     log.info("Loaded %d folder shuffle(s)", len(mgr.shuffles))
     unsplash.load()
+    wall.load()
+    try:
+        wall._publish()  # make sure the file the add-ons read matches the saved choice
+    except OSError as e:
+        wall.error = f"Can't write to {WWW_DIR}: {e}"
+        log.warning(wall.error)
     log.info(
         "Loaded %d Unsplash collection(s) | key: %s | every %d min, size %s",
         len(unsplash.collections),

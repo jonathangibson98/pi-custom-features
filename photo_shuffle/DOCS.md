@@ -40,3 +40,14 @@ Tap **Backups** at the bottom of the add-on page to back up, download or restore
 - **Restore from a file** takes a backup `.zip` you downloaded, for example to move to another Home Assistant.
 - A backup from a different add-on is refused. The page only works from the Home Assistant sidebar, never on the add-on's own ports, because backups include its settings.
 - Backups also hold any passwords or API keys from the Configuration tab, so treat the backup folder like your secrets.
+
+## Add-on wallpaper
+
+The **Add-on wallpaper** tab sets one background for the web page of every add-on (Photo Hub, Sleep Tracker, AI Builder, Travel Times, Personal AI Gateway…):
+
+- **Upload a picture** from your phone or computer.
+- **Pick from your photo folders** (the paths in *photo_paths*).
+- **Follow a folder shuffle or Unsplash collection**: the wallpaper changes every time it shows a new photo.
+- **Off**: add-ons use your Home Assistant theme's wallpaper again.
+
+Photo Hub saves it to `/config/www/addon-wallpaper/` (served by Home Assistant at `/local/addon-wallpaper/`). An add-on's own **Wallpaper** option on its Configuration tab still wins, if you set one.
