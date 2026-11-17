@@ -57,6 +57,97 @@ def docker_get(path):
         conn.close()
 
 
+def docker_post(path, timeout=900):
+    u = urlparse(DOCKER_HOST)
+    conn = UnixHTTPConnection(u.path, timeout) if u.scheme == "unix" else \
+        http.client.HTTPConnection(u.hostname, u.port or 2375, timeout=timeout)
+    try:
+        conn.request("POST", path)
+        r = conn.getresponse()
+        data = r.read()
+        if r.status != 200:
+            raise RuntimeError(f"docker API {path} -> HTTP {r.status}: {data[:200]!r}")
+        return json.loads(data or b"{}")
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------- junk cleanup
+# Clears what piles up on a Pi: Docker build cache from add-ons built on it, old add-on images
+# left after updates, and old Alexa voice clips. Run from the page, or monthly from Home Assistant:
+#   action: hassio.addon_stdin  data: {addon: <this add-on>, input: cleanup}
+CLEAN_FILE = os.path.join(os.environ.get("DATA_DIR", "/data"), "cleanup.json")
+CLIP_DIRS = [d for d in ("/homeassistant/www/alexa_tts", "/config/www/alexa_tts") if os.path.isdir(d)]
+CLIP_DAYS = 30
+clean_lock = threading.Lock()
+
+
+def load_clean():
+    try:
+        with open(CLEAN_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def gb(n):
+    return f"{n / 1e9:.1f} GB" if n >= 1e8 else f"{n / 1e6:.0f} MB"
+
+
+def run_cleanup(source="page"):
+    if not clean_lock.acquire(blocking=False):
+        return {"running": True}
+    out = {"t": time.time(), "source": source, "steps": [], "freed": 0, "ok": True}
+    cache["cleanup_running"] = True
+    try:
+        if os.path.exists(urlparse(DOCKER_HOST).path) or urlparse(DOCKER_HOST).scheme != "unix":
+            for label, path, key in (("Docker build cache", "/build/prune?all=1", "SpaceReclaimed"),
+                                     ("Old add-on images", '/images/prune?filters={"dangling":["true"]}', "SpaceReclaimed")):
+                try:
+                    n = int(docker_post(path.replace('"', "%22")).get(key) or 0)
+                    out["freed"] += n
+                    out["steps"].append(f"{label}: {gb(n)}")
+                except Exception as e:
+                    out["ok"] = False
+                    out["steps"].append(f"{label}: failed ({e})")
+        else:
+            out["steps"].append("Docker leftovers: skipped (turn off Protection mode for this add-on to allow it)")
+        cutoff, n_files, n_bytes = time.time() - CLIP_DAYS * 86400, 0, 0
+        for d in CLIP_DIRS:
+            for name in os.listdir(d):
+                f = os.path.join(d, name)
+                try:
+                    st = os.stat(f)
+                    if os.path.isfile(f) and st.st_mtime < cutoff:
+                        os.remove(f)
+                        n_files, n_bytes = n_files + 1, n_bytes + st.st_size
+                except OSError:
+                    pass
+        out["freed"] += n_bytes
+        if CLIP_DIRS:
+            out["steps"].append(f"Alexa voice clips older than {CLIP_DAYS} days: {n_files} ({gb(n_bytes)})")
+    finally:
+        cache["cleanup_running"] = False
+        clean_lock.release()
+    out["freed_text"] = gb(out["freed"])
+    try:
+        with open(CLEAN_FILE, "w") as f:
+            json.dump(out, f)
+    except OSError:
+        pass
+    cache["cleanup"] = out
+    print(f"[cleanup] {source}: freed {out['freed_text']} | " + " | ".join(out["steps"]), flush=True)
+    return out
+
+
+def stdin_listener():
+    import sys
+    for line in sys.stdin:
+        cmd = line.strip().strip('"').lower()
+        if cmd in ("cleanup", "clean", "junk"):
+            threading.Thread(target=run_cleanup, args=("Home Assistant",), daemon=True).start()
+
+
 def docker_row(c):
     try:
         s = docker_get(f"/containers/{c['Id']}/stats?stream=false")
@@ -220,6 +311,7 @@ h1{font-size:20px;margin:0 0 12px}h2{font-size:15px;margin:18px 0 8px;color:#aaa
 table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:#888;font-weight:500;padding:6px 4px}
 td{padding:7px 4px;border-top:1px solid #ffffff10}.r{text-align:right}.warn{color:#ffb703}.bad{color:#ff4d6d}.ok{color:#2ec4b6}
 .wrap{overflow-x:auto}
+button{font:inherit;font-weight:600;padding:9px 16px;border-radius:10px;border:0;background:#2ec4b6;color:#04121c;cursor:pointer}button:disabled{opacity:.6;cursor:default}
 </style></head><body>
 <!-- ha-theme v1.2.0: copied from .shared/ha-theme.js, edit it there -->
 <script>
@@ -807,6 +899,8 @@ window.__hbAddon = "pi_health_monitor";
 <h1>&#10084;&#65039; Pi Health <span id="st" class="sub"></span></h1>
 <div class="grid" id="cards"></div>
 <h2>Throttling / power</h2><div class="card" id="thr"></div>
+<h2>Junk cleanup</h2><div class="card" id="junk"><div class="sub">Clears Docker build leftovers, old add-on images and Alexa voice clips older than 30 days. Runs monthly from Home Assistant; this is the same thing now.</div>
+<div id="jlast" class="sub" style="margin:8px 0"></div><button id="jbtn" type="button">Clean now</button></div>
 <h2 id="rt">Add-ons &amp; system (sorted by CPU)</h2>
 <div class="card wrap"><table><thead><tr><th>Name</th><th class="r">CPU</th><th class="r">RAM</th><th class="r">RAM %</th></tr></thead>
 <tbody id="rows"></tbody></table></div>
@@ -832,12 +926,29 @@ function render(d){
  document.getElementById('rows').innerHTML=(d.addons.length?'':'<tr><td colspan="4" class="sub">'+(d.docker_error?'Docker API unavailable: '+d.docker_error:'No running containers')+'</td></tr>')+d.addons.map(a=>`<tr><td>${a.name}</td><td class="r" style="color:${col(a.cpu)}">${a.cpu}%</td><td class="r">${mb(a.mem)}</td><td class="r">${a.mem_pct}%</td></tr>`).join('');
  document.getElementById('st').textContent='updated '+new Date(d.ts*1000).toLocaleTimeString();
 }
-async function tick(){try{render(await (await fetch('api/stats')).json())}catch(e){document.getElementById('st').textContent='offline'}}
+async function tick(){try{const d=await (await fetch('api/stats')).json();render(d);junk(d)}catch(e){document.getElementById('st').textContent='offline'}}
+function junk(d){const c=d.cleanup||{},el=document.getElementById('jlast'),b=document.getElementById('jbtn');
+ b.disabled=!!d.cleanup_running;b.textContent=d.cleanup_running?'Cleaning…':'Clean now';
+ el.innerHTML=c.t?('Last run '+new Date(c.t*1000).toLocaleString()+' ('+(c.source||'')+'): freed <b>'+c.freed_text+'</b><br>'+(c.steps||[]).map(x=>'· '+x.replace(/</g,'&lt;')).join('<br>')):'Not run yet.';}
+document.getElementById('jbtn').onclick=async()=>{const b=document.getElementById('jbtn');b.disabled=true;b.textContent='Cleaning…';try{await fetch('api/cleanup',{method:'POST'})}catch(e){}setTimeout(tick,1500)};
 tick();setInterval(tick,5000);
 </script></body></html>"""
 
 
 class H(BaseHTTPRequestHandler):
+    def do_POST(self):
+        if self.path.split("?")[0].endswith("api/cleanup"):
+            threading.Thread(target=run_cleanup, daemon=True).start()
+            time.sleep(0.3)
+            body = json.dumps({"started": True}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
+        else:
+            self.send_response(404)
+            self.end_headers()
+
     def do_GET(self):
         if self.path.split("?")[0].endswith("api/stats"):
             body, ctype = json.dumps(dict(cache)).encode(), "application/json"
@@ -854,5 +965,8 @@ class H(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    cache["cleanup"] = load_clean()
+    cache["cleanup_running"] = False
     threading.Thread(target=sampler, daemon=True).start()
+    threading.Thread(target=stdin_listener, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", PORT), H).serve_forever()

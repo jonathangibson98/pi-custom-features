@@ -24,3 +24,25 @@ The add-on uses the Supervisor API with the `manager` role to read system and ad
 ## Running without Home Assistant
 
 The same `app.py` also runs as a plain Docker container and shows your Docker containers instead of add-ons. See the repository README for the `docker compose` setup and its environment variables (`PORT`, `DOCKER_HOST`, `DISK_PATH`).
+
+## Junk cleanup
+
+**Clean now** clears what piles up on a Pi: the Docker build cache from add-ons built on it, old add-on images left after updates, and Alexa voice clips (`/config/www/alexa_tts`) older than 30 days. It shows what it freed.
+
+- For the Docker part, turn off **Protection mode** on this add-on's Info tab (Home Assistant only gives Docker access then).
+- Run it monthly with an automation:
+
+```yaml
+triggers:
+  - trigger: time
+    at: "04:30:00"
+conditions:
+  - condition: template
+    value_template: "{{ now().day == 1 }}"
+actions:
+  - action: hassio.addon_stdin
+    data:
+      addon: <your Pi Health Monitor add-on slug>
+      input: cleanup
+  - action: tts.clear_cache
+```
