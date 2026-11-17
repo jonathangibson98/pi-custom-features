@@ -45,6 +45,33 @@ if USER_TOKEN:  # optional long-lived token: talk to Home Assistant directly ins
 HDR = {"Authorization": f"Bearer {TOKEN}"}
 
 ENTITY = OPTS.get("ai_task_entity") or "ai_task.google_ai_task"
+CONFIGURED_ENTITY = ENTITY
+
+
+def default_ai_task(states):
+    """The household default AI Task picked in Personalized Info (select.default_ai_task), or ''."""
+    for s in states:
+        a = s.get("attributes") or {}
+        if s.get("entity_id") in ("select.default_ai_task", "sensor.default_ai_task") or a.get("role") == "default_ai_task":
+            v = s.get("state") if str(s.get("state", "")).startswith("ai_task.") else a.get("ai_task_entity")
+            if str(v or "").startswith("ai_task."):
+                return v
+    return ""
+
+
+async def resolve_entity(app):
+    """Keep ENTITY pointing at a real AI Task: the configured one if it exists, else the household default, else the
+    first one Home Assistant has. Checked at start and every 5 minutes."""
+    global ENTITY
+    while True:
+        st, states = await ha(app, "GET", "/states")
+        if st == 200 and isinstance(states, list):
+            ids = [x["entity_id"] for x in states if x["entity_id"].startswith("ai_task.")]
+            new = CONFIGURED_ENTITY if CONFIGURED_ENTITY in ids else (default_ai_task(states) or (ids[0] if ids else CONFIGURED_ENTITY))
+            if new != ENTITY:
+                log.info("AI Task: using %s%s", new, "" if new == CONFIGURED_ENTITY else " (%s isn't in Home Assistant)" % CONFIGURED_ENTITY)
+                ENTITY = new
+        await asyncio.sleep(300)
 TIMEOUT = int(OPTS.get("request_timeout") or 180)
 
 
@@ -3572,6 +3599,7 @@ async def on_startup(app):
         log.warning("Files: couldn't copy files from the old File Reader backup: %s", e)
     FILES.start()
     app["files_api"] = await FILES.start_api()
+    app["resolver"] = asyncio.create_task(resolve_entity(app))
     render_package(load_json(STORE, {}))
     log.info("Creator & AI Builder ready - using %s, template file /config/%s, AppDaemon dir %s, backups %s", ENTITY, TEMPLATE_REL, AD_DIR, BACKUP_PATH)
 

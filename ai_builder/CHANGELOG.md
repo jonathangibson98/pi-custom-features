@@ -6,6 +6,7 @@
 - **File Reader is now built in** as the **Files** section, with the same MQTT topics, sensors and entity IDs, plus AI help (summarize, ask, write, make an automation). Files from File Reader's private folder are copied from its newest backup on first start. New options: `files_path`, `files_scan_interval`, `files_api_token` and optional `mqtt_*`. After updating, uninstall the File Reader add-on.
 - **New menu.** Sections are grouped: **Build** (Automations & more, Dashboards, Cards), **Voice & facts** (Announcements, Facts), **Files** and **Backup**. It remembers the last page in each group.
 - New icon and logo, because it's a lot more than AI now.
+- When `ai_task_entity` points at an AI Task you don't have, it uses your **default AI** picked in Personalized Info (`select.default_ai_task`), then the first AI Task, so the AI works out of the box.
 - Needs MQTT (the Mosquitto add-on) for Files sensors and Supervisor access to find it. Restart once after updating.
 
 ## 2.19.2 - 2026-11-17
