@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.4.0 - 2026-11-17
+
+- **New "Add-on wallpaper" tab.** Pick one wallpaper for every add-on's page: upload a picture, pick one from your photo folders, or follow a folder shuffle or Unsplash collection so it changes with every new photo. Turn it off to go back to your theme's wallpaper. Each add-on's own Wallpaper option still wins when set.
+- Needs write access to Home Assistant's `www` folder (it saves the wallpaper to `/config/www/addon-wallpaper/`). Restart Photo Hub once after updating.
+
 ## 4.3.0 - 2026-11-16
 
 - **Pick the web UI wallpaper.** New **Wallpaper** option on the Configuration tab. Leave it empty to use your Home Assistant theme's wallpaper, enter `none` for no wallpaper, or point it at your own image: drop it in `/config/www` and enter the file name (e.g. `wallpaper.jpg`), `/local/wallpaper.jpg`, or a full `https://` link.

@@ -56,6 +56,17 @@ input[type=text],input[type=number],select{width:100%;padding:8px 10px;border-ra
 
 .tabs{display:flex;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card);margin-bottom:14px}
 .tabs button{flex:1;border:0;border-radius:0;padding:9px 6px;background:transparent}
+.wp{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:700px){.wp{grid-template-columns:1fr}}
+.wpprev{aspect-ratio:16/10;border-radius:14px;overflow:hidden;background:var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;text-align:center;padding:0}
+.wpprev img{width:100%;height:100%;object-fit:cover;display:block}
+.wpopt{display:flex;flex-direction:column;gap:10px}
+.wpopt .card{padding:12px;gap:6px}
+.wpopt .row{display:flex;gap:6px}
+.wpopt select{flex:1;min-width:0}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px;margin-top:8px;max-height:46vh;overflow:auto}
+.pgrid button{padding:0;border-radius:8px;overflow:hidden;aspect-ratio:1;background:var(--line)}
+.pgrid img{width:100%;height:100%;object-fit:cover;display:block}
 .tabs button.on{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;font-weight:600}
 .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
 .bar .grow{flex:1;min-width:160px;font-size:13px;color:var(--muted)}
@@ -75,16 +86,18 @@ textarea{width:100%;font:inherit;padding:8px 10px;border-radius:9px;border:1px s
 </style>
 </head>
 <body>
-<!-- ha-theme v1.1.0: copied from .shared/ha-theme.js, edit it there -->
+<!-- ha-theme v1.2.0: copied from .shared/ha-theme.js, edit it there -->
 <script>
 window.__hbAddon = "photo_shuffle";
-/* HA Theme Bridge v1.1.0
+/* HA Theme Bridge v1.2.0
  * Makes an add-on web UI follow the active Home Assistant theme (colors, dark/light,
  * dashboard wallpaper, glass blur, card corners and shadows) and updates live when
  * the theme changes. It reads the theme from the Home Assistant page that holds the
  * add-on (ingress runs on the same origin) and remaps this page's own colors to it.
  * Opened outside Home Assistant it does nothing, so the page keeps its own look.
- * Wallpaper: the add-on's "wallpaper" option (Configuration tab) overrides the theme's:
+ * Wallpaper, first match wins: the add-on's own "wallpaper" option (Configuration tab), then the
+ * shared add-on wallpaper picked in Photo Hub (/local/addon-wallpaper/wallpaper.json), then the theme's.
+ * The add-on option:
  *   empty = use the theme's wallpaper, "none" = no wallpaper, or an image:
  *   /local/pic.jpg (= /config/www/pic.jpg), just pic.jpg, /config/www/..., or https://...
  * Opt out on a page: <html data-ha-theme-off>
@@ -437,7 +450,8 @@ window.__hbAddon = "photo_shuffle";
   var BLUR_VARS = ['ha-card-backdrop-filter', 'card-backdrop-filter', 'ha-card-backdrop', 'backdrop-filter',
     'glass-blur', 'ha-blur', 'blur', 'card-blur', 'ha-card-blur'];
   var MOD_VARS = ['card-mod-card', 'card-mod-card-yaml', 'card-mod-root', 'card-mod-view', 'card-mod-row'];
-  var lastKey = '', copied = {}, wallOverride = null;   /* null = follow the theme */
+  var lastKey = '', copied = {}, wallOverride = null;   /* null = no add-on option set */
+  var globalWall = null;                               /* null = no shared wallpaper from Photo Hub */
 
   function themeSource() {
     var d = HA.document;
@@ -480,6 +494,7 @@ window.__hbAddon = "photo_shuffle";
     th.wall = g('lovelace-background');
     if (th.wall && !/url\(|gradient\(/.test(th.wall) && !toRGB(th.wall)) th.wall = '';
     if (wallOverride !== null) th.wall = wallOverride;
+    else if (globalWall !== null) th.wall = globalWall;
     th.radius = g('ha-card-border-radius');
     th.shadow = g('ha-card-box-shadow');
     th.cardBorder = g('ha-card-border-color');
@@ -610,6 +625,17 @@ window.__hbAddon = "photo_shuffle";
     }, find) : find()).then(function (info) { if (info) useInfo(info); }, function () {});
   }
 
+  /* ---------- shared add-on wallpaper (picked in Photo Hub) ---------- */
+  function loadGlobalWallpaper() {
+    if (!window.fetch) return;
+    fetch('/local/addon-wallpaper/wallpaper.json?t=' + Date.now(), { cache: 'no-store', credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        var next = d && d.url ? wallCss(d.url) : null;
+        if (next !== globalWall) { globalWall = next; lastKey = ''; apply(); }
+      }, function () {});
+  }
+
   /* ---------- run now, then follow changes ---------- */
   function run() { try { processSheets(); } catch (e) {} apply(); }
   run();
@@ -635,10 +661,11 @@ window.__hbAddon = "photo_shuffle";
       }
     }).observe(doc.head || root, { childList: true });
   } catch (e) {}
-  doc.addEventListener('visibilitychange', function () { if (!doc.hidden) later(); });
+  doc.addEventListener('visibilitychange', function () { if (!doc.hidden) { later(); loadGlobalWallpaper(); } });
   window.addEventListener('load', later);
   try { loadWallpaperOption(); } catch (e) {}
-  window.haThemeBridge = { refresh: function () { lastKey = ''; run(); } };
+  try { loadGlobalWallpaper(); } catch (e) {}
+  window.haThemeBridge = { refresh: function () { lastKey = ''; run(); }, reloadWallpaper: loadGlobalWallpaper };
 })();
 </script>
 <!-- /ha-theme -->
@@ -652,6 +679,7 @@ window.__hbAddon = "photo_shuffle";
   <div class="tabs">
     <button data-tab="folders" class="on">Folders</button>
     <button data-tab="unsplash">Unsplash</button>
+    <button data-tab="wallpaper">Add-on wallpaper</button>
   </div>
 
   <section id="pane-folders">
@@ -672,6 +700,31 @@ window.__hbAddon = "photo_shuffle";
     </div>
     <div id="ucards"></div>
     <div class="note">Photos come from Unsplash and belong to their photographers. Each entity carries <span class="mono">photographer</span>, <span class="mono">photo_url</span> and <span class="mono">search_term</span> attributes, so you can credit them on your dashboard.</div>
+  </section>
+
+  <section id="pane-wallpaper" hidden>
+    <div id="wbanners"></div>
+    <div class="wp">
+      <div>
+        <div class="wpprev" id="wprev"></div>
+        <div class="meta" id="wstatus" style="margin:8px 2px"></div>
+      </div>
+      <div class="wpopt">
+        <div class="card"><b>Upload a picture</b>
+          <div class="meta">From your phone or computer.</div>
+          <input type="file" id="wfile" accept="image/*" hidden>
+          <button class="primary" id="wupload" type="button">Choose a picture</button></div>
+        <div class="card"><b>Pick from your photo folders</b>
+          <button id="wpick" type="button">Browse photos</button></div>
+        <div class="card"><b>Follow a shuffle or collection</b>
+          <div class="meta">The wallpaper changes every time it shows a new photo.</div>
+          <div class="row"><select id="wsrc"></select><button id="wfollow" type="button">Use</button></div></div>
+        <div class="card"><b>Off</b>
+          <div class="meta">Add-ons use your Home Assistant theme's wallpaper.</div>
+          <button class="danger" id="woff" type="button">Turn off</button></div>
+      </div>
+    </div>
+    <div class="note">This is the wallpaper behind every add-on's page (Photo Hub, Sleep Tracker, AI Builder, Travel Times…). An add-on's own <b>Wallpaper</b> option on its Configuration tab still wins, if you set one.</div>
   </section>
 
   <details open>
@@ -717,6 +770,17 @@ window.__hbAddon = "photo_shuffle";
   </div>
 </div>
 
+<div class="overlay" id="pickov">
+  <div class="modal" style="max-width:640px">
+    <h2>Pick a wallpaper</h2>
+    <div class="mono" id="ppath"></div>
+    <div class="list" id="pdirs" style="max-height:160px"></div>
+    <div class="pgrid" id="pgrid"></div>
+    <div class="meta" id="pinfo" style="margin-top:8px"></div>
+    <div class="btns"><button id="pcancel" type="button">Close</button></div>
+  </div>
+</div>
+
 <div class="overlay" id="browseov">
   <div class="modal">
     <h2>Choose a folder</h2>
@@ -732,7 +796,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let S = null, skew = 0, sig = '', usig = '', editId = null, cEditId = null, browsePath = '';
 let tab = 'folders';
-try { tab = localStorage.getItem('ph_tab') === 'unsplash' ? 'unsplash' : 'folders'; } catch (e) {}
+try { tab = ['unsplash', 'wallpaper'].includes(localStorage.getItem('ph_tab')) ? localStorage.getItem('ph_tab') : 'folders'; } catch (e) {}
 
 async function api(path, method, body) {
   const r = await fetch(path, {method: method || 'GET', headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined});
@@ -777,6 +841,7 @@ function render() {
   if (key !== sig) { sig = key; drawCards(); }
   const ukey = JSON.stringify(S.unsplash.collections);
   if (ukey !== usig) { usig = ukey; drawU(); }
+  drawW();
   renderUHead();
   tick();
 
@@ -899,6 +964,7 @@ function showTab(t) {
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   $('#pane-folders').hidden = t !== 'folders';
   $('#pane-unsplash').hidden = t !== 'unsplash';
+  $('#pane-wallpaper').hidden = t !== 'wallpaper';
 }
 document.querySelector('.tabs').addEventListener('click', ev => { const b = ev.target.closest('button[data-tab]'); if (b) showTab(b.dataset.tab); });
 showTab(tab);
@@ -1004,6 +1070,78 @@ $('#csave').onclick = async () => {
 
 refresh();
 setInterval(refresh, 5000);
+
+// ---------------------------------------------------------------- add-on wallpaper
+let wsig = '', pickPath = '';
+function drawW() {
+  const W = S.wallpaper;
+  const srcs = [...S.shuffles.map(x => ['shuffle', x.id, 'Folder shuffle: ' + x.name]),
+    ...S.unsplash.collections.flatMap(c => Object.values(c.images).map(im => ['unsplash', im.key, 'Unsplash: ' + c.name + (Object.keys(c.images).length > 1 ? ' (' + im.key.split('_').pop() + ')' : '')]))];
+  const key = JSON.stringify([W, srcs]);
+  if (key === wsig) return;
+  wsig = key;
+  let b = '';
+  if (!W.www_ok) b += '<div class="banner bad">Photo Hub can\'t write to Home Assistant\'s <span class="mono">www</span> folder. Restart the add-on after updating (it needs the new folder access).</div>';
+  if (W.error) b += '<div class="banner bad">' + esc(W.error) + '</div>';
+  $('#wbanners').innerHTML = b;
+  $('#wprev').innerHTML = W.has_image ? '<img alt="" src="api/wallpaper/image.jpg?v=' + Math.round(W.updated) + '">'
+    : (W.mode === 'off' ? 'Off<br>Add-ons use your theme\'s wallpaper' : 'Waiting for its next photo…');
+  const what = W.mode === 'off' ? 'Off: add-ons use your Home Assistant theme\'s wallpaper.'
+    : W.mode === 'image' ? 'All add-ons use: <b>' + esc(W.label) + '</b>'
+    : 'All add-ons follow <b>' + esc(W.label) + '</b> (changes with every new photo)';
+  $('#wstatus').innerHTML = what + (W.has_image && W.updated ? ' · updated ' + ago(W.updated) : '');
+  const sel = $('#wsrc');
+  sel.innerHTML = srcs.length ? srcs.map(([k, id, l]) => '<option value="' + k + ':' + esc(id) + '"' + (W.mode === k && W.source === id ? ' selected' : '') + '>' + esc(l) + '</option>').join('')
+    : '<option value="">No shuffles or collections yet</option>';
+  $('#wfollow').disabled = !srcs.length;
+}
+function wrefresh() { try { window.haThemeBridge && window.haThemeBridge.reloadWallpaper && window.haThemeBridge.reloadWallpaper(); } catch (e) {} }
+function wnote(m) { $('#wstatus').insertAdjacentHTML('beforeend', ' · <b>' + esc(m) + '</b>'); }
+async function wset(body, msg) {
+  try { S.wallpaper = await api('api/wallpaper', 'PUT', body); wsig = ''; drawW(); wnote(msg); wrefresh(); return true; }
+  catch (e) { alert(e.message); return false; }
+}
+$('#wupload').onclick = () => $('#wfile').click();
+$('#wfile').onchange = async () => {
+  const f = $('#wfile').files[0]; if (!f) return;
+  $('#wupload').disabled = true; $('#wupload').textContent = 'Uploading…';
+  try {
+    const r = await fetch('api/wallpaper/upload?name=' + encodeURIComponent(f.name), {method: 'POST', body: f});
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Upload failed');
+    S.wallpaper = d; wsig = ''; drawW(); wnote('Saved'); wrefresh();
+  } catch (e) { alert(e.message); }
+  $('#wupload').disabled = false; $('#wupload').textContent = 'Choose a picture'; $('#wfile').value = '';
+};
+$('#wfollow').onclick = () => { const v = $('#wsrc').value; if (!v) return; const i = v.indexOf(':'); wset({mode: v.slice(0, i), source: v.slice(i + 1)}, 'Following'); };
+$('#woff').onclick = () => wset({mode: 'off'}, 'Turned off');
+async function pickGo(path) {
+  try {
+    const d = await api('api/browse?path=' + encodeURIComponent(path || ''));
+    if (!path) {
+      pickPath = '';
+      $('#ppath').textContent = 'Your photo paths';
+      $('#pdirs').innerHTML = d.roots.map(r => '<button type="button" data-p="' + esc(r.path) + '"' + (r.exists ? '' : ' disabled') + '>📁 ' + esc(r.path) + '</button>').join('');
+      $('#pgrid').innerHTML = ''; $('#pinfo').textContent = '';
+      return;
+    }
+    pickPath = d.path;
+    $('#ppath').textContent = d.path;
+    $('#pdirs').innerHTML = '<button type="button" data-p="' + esc(d.parent || '') + '">⬆ Up</button>' + d.dirs.map(x => '<button type="button" data-p="' + esc(x.path) + '">📁 ' + esc(x.name) + '</button>').join('');
+    const f = await api('api/files?path=' + encodeURIComponent(d.path));
+    $('#pgrid').innerHTML = f.files.map(x => '<button type="button" title="' + esc(x.name) + '" data-f="' + esc(x.path) + '"><img loading="lazy" alt="" src="api/preview.jpg?path=' + encodeURIComponent(x.path) + '"></button>').join('');
+    $('#pinfo').textContent = f.files.length ? 'Tap a picture to use it' + (f.more ? ' (first 400 shown)' : '') : 'No pictures in this folder';
+  } catch (e) { $('#pinfo').textContent = e.message; }
+}
+$('#wpick').onclick = () => { $('#pickov').classList.add('show'); pickGo(pickPath); };
+$('#pcancel').onclick = () => $('#pickov').classList.remove('show');
+$('#pdirs').onclick = ev => { const b = ev.target.closest('button[data-p]'); if (b) pickGo(b.dataset.p); };
+$('#pgrid').onclick = async ev => {
+  const b = ev.target.closest('button[data-f]'); if (!b) return;
+  $('#pinfo').textContent = 'Saving…';
+  if (await wset({mode: 'file', path: b.dataset.f}, 'Saved')) $('#pickov').classList.remove('show');
+  else $('#pinfo').textContent = '';
+};
 </script>
 <div style="text-align:center;margin:28px 0 14px;font-size:13px;opacity:.75"><a href="backups" style="color:inherit">&#x1F4BE; Backups</a></div>
 </body>

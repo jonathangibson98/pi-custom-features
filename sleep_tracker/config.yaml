@@ -1,5 +1,5 @@
 name: Sleep Tracker
-version: "1.3.0"
+version: "1.3.1"
 slug: sleep_tracker
 description: Tracks whether chosen people are asleep from several signals at once (phone, Focus, lights, TV, motion), with MQTT sensors and sleep history
 url: https://github.com/jonathangibson98/pi-custom-features
