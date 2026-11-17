@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.5.0 - 2026-11-17
+
+- **Health checks** with a score out of 100, re-run every 10 minutes (or **Check again**), each with what to do about it:
+  - Home Assistant repairs, unhealthy or unsupported warnings
+  - updates waiting (Core, OS, Supervisor, add-ons) and how old your newest backup is
+  - disk space, SD card / eMMC wear (when the card reports it), and a write test that catches a card gone read only
+  - CPU temperature, under-voltage / throttling, tight memory, heavy load
+  - unavailable entities, errors and warnings in the log (and which integrations cause them), internet and DNS response time
+  - database size
+- **Database**: which entities fill the recorder database (rows, share and about how much space each), the busiest statistics and events, how many days it keeps, and a ready-to-paste `recorder: exclude:` for the worst ones. Read only, scanned twice a day (`database_scan`) or with **Scan now**, and it gives up after 2 minutes.
+- **Last 24 hours** charts for CPU, temperature and memory.
+- **Ask AI what to fix**: your Home Assistant AI Task reads the report and gives a short, ordered fix list (`ai_task_entity`, empty picks one).
+- Easier to read over wallpapers (tints behind the text when the wallpaper is bright).
+- Stays light: standard library only, slow checks run every 10 minutes in the background. Needs Home Assistant API access now (restart after updating).
+
 ## 1.4.0 - 2026-11-17
 
 - **Junk cleanup.** New card with **Clean now**: clears Docker build leftovers (from add-ons built on the Pi), old add-on images left after updates, and Alexa voice clips older than 30 days, and shows what it freed. Home Assistant can run it too: `hassio.addon_stdin` with `input: cleanup` (e.g. a monthly automation).

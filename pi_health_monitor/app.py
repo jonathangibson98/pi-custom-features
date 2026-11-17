@@ -3,6 +3,8 @@ from urllib.parse import urlparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from concurrent.futures import ThreadPoolExecutor
 
+import checks
+
 TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 API = "http://supervisor"
 INTERVAL = 5
@@ -288,11 +290,39 @@ def collect():
     }
 
 
+def options():
+    try:
+        with open("/data/options.json") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def slow_checks():
+    """The deeper checks run every 10 minutes, the database scan twice a day. Each in its own thread so the live numbers never wait."""
+    last_db = 0
+    time.sleep(20)
+    while True:
+        if MODE == "supervisor":
+            try:
+                checks.run_all(dict(cache))
+            except Exception as e:  # noqa: BLE001
+                print("Health checks failed:", e, flush=True)
+            if time.time() - last_db > checks.DB_SCAN_EVERY * 2 and options().get("database_scan", True):
+                last_db = time.time()
+                threading.Thread(target=checks.db_scan, daemon=True).start()
+        time.sleep(600)
+
+
 def sampler():
+    n = 0
     while True:
         try:
             cache.update(collect())
             cache.pop("error", None)
+            if n % 12 == 0:  # one history point a minute
+                checks.record(cache)
+            n += 1
         except Exception as e:
             cache["error"] = str(e)
         time.sleep(INTERVAL)
@@ -312,11 +342,18 @@ table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;colo
 td{padding:7px 4px;border-top:1px solid #ffffff10}.r{text-align:right}.warn{color:#ffb703}.bad{color:#ff4d6d}.ok{color:#2ec4b6}
 .wrap{overflow-x:auto}
 button{font:inherit;font-weight:600;padding:9px 16px;border-radius:10px;border:0;background:#2ec4b6;color:#04121c;cursor:pointer}button:disabled{opacity:.6;cursor:default}
+button.ghost{background:#ffffff14;color:inherit}.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.grow{flex:1;min-width:0}
+.score{display:flex;gap:16px;align-items:center}.big{font-size:44px;font-weight:700;min-width:78px;text-align:center}
+.chk{display:flex;gap:10px;padding:10px 12px;margin-top:8px;border-radius:10px;background:#ffffff0a;border:1px solid #ffffff10}
+.chk .dot{width:10px;height:10px;border-radius:50%;margin-top:6px;flex:none}.chk b{font-weight:600}.chk .fix{font-size:12px;color:#aaa;margin-top:3px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.spark{width:100%;height:60px;display:block;margin:6px 0}
+details.card{margin-bottom:8px}summary{cursor:pointer;font-weight:600}.mono{font-family:ui-monospace,Menlo,monospace;font-size:12px;word-break:break-all}
+pre{white-space:pre-wrap;background:#00000040;border-radius:8px;padding:10px;font-size:12px}.aiout{white-space:pre-wrap;margin-top:10px;line-height:1.5}
 </style></head><body>
-<!-- ha-theme v1.2.0: copied from .shared/ha-theme.js, edit it there -->
+<!-- ha-theme v1.3.0: copied from .shared/ha-theme.js, edit it there -->
 <script>
 window.__hbAddon = "pi_health_monitor";
-/* HA Theme Bridge v1.2.0
+/* HA Theme Bridge v1.3.0
  * Makes an add-on web UI follow the active Home Assistant theme (colors, dark/light,
  * dashboard wallpaper, glass blur, card corners and shadows) and updates live when
  * the theme changes. It reads the theme from the Home Assistant page that holds the
@@ -327,6 +364,8 @@ window.__hbAddon = "pi_health_monitor";
  * The add-on option:
  *   empty = use the theme's wallpaper, "none" = no wallpaper, or an image:
  *   /local/pic.jpg (= /config/www/pic.jpg), just pic.jpg, /config/www/..., or https://...
+ * Readability: over a wallpaper it measures the picture's bright and dark areas and dims (dark
+ * themes) or lightens (light themes) it just enough for text to reach a 4.5:1 contrast.
  * Opt out on a page: <html data-ha-theme-off>
  * Variables you can use in new pages: --hb-bg --hb-card --hb-text --hb-text2 --hb-line
  * --hb-primary --hb-accent --hb-on --hb-error --hb-warning --hb-success --hb-field,
@@ -738,6 +777,60 @@ window.__hbAddon = "pi_health_monitor";
     return c[3] < 1 ? 'rgba(' + rgbStr(c) + ',' + (Math.round(c[3] * 1000) / 1000) + ')' : 'rgb(' + rgbStr(c) + ')';
   }
 
+  /* ---------- wallpaper readability ---------- */
+  var dimCache = {};           /* wallpaper url -> {dark: alpha, light: alpha} */
+  function lin(v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
+  function relLum(c) { return 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]); }
+  function contrast(a, b) { return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); }
+  function wallUrl(w) { var m = /url\(\s*["']?([^"')]+)["']?\s*\)/.exec(w || ''); return m ? m[1] : ''; }
+  /* smallest overlay alpha so text over the worst part of the picture still reads */
+  function needed(stats, th) {
+    /* browsers mix a see-through layer in screen (sRGB) values, so blend those, then measure */
+    var out = 0.12, bg = th.bg;
+    [[th.text, 4.5], [th.text2, 3.2]].forEach(function (t) {
+      var tl = relLum(t[0]), worst = tl > 0.5 ? stats.hi : stats.lo;
+      for (var a = 0.12; a <= 0.85; a += 0.02) {
+        var mix = [0, 1, 2].map(function (i) { return a * bg[i] + (1 - a) * worst[i]; });
+        if (contrast(tl, relLum(mix)) >= t[1]) { out = Math.max(out, a); return; }
+      }
+      out = Math.max(out, 0.85);
+    });
+    return Math.round(out * 100) / 100;
+  }
+  function measure(url, th) {
+    if (dimCache[url] || !window.Image) return;
+    dimCache[url] = { pending: true };
+    var img = new Image();
+    if (/^https?:/.test(url) && url.indexOf(location.origin) !== 0) img.crossOrigin = 'anonymous';
+    img.onload = function () {
+      try {
+        var cv = doc.createElement('canvas'), n = 48;
+        cv.width = cv.height = n;
+        var cx = cv.getContext('2d');
+        cx.drawImage(img, 0, 0, n, n);
+        var px = cx.getImageData(0, 0, n, n).data, ls = [];
+        for (var i = 0; i < px.length; i += 4) {
+          var c = [px[i], px[i + 1], px[i + 2]];
+          ls.push({ l: relLum(c), c: c });
+        }
+        ls.sort(function (a, b) { return a.l - b.l; });
+        /* 5% darkest / brightest areas: what text over the busiest part of the picture sits on */
+        dimCache[url] = { lo: ls[Math.floor(ls.length * 0.05)].c, hi: ls[Math.floor(ls.length * 0.95)].c };
+      } catch (e) { dimCache[url] = { failed: true }; }  /* other site without CORS: use a safe default */
+      lastKey = ''; apply();
+    };
+    img.onerror = function () { dimCache[url] = { failed: true }; };
+    img.src = url;
+  }
+  function dimFor(th) {
+    var url = wallUrl(th.wall);
+    if (!url) return 0;
+    var st = dimCache[url];
+    if (!st) { measure(url, th); return 0.35; }
+    if (st.pending || st.failed) return 0.35;
+    return needed(st, th);
+  }
+
   function apply() {
     var th;
     try { th = readTheme(); } catch (e) { return; }
@@ -776,8 +869,12 @@ window.__hbAddon = "pi_health_monitor";
     set('--hb-shadow', th.shadow);
     set('--hb-card-border', th.cardBorder);
     set('--hb-card-border-width', th.cardBorderW);
-    set('--hb-page', th.wall || css(th.bg));
+    var dim = th.wall ? dimFor(th) : 0, veil = 'rgba(' + rgbStr(th.bg) + ',' + dim + ')';
+    set('--hb-dim', String(dim));
+    set('--hb-page', th.wall ? (dim ? 'linear-gradient(' + veil + ',' + veil + ') fixed, ' : '') + th.wall : css(th.bg));
     root.style.setProperty('color-scheme', th.dark ? 'dark' : 'light');
+    /* a frame whose page and frame element disagree on color-scheme gets an opaque backdrop; keep them equal */
+    try { if (window.frameElement) window.frameElement.style.colorScheme = th.dark ? 'dark' : 'light'; } catch (e) { /* cross-origin */ }
     root.classList.toggle('hb-dark', th.dark);
     root.classList.toggle('hb-light', !th.dark);
     root.classList.toggle('hb-wallpaper', !!th.wall);
@@ -793,7 +890,9 @@ window.__hbAddon = "pi_health_monitor";
     s.textContent =
       'html.hb-themed{background:' + page + ' !important;min-height:100%}' +
       'html.hb-themed body{background:transparent !important;color:var(--hb-text)}' +
-      (th.wall ? 'html.hb-themed iframe{background:transparent !important}' : '') +
+      (th.wall ? 'html.hb-themed iframe{background:transparent !important}' +
+        'html.hb-themed.hb-wallpaper body{text-shadow:0 1px 3px rgba(' + rgbStr(th.bg) + ',.55)}' +
+        'html.hb-themed.hb-wallpaper input,html.hb-themed.hb-wallpaper textarea,html.hb-themed.hb-wallpaper select{text-shadow:none}' : '') +
       'html.hb-themed ::placeholder{color:var(--hb-text2);opacity:.8}';
     root.classList.add('hb-themed');
   }
@@ -898,6 +997,24 @@ window.__hbAddon = "pi_health_monitor";
 <!-- /ha-theme -->
 <h1>&#10084;&#65039; Pi Health <span id="st" class="sub"></span></h1>
 <div class="grid" id="cards"></div>
+<div id="hwrap" hidden>
+<h2>Health checks <span id="hupd" class="sub"></span></h2>
+<div class="card"><div class="score"><div id="score" class="big">–</div><div class="grow"><div id="hsum" class="sub"></div>
+<div class="row"><button id="recheck" type="button" class="ghost">Check again</button><button id="aibtn" type="button">&#10024; Ask AI what to fix</button></div></div></div>
+<div id="checks"></div><div id="aiout" class="aiout" hidden></div></div>
+<h2>Last 24 hours</h2><div class="grid3"><div class="card"><div class="lbl">CPU %</div><svg id="sp-cpu" class="spark" viewBox="0 0 300 60" preserveAspectRatio="none"></svg><div class="sub" id="sl-cpu"></div></div>
+<div class="card"><div class="lbl">Temp °C</div><svg id="sp-temp" class="spark" viewBox="0 0 300 60" preserveAspectRatio="none"></svg><div class="sub" id="sl-temp"></div></div>
+<div class="card"><div class="lbl">Memory %</div><svg id="sp-mem" class="spark" viewBox="0 0 300 60" preserveAspectRatio="none"></svg><div class="sub" id="sl-mem"></div></div></div>
+<h2>Database <span class="sub">what fills the recorder</span></h2>
+<div class="card" id="db"><div id="dbinfo" class="sub">Not scanned yet.</div>
+<div class="wrap"><table id="dbt" hidden><thead><tr><th>Entity</th><th class="r">Rows</th><th class="r">Share</th><th class="r">About</th></tr></thead><tbody id="dbrows"></tbody></table></div>
+<div id="dbextra" class="sub"></div><pre id="dbyaml" hidden></pre>
+<div class="row"><button id="dbbtn" type="button" class="ghost">Scan now</button></div></div>
+<h2>More detail</h2>
+<details class="card"><summary>Unavailable entities <span id="uacnt" class="sub"></span></summary><div id="ua" class="sub mono"></div></details>
+<details class="card"><summary>Log: busiest sources</summary><div id="logsrc"></div></details>
+<details class="card"><summary>Biggest things in the config folder</summary><div id="csize"></div></details>
+</div>
 <h2>Throttling / power</h2><div class="card" id="thr"></div>
 <h2>Junk cleanup</h2><div class="card" id="junk"><div class="sub">Clears Docker build leftovers, old add-on images and Alexa voice clips older than 30 days. Runs monthly from Home Assistant; this is the same thing now.</div>
 <div id="jlast" class="sub" style="margin:8px 0"></div><button id="jbtn" type="button">Clean now</button></div>
@@ -931,12 +1048,66 @@ function junk(d){const c=d.cleanup||{},el=document.getElementById('jlast'),b=doc
  b.disabled=!!d.cleanup_running;b.textContent=d.cleanup_running?'Cleaning…':'Clean now';
  el.innerHTML=c.t?('Last run '+new Date(c.t*1000).toLocaleString()+' ('+(c.source||'')+'): freed <b>'+c.freed_text+'</b><br>'+(c.steps||[]).map(x=>'· '+x.replace(/</g,'&lt;')).join('<br>')):'Not run yet.';}
 document.getElementById('jbtn').onclick=async()=>{const b=document.getElementById('jbtn');b.disabled=true;b.textContent='Cleaning…';try{await fetch('api/cleanup',{method:'POST'})}catch(e){}setTimeout(tick,1500)};
-tick();setInterval(tick,5000);
+const LV={ok:'#2ec4b6',warn:'#ffb703',bad:'#ff4d6d',unknown:'#888'};
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function spark(id,pts,i,fmt){const el=document.getElementById('sp-'+id),v=pts.map(p=>p[i]).filter(x=>x!=null);if(v.length<2){el.innerHTML='';document.getElementById('sl-'+id).textContent='collecting…';return}
+ const lo=Math.min(...v),hi=Math.max(...v),r=(hi-lo)||1,xs=300/(v.length-1);
+ const d=v.map((y,k)=>(k?'L':'M')+(k*xs).toFixed(1)+' '+(56-(y-lo)/r*52).toFixed(1)).join(' ');
+ el.innerHTML='<path d="'+d+'" fill="none" stroke="#2ec4b6" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+ document.getElementById('sl-'+id).textContent='low '+fmt(lo)+' · high '+fmt(hi)+' · now '+fmt(v[v.length-1]);}
+function health(h){
+ document.getElementById('hwrap').hidden=false;
+ const sc=h.score;document.getElementById('score').textContent=sc==null?'…':sc;document.getElementById('score').style.color=sc==null?'':sc>=85?LV.ok:sc>=60?LV.warn:LV.bad;
+ const n=k=>h.checks.filter(c=>c.level===k).length;
+ document.getElementById('hsum').innerHTML=h.checks.length?`<b>${sc>=85?'Looking good':sc>=60?'A few things to look at':'Needs attention'}</b> · ${n('bad')} problem${n('bad')==1?'':'s'}, ${n('warn')} warning${n('warn')==1?'':'s'}, ${n('ok')} fine`:'Running the first checks…';
+ document.getElementById('hupd').textContent=h.updated?'checked '+new Date(h.updated*1000).toLocaleTimeString():'';
+ document.getElementById('checks').innerHTML=h.checks.map(c=>`<div class="chk"><span class="dot" style="background:${LV[c.level]}"></span><div><b>${esc(c.title)}</b>${c.detail?'<div class="sub">'+esc(c.detail)+'</div>':''}${c.fix?'<div class="fix">&#10148; '+esc(c.fix)+'</div>':''}</div></div>`).join('');
+ const hs=h.history||[];spark('cpu',hs,1,x=>x.toFixed(0)+'%');spark('temp',hs,2,x=>x.toFixed(0)+'°');spark('mem',hs,3,x=>x.toFixed(0)+'%');
+ const d=h.db,b=document.getElementById('dbbtn');b.disabled=h.db_running;b.textContent=h.db_running?'Scanning…':'Scan now';
+ if(d){document.getElementById('dbinfo').innerHTML=d.ok?`<b>${esc(d.size_text)}</b> · ${(d.states||0).toLocaleString()} state rows${d.days?' · keeps '+d.days+' days':''} · scanned ${new Date(d.t*1000).toLocaleString()} (${d.took}s)`:'<span class="warn">'+esc(d.error||'')+'</span>';
+  document.getElementById('dbt').hidden=!d.ok;
+  document.getElementById('dbrows').innerHTML=(d.entities||[]).map(e=>`<tr><td class="mono">${esc(e.entity_id)}</td><td class="r">${e.rows.toLocaleString()}</td><td class="r" style="color:${e.pct>10?LV.bad:e.pct>3?LV.warn:'inherit'}">${e.pct}%</td><td class="r">${esc(e.est)}</td></tr>`).join('');
+  document.getElementById('dbextra').innerHTML=(d.statistics?'<div style="margin-top:8px">Statistics: '+d.stat_series+' series. Most rows: '+d.statistics.slice(0,5).map(x=>esc(x.id)+' ('+x.rows.toLocaleString()+')').join(', ')+'</div>':'')+(d.events?'<div>Events: '+d.events.map(x=>esc(x.type)+' '+x.rows.toLocaleString()).join(', ')+'</div>':'')+(d.exclude_yaml?'<div style="margin-top:8px">To stop recording the busiest ones, add to configuration.yaml (they disappear from history graphs):</div>':'');
+  const y=document.getElementById('dbyaml');y.hidden=!d.exclude_yaml;y.textContent=d.exclude_yaml||'';}
+ document.getElementById('uacnt').textContent='('+h.unavailable.length+')';document.getElementById('ua').innerHTML=h.unavailable.map(esc).join('<br>')||'None';
+ document.getElementById('logsrc').innerHTML='<table>'+h.log_sources.map(x=>`<tr><td style="color:${x.level==='WARNING'?LV.warn:LV.bad}">${x.level}</td><td>${esc(x.source)}</td><td class="r">${x.count}</td></tr>`).join('')+'</table>';
+ document.getElementById('csize').innerHTML='<table>'+h.config_sizes.map(x=>`<tr><td class="mono">${esc(x.name)}</td><td class="r">${x.text}</td></tr>`).join('')+'</table>';
+}
+async function htick(){try{const h=await (await fetch('api/health')).json();if(h.checks.length||h.db||(h.history||[]).length)health(h)}catch(e){}}
+document.getElementById('dbbtn').onclick=async()=>{await fetch('api/db_scan',{method:'POST'});setTimeout(htick,1500)};
+document.getElementById('recheck').onclick=async e=>{e.target.disabled=true;e.target.textContent='Checking…';try{health(await (await fetch('api/recheck',{method:'POST'})).json())}catch(x){}e.target.disabled=false;e.target.textContent='Check again'};
+document.getElementById('aibtn').onclick=async e=>{const o=document.getElementById('aiout');e.target.disabled=true;o.hidden=false;o.textContent='The AI is reading the report…';
+ try{const r=await (await fetch('api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json();o.textContent=r.ok?r.text:'Error: '+r.error}catch(x){o.textContent='Error: '+x}e.target.disabled=false};
+tick();setInterval(tick,5000);htick();setInterval(htick,30000);
 </script></body></html>"""
 
 
 class H(BaseHTTPRequestHandler):
+    def send_json(self, obj, code=200):
+        body = json.dumps(obj).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_POST(self):
+        path = self.path.split("?")[0]
+        if path.endswith("api/db_scan"):
+            threading.Thread(target=checks.db_scan, daemon=True).start()
+            return self.send_json({"started": True})
+        if path.endswith("api/recheck"):
+            checks.run_all(dict(cache))
+            return self.send_json(checks.view())
+        if path.endswith("api/ai"):
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+                q = json.loads(self.rfile.read(n) or b"{}").get("question", "")[:1000] if n else ""
+                if not checks.state["checks"]:
+                    checks.run_all(dict(cache))
+                return self.send_json({"ok": True, "text": checks.ask_ai(str(options().get("ai_task_entity") or "").strip(), q)})
+            except Exception as e:  # noqa: BLE001
+                return self.send_json({"ok": False, "error": str(e)})
         if self.path.split("?")[0].endswith("api/cleanup"):
             threading.Thread(target=run_cleanup, daemon=True).start()
             time.sleep(0.3)
@@ -950,6 +1121,8 @@ class H(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_GET(self):
+        if self.path.split("?")[0].endswith("api/health"):
+            return self.send_json(checks.view())
         if self.path.split("?")[0].endswith("api/stats"):
             body, ctype = json.dumps(dict(cache)).encode(), "application/json"
         else:
@@ -968,5 +1141,6 @@ if __name__ == "__main__":
     cache["cleanup"] = load_clean()
     cache["cleanup_running"] = False
     threading.Thread(target=sampler, daemon=True).start()
+    threading.Thread(target=slow_checks, daemon=True).start()
     threading.Thread(target=stdin_listener, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", PORT), H).serve_forever()

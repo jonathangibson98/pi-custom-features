@@ -1,8 +1,8 @@
 name: "Pi Health Monitor"
-version: "1.4.0"
+version: "1.5.0"
 slug: pi_health_monitor
 image: "ghcr.io/jonathangibson98/{arch}-addon-pi_health_monitor"
-description: "Lightweight CPU, memory, temp, throttling and per-add-on usage dashboard"
+description: "Lightweight health check for your Pi: CPU, memory, temp, power, storage wear, updates, backups, repairs, log errors, unavailable entities and what fills the database, with AI fix tips"
 arch:
   - aarch64
   - amd64
@@ -12,11 +12,16 @@ panel_icon: mdi:heart-pulse
 panel_title: Pi Health
 hassio_api: true
 hassio_role: manager
+homeassistant_api: true
 docker_api: true
 stdin: true
 map:
   - homeassistant_config:rw
 options:
   wallpaper: ""
+  database_scan: true
+  ai_task_entity: ""
 schema:
   wallpaper: str?
+  database_scan: bool
+  ai_task_entity: str?
