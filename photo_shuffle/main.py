@@ -521,7 +521,7 @@ class Unsplash:
     image entity (no custom integration, no files in /share)."""
 
     def __init__(self):
-        self.last_full = {}  # newest full-size photo per entity, for the add-on wallpaper
+        self.newest_photo = {}  # newest full-size photo per entity, for the add-on wallpaper
         self.lock = threading.RLock()
         self.collections = []  # [{id, name, search_terms, orientation}]
         self.published = []  # entity keys announced to Home Assistant (so stale ones can be removed)
@@ -686,7 +686,7 @@ class Unsplash:
             return ERR_MQTT
         with open(self.thumb_path(j["key"]), "wb") as f:
             f.write(thumb)
-        self.last_full[j["key"]] = full
+        self.newest_photo[j["key"]] = full
         wall.offer("unsplash", j["key"], full, j["label"])
         with self.lock:
             self.meta[j["key"]] = meta
@@ -956,7 +956,7 @@ class Wallpaper:
             jobs = {j["key"]: j for j in unsplash.jobs()}
             if source not in jobs:
                 raise ValueError("That Unsplash collection doesn't exist")
-            label, full = jobs[source]["label"], unsplash.last_full.get(source)
+            label, full = jobs[source]["label"], unsplash.newest_photo.get(source)
         else:
             raise ValueError("Unknown source")
         with self.lock:
