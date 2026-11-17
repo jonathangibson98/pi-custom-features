@@ -1,5 +1,5 @@
 name: Personal AI Speech
-version: "1.0.1"
+version: "1.2.0"
 slug: personal_ai_speech
 image: "ghcr.io/jonathangibson98/{arch}-addon-personal_ai_speech"
 description: Natural, emotional text-to-speech and local speech-to-text for the Personal AI integration
@@ -9,6 +9,8 @@ arch:
   - amd64
 startup: services
 ingress: true
+stdin: true
+hassio_api: true
 ingress_port: 8880
 panel_icon: mdi:account-voice
 panel_title: Personal AI Speech
@@ -16,6 +18,8 @@ ports:
   8880/tcp: 8880
 ports_description:
   8880/tcp: "Speech API (OpenAI-compatible). Use this for the Personal AI integration."
+map:
+  - share:rw
 options:
   api_key: ""
   tts_engine: kokoro
@@ -32,6 +36,9 @@ options:
   stt_language: ""
   stt_preload: true
   log_level: info
+  backup_path: /share/addon_backups/personal_ai_speech
+  backup_every: daily
+  backup_keep: 10
 schema:
   api_key: password?
   tts_engine: list(kokoro|proxy)
@@ -48,3 +55,6 @@ schema:
   stt_language: str?
   stt_preload: bool
   log_level: list(debug|info|warning|error)
+  backup_path: str
+  backup_every: list(off|daily|weekly)
+  backup_keep: int(1,100)

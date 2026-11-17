@@ -1,0 +1,31 @@
+configuration:
+  check_seconds:
+    name: Check every (seconds)
+    description: How often everyone's signals are checked.
+  keep_days:
+    name: Keep sleep history for (days)
+    description: Older sleeps are deleted. 0 keeps everything.
+  mqtt_host:
+    name: MQTT host (optional)
+    description: Leave empty to use the Mosquitto broker add-on automatically.
+  mqtt_port:
+    name: MQTT port (optional)
+    description: Only used with a custom MQTT host. Defaults to 1883.
+  mqtt_username:
+    name: MQTT username (optional)
+    description: Only used with a custom MQTT host.
+  mqtt_password:
+    name: MQTT password (optional)
+    description: Only used with a custom MQTT host.
+  backup_path:
+    name: Backup folder
+    description: >-
+      Where backups are saved, inside /share, /media or /homeassistant. A folder keeps several dated backups.
+      A path ending in .zip keeps one file that is replaced each time. Open Backups in the add-on page to back up,
+      download or restore.
+  backup_every:
+    name: Automatic backups
+    description: How often a backup is made by itself (off, daily or weekly).
+  backup_keep:
+    name: Backups to keep
+    description: The newest this many backups are kept in the folder, older ones are deleted.

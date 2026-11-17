@@ -3,7 +3,19 @@ configuration:
     name: AI Task entity (optional)
     description: >-
       An ai_task entity used to suggest a zone name and icon, for example
-      ai_task.gemini_pro_ai_task. Leave blank to turn AI suggestions off.
+      ai_task.google_ai_task. Leave blank to turn AI suggestions off.
   default_radius:
     name: Default radius (meters)
     description: Starting radius for new zones. You can still change it per zone in the UI.
+  backup_path:
+    name: Backup folder
+    description: >-
+      Where backups are saved, inside /share, /media or /homeassistant. A folder keeps several dated backups.
+      A path ending in .zip keeps one file that is replaced each time. Open Backups in the add-on page to back up,
+      download or restore.
+  backup_every:
+    name: Automatic backups
+    description: How often a backup is made by itself (off, daily or weekly).
+  backup_keep:
+    name: Backups to keep
+    description: The newest this many backups are kept in the folder, older ones are deleted.
