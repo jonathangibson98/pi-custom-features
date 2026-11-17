@@ -22,8 +22,9 @@ import paho.mqtt.client as mqtt
 from zoneinfo import ZoneInfo
 
 import addon_backup
+import score_lights
 
-VERSION = "0.4.1"
+VERSION = "0.8.0"
 BACKUP = None  # set in main(), before the settings are read
 # Settings live in the add-on's config folder (/addon_configs/<id>_team_tracker_lite/data on the host).
 DATA = os.environ.get("TTL_DATA", "/config/data")
@@ -297,7 +298,27 @@ def humanize(delta):
     return "tomorrow" if d <= 1 else f"in {d} days"
 
 
-def side(p, c, a):
+COLOR_CACHE = {}  # (league, team id) -> (time, ["#rrggbb", ...])
+
+
+def team_colors_lookup(lid, team_id):
+    """Team colors from ESPN's team page, for when the schedule doesn't include them. Cached for a day."""
+    key = (lid, str(team_id))
+    hit = COLOR_CACHE.get(key)
+    if hit and time.time() - hit[0] < 86400:
+        return hit[1]
+    cols = []
+    try:
+        _, sport, lg, _g = LEAGUES[lid]
+        t = (http_json(f"{ESPN}/{sport}/{lg}/teams/{team_id}") or {}).get("team") or {}
+        cols = ["#" + x for x in (t.get("color"), t.get("alternateColor")) if x]
+    except Exception as e:  # noqa: BLE001
+        log("debug", "No colors for", key, e)
+    COLOR_CACHE[key] = (time.time(), cols)
+    return cols
+
+
+def side(p, c, a, lid=None):
     c = c or {}
     t = c.get("team") or {}
     rk = (c.get("curatedRank") or {}).get("current")
@@ -310,6 +331,8 @@ def side(p, c, a):
     a[p + "_homeaway"] = c.get("homeAway")
     a[p + "_logo"] = t.get("logo") or ((t.get("logos") or [{}])[0]).get("href")
     a[p + "_colors"] = ["#" + x for x in (t.get("color"), t.get("alternateColor")) if x]
+    if not a[p + "_colors"] and lid and a[p + "_id"]:
+        a[p + "_colors"] = team_colors_lookup(lid, a[p + "_id"])
     a[p + "_score"] = num(c.get("score"))
     a[p + "_winner"] = c.get("winner")
 
@@ -363,8 +386,8 @@ def build(event, tid, lid):
         "last_update": now.isoformat(),
         "api_message": "ok",
     }
-    side("team", me, a)
-    side("opponent", op, a)
+    side("team", me, a, lid)
+    side("opponent", op, a, lid)
     return state, a
 
 
@@ -970,7 +993,8 @@ class Handler(BaseHTTPRequestHandler):
         with LOCK:
             return {"settings": json.loads(json.dumps(S)), "sensor": dict(LAST),
                     "mqtt": MQTT_OK, "selector": bool(OPTS.get("publish_team_selector")),
-                    "calendar": calendar_info()}
+                    "calendar": calendar_info(),
+                    "score_lights": {"status": SL.status if SL else "off", "defaults": score_lights.DEFAULTS}}
 
     def do_GET(self):
         if not self.allowed():
@@ -1001,6 +1025,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_body(200, fetch_live_games(lid))
             except Exception as e:
                 return self.send_body(502, {"error": f"ESPN request failed: {e}"})
+        if p == "/api/entities":
+            try:
+                sts = supervisor_call("GET", "/core/api/states") or []
+            except Exception as e:  # noqa: BLE001
+                return self.send_body(502, {"error": str(e)})
+            keep = ("light.", "select.", "input_select.", "input_boolean.", "switch.")
+            return self.send_body(200, sorted(({"id": x["entity_id"], "name": (x.get("attributes") or {}).get("friendly_name") or x["entity_id"]}
+                                               for x in sts if x["entity_id"].startswith(keep)), key=lambda e: e["name"].lower()))
         if p == "/api/state":
             return self.send_body(200, self.state_payload())
         self.send_body(404, {"error": "not found"})
@@ -1017,6 +1049,23 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             return self.send_body(400, {"error": "bad json"})
 
+        if p == "/api/score_lights":
+            with LOCK:
+                cur = dict(score_lights.DEFAULTS, **(S.get("score_lights") or {}))
+                for k, v in body.items():
+                    if k in score_lights.DEFAULTS:
+                        cur[k] = v
+                cur["group1"] = [str(x) for x in cur["group1"] if str(x).startswith("light.")]
+                cur["group2"] = [str(x) for x in cur["group2"] if str(x).startswith("light.")]
+                S["score_lights"] = cur
+                save_settings()
+            if SL:
+                SL.next_swap = 0
+            return self.send_body(200, self.state_payload())
+        if p == "/api/score_lights/test":
+            if SL:
+                SL.test()
+            return self.send_body(200, {"ok": True})
         if p == "/api/ai":
             return self.send_body(200, ai_blurb(str(body.get("style") or "")))
         with LOCK:
@@ -1123,8 +1172,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_body(200, self.state_payload())
 
 
+SL = None
+
+
 def main():
-    global OPTS, S, LOG_LEVEL, BACKUP
+    global OPTS, S, LOG_LEVEL, BACKUP, SL
     # before anything is read, so a queued restore is unpacked first
     BACKUP = addon_backup.Backup("team_tracker_lite", "Team Tracker Lite", VERSION,
                                  [("settings", DATA, "replace", []), ("data", "/data", "replace", [])])
@@ -1140,6 +1192,8 @@ def main():
     mqtt_start()
     BACKUP.start()
     threading.Thread(target=poll_loop, daemon=True).start()
+    SL = score_lights.ScoreLights(lambda: S, lambda: dict(LAST), supervisor_call, log, os.path.join("/data", "score_lights_state.json"))
+    threading.Thread(target=SL.run, daemon=True).start()
     threading.Thread(target=calendar_loop, daemon=True).start()
     threading.Thread(target=ThreadingHTTPServer(("0.0.0.0", 8100), ICSHandler).serve_forever, daemon=True).start()
     log("info", f"Calendar feed on port 8100, updates daily at {S['calendar_time']}")

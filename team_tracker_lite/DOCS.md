@@ -54,3 +54,15 @@ Tap **Backups** at the bottom of the add-on page to back up, download or restore
 **✨ Preview / recap**: your Home Assistant AI Task writes a short preview before the game, a live update during it, or a recap after, from the live sensor (no made-up stats). Styles: plain, hype, trash talk or radio voice.
 
 It uses a Home Assistant AI Task entity (`ai_task_entity` on the Configuration tab; empty uses the first one). The data shown is sent to your AI provider when you tap it.
+
+## Score lights
+
+On the add-on page under **Score lights**. Replaces the `sports_score_lights` AppDaemon app.
+
+- **Group 1 / Group 2**: color lights (or light groups). Group 1 shows a team's main color, group 2 its second color; every *Swap teams every* seconds they switch to the other team.
+- **Scores flash** the scoring team's colors (*Flashes per score*). *Big plays*: field goals and touchdowns in football (not a lone extra point), threes in basketball, any score in other sports. *Every score*: any change.
+- **Celebrate a win**: a longer flash in your team's colors when the game ends in a win.
+- **Only when this entity is in this state**: for a mode helper, for example `select.sync_lights_mode` = `Sports`. **Only on game day** leaves the lights alone when there's no game today.
+- White and black team colors are swapped for bulb-friendly stand-ins (soft ice blue, deep amber) so both colors still show.
+
+Moving from AppDaemon: remove `sports_score_lights` from `apps.yaml` (or stop AppDaemon), then turn on Score lights here with the same light groups and condition.
