@@ -2,7 +2,8 @@
 
 Copied into each add-on by .shared/sync.sh (edit it here). Standard library only.
 Needs `homeassistant_api: true` in the add-on's config. The AI Task entity comes from the add-on's
-`ai_task_entity` option; empty uses the first ai_task.* entity Home Assistant has.
+`ai_task_entity` option; empty uses the default AI Task picked in Personalized Info (select.default_ai_task),
+and without that the first ai_task.* entity Home Assistant has.
 """
 import json
 import os
@@ -38,10 +39,30 @@ def entities():
         return []
 
 
+def default_from(states):
+    """The household default AI Task (set in Personalized Info), from a list of Home Assistant states, or ''."""
+    for s in states:
+        a = s.get("attributes") or {}
+        if s.get("entity_id") in ("select.default_ai_task", "sensor.default_ai_task") or a.get("role") == "default_ai_task":
+            v = str(s.get("state") or "")
+            if v.startswith("ai_task."):
+                return v
+            v = str(a.get("ai_task_entity") or "")
+            if v.startswith("ai_task."):
+                return v
+    return ""
+
+
 def pick(chosen=""):
     chosen = str(chosen or "").strip()
     if chosen:
         return chosen
+    try:
+        d = default_from(_call("GET", "/states"))
+        if d:
+            return d
+    except Exception:  # noqa: BLE001
+        pass
     ents = entities()
     if not ents:
         raise RuntimeError("No AI Task entity found. Add one in Home Assistant (Google Gemini, OpenAI, Anthropic or Ollama), "

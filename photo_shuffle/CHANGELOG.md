@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.0.1 - 2026-11-17
+
+- SVG Maker and the Photo Editor's AI use your **default AI** (picked in Personalized Info, `select.default_ai_task`) when `svg_ai_task_entity` points at an AI Task you don't have, so the AI works out of the box.
+
 ## 5.0.0 - 2026-11-17
 
 - **SVG Maker is now part of Photo Hub.** It has its own **SVG Maker** tab with everything the stand-alone add-on had: photo-to-SVG tracing with the crop editor, and AI logos (with or without a reference photo). Its options (`svg_*`, `ha_url`, `ha_token`) moved to Photo Hub's Configuration tab with the same names and defaults, so copy over anything you'd changed. The old SVG Maker add-on still works but won't get new features.
