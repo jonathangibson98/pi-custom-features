@@ -3,6 +3,7 @@
 ## 0.7.0 - 2026-11-17
 
 - **✨ Preview / recap**: your Home Assistant AI Task writes a short preview before the game, a live update during it, or a recap after, from the live sensor (no made-up stats). Styles: plain, hype, trash talk or radio voice. Set `ai_task_entity` to pick which AI (empty uses the first one).
+- With `ai_task_entity` empty it uses your **default AI** (picked in Personalized Info, `select.default_ai_task`), then the first AI Task.
 
 ## 0.6.2 - 2026-11-17
 

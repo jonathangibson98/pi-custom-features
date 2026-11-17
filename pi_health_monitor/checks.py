@@ -412,12 +412,20 @@ def ask_ai(entity, question):
     """Ask Home Assistant's AI Task to explain the report and give a fix plan."""
     if not entity:
         try:
-            ents = [s["entity_id"] for s in core("/states") if s["entity_id"].startswith("ai_task.")]
+            states = core("/states")
         except Exception:  # noqa: BLE001
-            ents = []
-        if not ents:
+            states = []
+        for s in states:  # the household default AI Task, picked in Personalized Info
+            a = s.get("attributes") or {}
+            if s["entity_id"] in ("select.default_ai_task", "sensor.default_ai_task") or a.get("role") == "default_ai_task":
+                v = s.get("state") if str(s.get("state", "")).startswith("ai_task.") else a.get("ai_task_entity")
+                if str(v or "").startswith("ai_task."):
+                    entity = v
+                    break
+        ents = [s["entity_id"] for s in states if s["entity_id"].startswith("ai_task.")]
+        if not ents and not entity:
             raise RuntimeError("No AI Task entity found. Add one (Google Gemini, OpenAI, Anthropic, Ollama) and try again.")
-        entity = ents[0]
+        entity = entity or ents[0]
     prompt = ("You are a Home Assistant and Raspberry Pi expert. Here is a health report from a Home Assistant OS Raspberry Pi. "
               "Explain in plain words what matters most, then give a short numbered fix list, most important first, with exact "
               "steps (menu paths or YAML). Keep it under 250 words. Don't repeat things that are fine.\n\n" + ai_report())

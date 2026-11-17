@@ -14,6 +14,7 @@
 - **Ask AI what to fix**: your Home Assistant AI Task reads the report and gives a short, ordered fix list (`ai_task_entity`, empty picks one).
 - Easier to read over wallpapers (tints behind the text when the wallpaper is bright).
 - Stays light: standard library only, slow checks run every 10 minutes in the background. Needs Home Assistant API access now (restart after updating).
+- With `ai_task_entity` empty it uses your **default AI** (picked in Personalized Info, `select.default_ai_task`), then the first AI Task.
 
 ## 1.4.0 - 2026-11-17
 
