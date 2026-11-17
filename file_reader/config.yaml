@@ -1,6 +1,6 @@
 name: "File Reader"
 description: "Web UI and MQTT file manager for Home Assistant sensors, automations, and text logging."
-version: "1.4.0"
+version: "1.5.0"
 slug: "file_reader"
 image: "ghcr.io/jonathangibson98/{arch}-addon-file_reader"
 init: false
@@ -38,6 +38,7 @@ options:
   backup_path: /share/addon_backups/file_reader
   backup_every: daily
   backup_keep: 10
+  wallpaper: ""
 schema:
   files_path: "match(^/(data|share|media|homeassistant|config)(/.*)?$)"
   scan_interval: "int(5,3600)"
@@ -49,3 +50,4 @@ schema:
   backup_path: str
   backup_every: list(off|daily|weekly)
   backup_keep: int(1,100)
+  wallpaper: str?

@@ -1,5 +1,5 @@
 name: "Creator & AI Builder"
-version: "2.18.0"
+version: "2.19.0"
 slug: ai_builder
 "image": "ghcr.io/jonathangibson98/{arch}-addon-ai_builder"
 description: "Build Home Assistant automations, scenes, scripts, helpers and more from plain English with your ai_task entity, make AI voice announcements and dashboard facts, and back it all up."
@@ -43,6 +43,7 @@ options:
   backup_path: /share/ai_builder_backups
   backup_keep: 20
   facts_file_path: ""
+  wallpaper: ""
 schema:
   log_level: list(debug|info|warning|error)
   ai_task_entity: str
@@ -55,3 +56,4 @@ schema:
   backup_path: str
   backup_keep: int(1,200)
   facts_file_path: str?
+  wallpaper: str?
