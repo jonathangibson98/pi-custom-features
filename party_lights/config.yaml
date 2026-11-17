@@ -1,0 +1,31 @@
+name: "Party Lights"
+version: "1.0.0"
+slug: party_lights
+image: "ghcr.io/jonathangibson98/{arch}-addon-party_lights"
+description: "Music-synced lights, light shows and party games: album-art colors, disco, chase, pulse, strobe, power hour, shot caller, countdown, birthday blast and an AI hype MC"
+url: "https://github.com/jonathangibson98/pi-custom-features"
+arch:
+  - aarch64
+  - amd64
+init: false
+ingress: true
+panel_icon: mdi:party-popper
+panel_title: Party Lights
+homeassistant_api: true
+hassio_api: true
+services:
+  - mqtt:want
+options:
+  ai_task_entity: ""
+  mqtt_host: ""
+  mqtt_port: 1883
+  mqtt_username: ""
+  mqtt_password: ""
+  wallpaper: ""
+schema:
+  ai_task_entity: str?
+  mqtt_host: str?
+  mqtt_port: port?
+  mqtt_username: str?
+  mqtt_password: password?
+  wallpaper: str?

@@ -1,0 +1,20 @@
+configuration:
+  ai_task_entity:
+    name: AI Task entity (optional)
+    description: The Home Assistant AI Task behind the AI hype MC and AI colors. Empty uses your default AI (picked in Personalized Info), then the first one.
+  mqtt_host:
+    name: MQTT host (optional)
+    description: Leave empty to use the Mosquitto add-on automatically. MQTT makes the Home Assistant controls (switch.party_mode, select.party_effect, ...).
+  mqtt_port:
+    name: MQTT port (optional)
+    description: Usually 1883.
+  mqtt_username:
+    name: MQTT username (optional)
+    description: Only for your own broker.
+  mqtt_password:
+    name: MQTT password (optional)
+    description: Only for your own broker.
+  wallpaper:
+    name: Wallpaper
+    description: >-
+      Background image for this add-on's web UI. Leave empty to use your Home Assistant theme's wallpaper, "none" for no wallpaper, or an image: put it in /config/www and enter its file name (pic.jpg) or /local/pic.jpg, or a full https:// link.
