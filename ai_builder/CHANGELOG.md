@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.2 - 2026-11-17
+
+- **Fixed: the Dashboards preview was blank** (in the phone app it can't sign in to a dashboard shown inside the page). The preview is now drawn by the Home Assistant page itself, with your real cards, custom cards, card-mod, theme and live states, sized to the screen you picked. It follows the view's layout (sections, masonry or panel) closely but not pixel-perfect; **open the real thing** shows the exact dashboard in a new tab. **Does it fit?** now also says how much room is left.
+
 ## 3.0.1 - 2026-11-17
 
 - The AI uses your **default AI**, picked at the top of Personalized Info (`select.default_ai_task`), when `ai_task_entity` points at an AI Task you don't have. Before, the built-in default (`ai_task.google_ai_task`) failed if you didn't have that one.

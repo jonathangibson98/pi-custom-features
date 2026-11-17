@@ -716,8 +716,7 @@ window.__hbAddon = "ai_builder";
     <div class="side stack" style="top:12px">
       <section class="card">
         <div class="ch"><h2>Preview</h2><div class="seg" id="pv"><button data-p="draft" class="on">Draft</button><button data-p="saved">Saved</button></div></div>
-        <div id="stage" style="position:relative;width:100%;overflow:hidden;border-radius:10px;background:#000;border:1px solid var(--line)">
-          <iframe id="frame" title="Dashboard preview" style="border:0;position:absolute;left:0;top:0;transform-origin:0 0;background:#111"></iframe>
+        <div id="stage" style="position:relative;width:100%;overflow:hidden;border-radius:10px;background:var(--bg2);border:1px solid var(--line)">
         </div>
         <div class="row" style="margin-top:8px">
           <label class="check small"><input type="checkbox" id="nohead" checked> No top bar (like a cast screen)</label>
@@ -727,7 +726,7 @@ window.__hbAddon = "ai_builder";
         </div>
         <div class="msg" id="fitmsg"></div>
         <div class="row" id="fitfix" hidden><button class="btn sm primary" id="fixfit">✨ Make it fit</button></div>
-        <p class="help">The draft is shown on a hidden dashboard called "Creator preview", so nothing you use changes until you save.</p>
+        <p class="help">Drawn with your real cards, theme and live states, sized to the screen you picked. Layout is close to Home Assistant's, not pixel-perfect: <button class="btn sm quiet" id="openfull" type="button">open the real thing</button> to see it exactly (on a hidden "Creator preview" dashboard, so nothing you use changes until you save).</p>
       </section>
     </div>
   </div>
@@ -876,51 +875,136 @@ $("#ngo").onclick = async () => {
   if (!r.ok) { msg("#nmsg", r.error, "bad"); return; }
   $("#newov").hidden = true; await loadBoards(); $("#board").value = r.url; openBoard();
 };
-/* ---------- preview ---------- */
-function sizeStage() {
-  const s = screen(), w = $("#stage").clientWidth || 600, k = w / s.w;
-  $("#stage").style.height = Math.round(s.h * k) + "px";
-  const f = $("#frame"); f.style.width = s.w + "px"; f.style.height = s.h + "px"; f.style.transform = "scale(" + k + ")";
+/* ---------- preview ----------
+   The cards are drawn by the Home Assistant page this add-on runs in (same origin), with its own card code, custom
+   cards, card-mod and theme, then laid over the preview box. That works in the phone app too, where a dashboard in a
+   frame can't sign in. */
+const HA = (() => { try { return window.top.document.querySelector("home-assistant") ? window.top : null; } catch (e) { return null; } })();
+let PV = null, pvT = 0;
+function viewIndex() {
+  const vs = (pmode === "draft" ? draft : saved) || {views: []}, v = $("#pview").value;
+  const i = (vs.views || []).findIndex((x, k) => String(x.path || k) === v);
+  return i < 0 ? 0 : i;
 }
-let pvT = 0;
+function sizeStage() {
+  const s = screen(), w = $("#stage").clientWidth || 600;
+  $("#stage").style.height = Math.round(s.h * w / s.w) + "px";
+}
+function chainVisible() {
+  if (document.hidden || !$("#stage").getClientRects().length) return false;
+  let w = window;
+  while (w !== w.top) {
+    const fe = w.frameElement;
+    if (!fe || !fe.getClientRects().length) return false;
+    w = w.parent;
+  }
+  return true;
+}
+function stageInTop() {
+  /* where the preview box is in the Home Assistant page, and how much of it is actually on screen */
+  const r = $("#stage").getBoundingClientRect();
+  let x = r.left, y = r.top, cx0 = Math.max(0, r.left), cy0 = Math.max(0, r.top), cx1 = Math.min(innerWidth, r.right), cy1 = Math.min(innerHeight, r.bottom), w = window;
+  while (w !== w.top) {
+    const fe = w.frameElement, fr = fe.getBoundingClientRect(), ox = fr.left + fe.clientLeft, oy = fr.top + fe.clientTop, pw = w.parent;
+    x += ox; y += oy; cx0 += ox; cy0 += oy; cx1 += ox; cy1 += oy;
+    cx0 = Math.max(cx0, 0); cy0 = Math.max(cy0, 0); cx1 = Math.min(cx1, pw.innerWidth); cy1 = Math.min(cy1, pw.innerHeight);
+    w = pw;
+  }
+  return {x, y, w: r.width, h: r.height, clip: [cy0 - y, x + r.width - cx1, y + r.height - cy1, cx0 - x]};
+}
+function pvHost() {
+  if (PV) return PV;
+  const d = HA.document, host = d.createElement("div"), scr = d.createElement("div");
+  host.style.cssText = "position:fixed;z-index:6;overflow:hidden;pointer-events:none;border-radius:10px;display:none";
+  scr.style.cssText = "position:absolute;left:0;top:0;transform-origin:0 0;overflow:hidden;box-sizing:border-box;" +
+    "background:var(--lovelace-background,var(--primary-background-color));color:var(--primary-text-color);font-family:var(--ha-font-family-body,Roboto,sans-serif)";
+  host.append(scr); d.body.append(host);
+  PV = {host, scr, cards: [], tick: 0};
+  const sync = () => {
+    if (!PV) return;
+    try {
+      if (!chainVisible()) { host.style.display = "none"; }
+      else {
+        const s = screen(), r = stageInTop(), k = r.w / s.w;
+        Object.assign(host.style, {display: "block", left: r.x + "px", top: r.y + "px", width: r.w + "px", height: r.h + "px",
+          clipPath: "inset(" + r.clip.map(v => Math.max(0, v) + "px").join(" ") + ")"});
+        Object.assign(scr.style, {width: s.w + "px", height: s.h + "px", transform: "scale(" + k + ")"});
+      }
+    } catch (e) { host.style.display = "none"; }
+    requestAnimationFrame(sync);
+  };
+  requestAnimationFrame(sync);
+  PV.tick = setInterval(() => { try { const h = HA.document.querySelector("home-assistant").hass; PV.cards.forEach(c => { c.hass = h; }); } catch (e) {} }, 3000);
+  const gone = () => { if (PV) { clearInterval(PV.tick); PV.host.remove(); PV = null; } };
+  addEventListener("pagehide", gone); addEventListener("unload", gone);
+  return PV;
+}
+const SPAN = {tile: 6, button: 3, entity: 6, "sensor": 6, gauge: 6, "light": 6, thermostat: 12, heading: 12};
+async function drawPreview() {
+  if (!HA) { msg("#fitmsg", "The preview only works when this page is opened from the Home Assistant sidebar.", "warn"); return; }
+  let helpers;
+  try { helpers = await HA.loadCardHelpers(); }
+  catch (e) { msg("#fitmsg", "Home Assistant's card code isn't loaded yet. Open any dashboard once, then come back.", "bad"); return; }
+  const hass = HA.document.querySelector("home-assistant").hass, d = HA.document, P = pvHost(), s = screen();
+  const cfg = (pmode === "draft" ? draft : saved) || {views: []}, v = (cfg.views || [])[viewIndex()] || {cards: []};
+  P.cards = [];
+  const mk = c => { let e; try { e = helpers.createCardElement(c); } catch (x) { e = helpers.createCardElement({type: "error", error: String(x), origConfig: c}); } e.hass = hass; P.cards.push(e); return e; };
+  const box = (css, kids) => { const b = d.createElement("div"); b.style.cssText = css; (kids || []).forEach(k => b.append(k)); return b; };
+  P.scr.replaceChildren();
+  if (v.background) P.scr.style.background = typeof v.background === "string" ? v.background : "var(--lovelace-background,var(--primary-background-color))";
+  else P.scr.style.background = "var(--lovelace-background,var(--primary-background-color))";
+  const top = $("#nohead").checked ? 0 : 56;
+  if (top) P.scr.append(box("height:56px;display:flex;align-items:center;padding:0 16px;font-size:20px;background:var(--app-header-background-color,var(--primary-color));color:var(--app-header-text-color,#fff)", [d.createTextNode(v.title || "Dashboard")]));
+  const body = box("padding:8px;box-sizing:border-box;width:100%");
+  P.body = body; P.scr.append(body);
+  const W = s.w - 16, type = v.type || (v.sections ? "sections" : "masonry");
+  if (type === "panel") {
+    body.style.height = (s.h - top) + "px"; body.style.padding = "0";
+    if ((v.cards || [])[0]) body.append(box("height:100%", [mk(v.cards[0])]));
+  } else if (type === "sections") {
+    const maxc = v.max_columns || 4, cols = Math.max(1, Math.min(maxc, Math.floor((W + 16) / (320 + 16))));
+    const grid = box("display:grid;grid-template-columns:repeat(" + cols + ",minmax(0,1fr));gap:16px;align-items:start;padding:8px");
+    (v.sections || []).forEach(sec => {
+      const sg = box("display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px;grid-column:span " + Math.min(cols, sec.column_span || 1));
+      (sec.cards || []).forEach(c => {
+        const go = c.grid_options || {}, lo = c.layout_options || {};
+        let span = go.columns || (lo.grid_columns ? lo.grid_columns * 3 : SPAN[c.type] || 12);
+        span = span === "full" ? 12 : Math.max(1, Math.min(12, +span || 12));
+        const rows = go.rows || lo.grid_rows;
+        sg.append(box("grid-column:span " + span + (rows && rows !== "auto" ? ";height:" + (rows * 56 + (rows - 1) * 8) + "px" : ""), [mk(c)]));
+      });
+      grid.append(sg);
+    });
+    body.append(grid);
+  } else {
+    const n = Math.max(1, Math.min(v.max_columns || 4, Math.floor(W / 340)));
+    const colsEl = [...Array(n)].map(() => box("display:flex;flex-direction:column;gap:8px;min-width:0"));
+    body.append(box("display:grid;grid-template-columns:repeat(" + n + ",minmax(0,1fr));gap:8px;align-items:start", colsEl));
+    for (const c of v.cards || []) {
+      const shortest = colsEl.reduce((a, b) => (b.offsetHeight < a.offsetHeight ? b : a));
+      shortest.append(mk(c));
+      await new Promise(r => setTimeout(r, 30));  // let it draw so the next card goes in the shortest column
+    }
+  }
+  if (!(v.cards || []).length && !(v.sections || []).length) body.append(box("padding:40px;text-align:center;opacity:.7", [d.createTextNode("This view is empty.")]));
+  msg("#fitmsg", ""); $("#fitfix").hidden = true;
+}
 function preview() {
   clearTimeout(pvT);
-  pvT = setTimeout(async () => {
-    let base;
-    if (pmode === "draft") { const r = await api("dash/preview", {config: draft}); if (!r.ok) { msg("#fitmsg", r.error, "bad"); return; } base = r.url; }
-    else base = "/" + (url || "lovelace");
-    const v = $("#pview").value || "0";
-    previewUrl = base + "/" + encodeURIComponent(v);
-    $("#frame").src = previewUrl + "?t=" + Date.now();
-    msg("#fitmsg", ""); $("#fitfix").hidden = true;
-  }, 400);
-}
-$("#frame").addEventListener("load", () => setTimeout(hideHeader, 1200));
-function deep(root, fn, depth) {
-  if (!root || depth > 60) return;
-  for (const n of root.children || []) { fn(n); if (n.shadowRoot) deep(n.shadowRoot, fn, depth + 1); deep(n, fn, depth + 1); }
-}
-function hideHeader() {
-  try {
-    const d = $("#frame").contentDocument; if (!d) return;
-    deep(d, n => {
-      if (n.shadowRoot && /^HUI-ROOT$/.test(n.tagName) && !n.shadowRoot.getElementById("aibhide")) {
-        const s = d.createElement("style"); s.id = "aibhide";
-        s.textContent = $("#nohead").checked ? ".header,app-header,.toolbar{display:none!important} #view,hui-view-container{padding-top:0!important;margin-top:0!important;min-height:100vh!important}" : "";
-        n.shadowRoot.append(s);
-      }
-    }, 0);
-  } catch (e) {}
+  pvT = setTimeout(() => { drawPreview().catch(e => msg("#fitmsg", "Couldn't draw the preview: " + e.message, "bad")); }, 300);
 }
 $("#nohead").onchange = () => preview();
 $("#measure").onclick = () => {
-  try {
-    const f = $("#frame"), d = f.contentDocument, H = screen().h;
-    let worst = Math.max(0, (d.scrollingElement || d.documentElement).scrollHeight - H);
-    deep(d, n => { if (n.clientHeight > 200 && n.scrollHeight > n.clientHeight + 2) { const o = getComputedStyle(n).overflowY; if (o === "auto" || o === "scroll") worst = Math.max(worst, n.scrollHeight - n.clientHeight); } }, 0);
-    if (worst <= 4) { msg("#fitmsg", "Fits the screen. ✓", "ok"); $("#fitfix").hidden = true; }
-    else { msg("#fitmsg", "Too tall by about " + worst + " px on this screen.", "bad"); $("#fitfix").hidden = false; $("#fitfix").dataset.px = worst; }
-  } catch (e) { msg("#fitmsg", "Couldn't measure the preview: " + e.message, "bad"); }
+  if (!PV || !PV.body) { msg("#fitmsg", "Nothing to measure yet.", "bad"); return; }
+  const s = screen(), top = $("#nohead").checked ? 0 : 56, used = top + PV.body.scrollHeight, over = Math.round(used - s.h);
+  if (over <= 4) { msg("#fitmsg", "Fits the screen. ✓ (" + (s.h - used) + " px to spare)", "ok"); $("#fitfix").hidden = true; }
+  else { msg("#fitmsg", "Too tall by about " + over + " px on this screen.", "bad"); $("#fitfix").hidden = false; $("#fitfix").dataset.px = over; }
+};
+$("#openfull").onclick = async () => {
+  const r = await api("dash/preview", {config: pmode === "draft" ? draft : saved});
+  if (!r.ok) { msg("#fitmsg", r.error, "bad"); return; }
+  const v = (((pmode === "draft" ? draft : saved) || {}).views || [])[viewIndex()] || {};
+  try { (HA || window).open(r.url + "/" + encodeURIComponent(v.path || viewIndex()), "_blank"); } catch (e) {}
 };
 $("#fixfit").onclick = () => { $("#req").value = $("#req").value || QUICK[0][1]; runAi({overflow: +$("#fitfix").dataset.px, view: null}); };
 $("#pv").onclick = ev => { const b = ev.target.closest("[data-p]"); if (!b) return; pmode = b.dataset.p; $$("#pv button").forEach(x => x.classList.toggle("on", x === b)); preview(); };
