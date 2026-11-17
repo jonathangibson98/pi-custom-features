@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.0 - 2026-11-17
+
+- **Junk cleanup.** New card with **Clean now**: clears Docker build leftovers (from add-ons built on the Pi), old add-on images left after updates, and Alexa voice clips older than 30 days, and shows what it freed. Home Assistant can run it too: `hassio.addon_stdin` with `input: cleanup` (e.g. a monthly automation).
+- Clearing Docker leftovers needs Docker access: turn off **Protection mode** on this add-on's Info tab. Without it the cleanup still clears old voice clips and says it skipped Docker.
+
 ## 1.3.1 - 2026-11-17
 
 - Uses the shared **add-on wallpaper** you pick in Photo Hub (new *Add-on wallpaper* tab). This add-on's own Wallpaper option still wins when set.
