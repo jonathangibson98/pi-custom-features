@@ -6,6 +6,8 @@ import os
 import random
 import re
 import signal
+import subprocess
+import sys
 import threading
 import time
 import urllib.request
@@ -13,7 +15,7 @@ import urllib.request
 import paho.mqtt.client as mqtt
 import requests
 from flask import Flask, Response, jsonify, request
-from PIL import Image, ImageOps
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
 import addon_backup
 
@@ -67,6 +69,15 @@ for _p in OPTIONS.get("photo_paths") or []:
     _p = os.path.normpath(str(_p).strip())
     if _p.startswith("/") and _p not in ROOTS:
         ROOTS.append(_p)
+
+# Photo Editor: where edited pictures are saved. It joins the photo paths so edits show up everywhere.
+EDIT_DIR = os.path.normpath(str(OPTIONS.get("edit_output_path") or "/media/photo_hub/edited").strip())
+try:
+    os.makedirs(EDIT_DIR, exist_ok=True)
+except OSError as _e:
+    log.warning("Can't create the Photo Editor folder %s: %s", EDIT_DIR, _e)
+if os.path.isdir(EDIT_DIR) and EDIT_DIR not in ROOTS:
+    ROOTS.append(EDIT_DIR)
 
 UNSPLASH_KEY = str(OPTIONS.get("unsplash_access_key") or "").strip()
 try:
@@ -888,6 +899,44 @@ WALL_DIR = os.path.join(WWW_DIR, "addon-wallpaper")
 WALL_IMG = os.path.join(WALL_DIR, "wallpaper.jpg")
 WALL_JSON = os.path.join(WALL_DIR, "wallpaper.json")
 WSTORE = os.path.join(DATA_DIR, "wallpaper.json")
+WALL_ORIG = os.path.join(DATA_DIR, "wallpaper_original.jpg")  # the picture before darken/blur/etc.
+ADJUST_KEYS = {"darken": (-100, 100), "blur": (0, 40), "saturation": (-100, 100), "contrast": (-100, 100), "warmth": (-100, 100)}
+
+
+def clean_adjust(d):
+    out = {}
+    for k, (lo, hi) in ADJUST_KEYS.items():
+        try:
+            out[k] = max(lo, min(hi, int(round(float((d or {}).get(k, 0))))))
+        except (TypeError, ValueError):
+            out[k] = 0
+    return out
+
+
+def apply_adjust(full, a):
+    """darken (-100 lighten .. +100 darken), blur, saturation, contrast and warmth, applied to jpeg bytes."""
+    if not any(a.values()):
+        return full
+    im = Image.open(io.BytesIO(full)).convert("RGB")
+    if a["blur"]:
+        im = im.filter(ImageFilter.GaussianBlur(a["blur"] * max(im.size) / 1600))
+    if a["warmth"]:
+        f = a["warmth"] / 100 * 0.14
+        r, g, b = im.split()
+        r = r.point(lambda v: max(0, min(255, int(v * (1 + f)))))
+        b = b.point(lambda v: max(0, min(255, int(v * (1 - f)))))
+        im = Image.merge("RGB", (r, g, b))
+    if a["saturation"]:
+        im = ImageEnhance.Color(im).enhance(1 + a["saturation"] / 100)
+    if a["contrast"]:
+        im = ImageEnhance.Contrast(im).enhance(1 + a["contrast"] / 100)
+    if a["darken"] > 0:
+        im = Image.blend(im, Image.new("RGB", im.size, (0, 0, 0)), a["darken"] / 100 * 0.85)
+    elif a["darken"] < 0:
+        im = Image.blend(im, Image.new("RGB", im.size, (255, 255, 255)), -a["darken"] / 100 * 0.7)
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", quality=QUALITY, optimize=True)
+    return buf.getvalue()
 
 
 class Wallpaper:
@@ -896,6 +945,7 @@ class Wallpaper:
     def __init__(self):
         self.lock = threading.Lock()
         self.mode, self.source, self.label, self.updated, self.error = "off", "", "", 0.0, None
+        self.adjust = clean_adjust({})
 
     def load(self):
         try:
@@ -904,13 +954,15 @@ class Wallpaper:
             self.mode = d.get("mode", "off")
             self.source, self.label = d.get("source", ""), d.get("label", "")
             self.updated = float(d.get("updated", 0))
+            self.adjust = clean_adjust(d.get("adjust"))
         except FileNotFoundError:
             pass
         except Exception as e:
             log.error("Could not read %s: %s", WSTORE, e)
 
     def save(self):
-        write_json(WSTORE, {"mode": self.mode, "source": self.source, "label": self.label, "updated": self.updated})
+        write_json(WSTORE, {"mode": self.mode, "source": self.source, "label": self.label, "updated": self.updated,
+                           "adjust": self.adjust})
 
     def _publish(self):
         """Write the small file every add-on page reads."""
@@ -918,11 +970,16 @@ class Wallpaper:
         url = f"/local/addon-wallpaper/wallpaper.jpg?v={int(self.updated)}" if self.mode != "off" and os.path.exists(WALL_IMG) else ""
         write_json(WALL_JSON, {"url": url, "label": self.label if url else "", "updated": int(self.updated)})
 
-    def write_image(self, full, label):
+    def write_image(self, full, label, keep_original=False):
         os.makedirs(WALL_DIR, exist_ok=True)
+        if not keep_original:
+            tmp = WALL_ORIG + ".tmp"
+            with open(tmp, "wb") as f:
+                f.write(full)
+            os.replace(tmp, WALL_ORIG)
         tmp = WALL_IMG + ".tmp"
         with open(tmp, "wb") as f:
-            f.write(full)
+            f.write(apply_adjust(full, self.adjust))
         os.replace(tmp, WALL_IMG)
         self.updated, self.label, self.error = time.time(), label, None
         self._publish()
@@ -971,6 +1028,21 @@ class Wallpaper:
         elif full is None:
             mgr.get(source).request_next(wait=0)
 
+    def set_adjust(self, d):
+        """Darken / lighten / blur / etc. Re-made from the untouched original, so changes never stack up."""
+        with self.lock:
+            self.adjust = clean_adjust(d)
+            src = WALL_ORIG if os.path.exists(WALL_ORIG) else (WALL_IMG if os.path.exists(WALL_IMG) else None)
+            if self.mode != "off" and src:
+                with open(src, "rb") as f:
+                    full = f.read()
+                if src == WALL_IMG:  # wallpaper from before this version: treat what's there as the original
+                    with open(WALL_ORIG, "wb") as f:
+                        f.write(full)
+                self.write_image(full, self.label, keep_original=True)
+            else:
+                self.save()
+
     def off(self):
         with self.lock:
             self.mode, self.source, self.label = "off", "", ""
@@ -980,6 +1052,7 @@ class Wallpaper:
     def view(self):
         return {"mode": self.mode, "source": self.source, "label": self.label, "updated": self.updated,
                 "error": self.error, "has_image": self.mode != "off" and os.path.exists(WALL_IMG),
+                "adjust": self.adjust, "has_original": os.path.exists(WALL_ORIG) or os.path.exists(WALL_IMG),
                 "www_ok": os.access(WWW_DIR, os.W_OK)}
 
 
@@ -1234,6 +1307,7 @@ def api_state():
             "shuffles": [s.view() for s in mgr.all()],
             "unsplash": unsplash.view(),
             "wallpaper": wall.view(),
+            "editor": {"folder": EDIT_DIR, "writable": os.access(EDIT_DIR, os.W_OK)},
             "log": list(UI_LOG.buf)[-80:],
         }
     )
@@ -1452,6 +1526,179 @@ def api_browse():
     return jsonify({"path": p, "parent": parent, "dirs": dirs, "images": images})
 
 
+# ---------------------------------------------------------------- picture sources for the Photo Editor
+def jpeg(data, cache="no-cache"):
+    return Response(data, mimetype="image/jpeg", headers={"Cache-Control": cache})
+
+
+@app.get("/api/image.jpg")
+def api_image():
+    """A picture from the photo folders, at full working size."""
+    p = os.path.normpath(request.args.get("path", ""))
+    if not in_roots(p) or not os.path.isfile(p) or not is_image(p):
+        return Response(status=404)
+    ext = os.path.splitext(p)[1].lower()
+    if request.args.get("raw") and ext in (".jpg", ".jpeg", ".png", ".webp", ".gif") and os.path.getsize(p) < 40 * 1024 * 1024:
+        with open(p, "rb") as f:  # untouched file (keeps PNG transparency); the browser shrinks it
+            return Response(f.read(), mimetype={".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}.get(ext, "image/jpeg"),
+                            headers={"Cache-Control": "no-cache"})
+    try:
+        return jpeg(render(p)[0])
+    except Exception:
+        return Response(status=404)
+
+
+@app.get("/api/shuffles/<sid>/full.jpg")
+def api_full(sid):
+    s = mgr.get(sid)
+    if s is None:
+        return Response(status=404)
+    full = s.last_full
+    if full is None and s.last:
+        try:
+            full = render(s.last)[0]
+        except Exception:
+            full = None
+    return jpeg(full) if full else Response(status=404)
+
+
+@app.get("/api/unsplash/full/<key>.jpg")
+def api_u_full(key):
+    full = unsplash.newest_photo.get(key) if UKEY_RE.match(key) else None
+    if full:
+        return jpeg(full)
+    return api_u_thumb(key)
+
+
+@app.get("/api/wallpaper/original.jpg")
+def api_wall_orig():
+    for p in (WALL_ORIG, WALL_IMG):
+        try:
+            with open(p, "rb") as f:
+                return jpeg(f.read())
+        except OSError:
+            pass
+    return Response(status=404)
+
+
+@app.put("/api/wallpaper/adjust")
+def api_wall_adjust():
+    try:
+        wall.set_adjust(request.get_json(silent=True) or {})
+    except (OSError, ValueError) as e:
+        return err(f"Couldn't change the wallpaper: {e}")
+    return jsonify(wall.view())
+
+
+def safe_name(n):
+    n = re.sub(r"[^A-Za-z0-9 ._-]+", "", os.path.splitext(str(n or ""))[0]).strip(" .")[:60]
+    return n or "edited"
+
+
+@app.post("/api/edit/save")
+def api_edit_save():
+    """Save a picture from the Photo Editor into the edits folder (or another folder in your photo paths)."""
+    data = request.get_data()
+    if not data:
+        return err("No picture was sent")
+    folder = os.path.normpath(request.args.get("folder") or EDIT_DIR)
+    if not (folder == EDIT_DIR or in_roots(folder)) or not os.path.isdir(folder):
+        return err("Pick a folder inside your photo paths")
+    if not os.access(folder, os.W_OK):
+        return err(f"Photo Hub can't write to {folder}. Folders on /media need the add-on update's write access, "
+                   "or pick the edits folder.")
+    try:
+        with Image.open(io.BytesIO(data)) as im:
+            im = ImageOps.exif_transpose(im)
+            png = request.args.get("format") == "png" or (im.mode in ("RGBA", "LA") and request.args.get("format") != "jpg")
+            base = safe_name(request.args.get("name"))
+            path = os.path.join(folder, base + (".png" if png else ".jpg"))
+            i = 2
+            while os.path.exists(path):
+                path = os.path.join(folder, f"{base}-{i}" + (".png" if png else ".jpg"))
+                i += 1
+            if png:
+                im.save(path, "PNG", optimize=True)
+            else:
+                im.convert("RGB").save(path, "JPEG", quality=92, optimize=True)
+    except OSError as e:
+        return err(f"Couldn't save it: {e}")
+    except Exception:
+        return err("That isn't a picture I can read")
+    log.info("Photo Editor saved %s", path)
+    return jsonify({"ok": True, "path": path, "name": os.path.basename(path)})
+
+
+@app.get("/api/edit/recent")
+def api_edit_recent():
+    out = []
+    try:
+        with os.scandir(EDIT_DIR) as it:
+            for e in it:
+                if e.is_file() and is_image(e.name):
+                    out.append({"name": e.name, "path": e.path, "t": e.stat().st_mtime})
+    except OSError:
+        pass
+    out.sort(key=lambda x: -x["t"])
+    return jsonify({"folder": EDIT_DIR, "writable": os.access(EDIT_DIR, os.W_OK), "files": out[:30]})
+
+
+# ---------------------------------------------------------------- SVG Maker engine (its own process)
+SVG_DIR = os.path.join(HERE, "svg")
+SVG_PORT = int(os.environ.get("PS_SVG_PORT", 8101))
+SVG_URL = f"http://127.0.0.1:{SVG_PORT}"
+HOP = {"content-encoding", "transfer-encoding", "connection", "content-length", "keep-alive"}
+
+
+def die_with_parent():
+    """Linux: stop the engine too if Photo Hub itself is killed."""
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
+    except Exception:
+        pass
+
+
+def svg_engine():
+    """SVG Maker and the AI tools run in their own process (an asyncio server). Restart it if it ever stops."""
+    while not stop.is_set():
+        env = dict(os.environ, SVG_PORT=str(SVG_PORT), WWW_DIR=os.path.join(SVG_DIR, "www"), DATA_DIR=DATA_DIR)
+        try:
+            proc = subprocess.Popen([sys.executable, "-u", os.path.join(SVG_DIR, "server.py")], cwd=SVG_DIR, env=env,
+                                    preexec_fn=die_with_parent)
+        except OSError as e:
+            log.error("Couldn't start the SVG Maker engine: %s", e)
+            return
+        while proc.poll() is None and not stop.is_set():
+            time.sleep(1)
+        if stop.is_set():
+            proc.terminate()
+            return
+        log.warning("SVG Maker engine stopped (exit %s), restarting in 10 seconds", proc.returncode)
+        stop.wait(10)
+
+
+def proxy(path):
+    try:
+        r = requests.request(request.method, f"{SVG_URL}/{path}", params=request.args, data=request.get_data(),
+                             headers={k: v for k, v in request.headers.items() if k.lower() in ("content-type", "accept")},
+                             timeout=660)
+    except requests.RequestException:
+        return err("The SVG and AI engine is still starting. Try again in a few seconds.", 503)
+    return Response(r.content, status=r.status_code, headers=[(k, v) for k, v in r.headers.items() if k.lower() not in HOP])
+
+
+@app.route("/svg/", defaults={"p": ""}, methods=["GET", "POST"])
+@app.route("/svg/<path:p>", methods=["GET", "POST"])
+def svg_proxy(p):
+    return proxy(p)
+
+
+@app.route("/api/ai/<path:p>", methods=["GET", "POST"])
+def ai_proxy(p):
+    return proxy("api/photo/ai/" + p)
+
+
 # ---------------------------------------------------------------- main
 def main():
     if not ROOTS:
@@ -1478,6 +1725,8 @@ def main():
     threading.Thread(target=unsplash.run, daemon=True).start()
     BACKUP.start()
     threading.Thread(target=mqtt_worker, daemon=True).start()
+    if os.path.isfile(os.path.join(SVG_DIR, "server.py")):
+        threading.Thread(target=svg_engine, daemon=True).start()
     threading.Thread(
         target=lambda: app.run(host="0.0.0.0", port=int(os.environ.get("PS_PORT", 8099)), threaded=True, use_reloader=False),
         daemon=True,

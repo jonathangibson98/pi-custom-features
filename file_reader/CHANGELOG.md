@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.2 - 2026-11-17
+
+- **Easier to read over wallpapers.** When the page shows a wallpaper (your theme's, the shared one from Photo Hub, or your own), it now checks how bright the picture is and lays down just enough of a tint for the text to stay readable: bright wallpapers get more, dark ones barely any. Text also gets a soft shadow.
+
 ## 1.5.1 - 2026-11-17
 
 - Uses the shared **add-on wallpaper** you pick in Photo Hub (new *Add-on wallpaper* tab). This add-on's own Wallpaper option still wins when set.

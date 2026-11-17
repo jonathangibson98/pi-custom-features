@@ -12,9 +12,9 @@ below can also run as a plain Docker container.
 | [Personal AI Speech](personal_ai_speech/) | Natural text-to-speech with emotion tags (Kokoro) and local speech-to-text (faster-whisper), as an OpenAI-compatible server for the Personal AI integration | HA add-on |
 | [Zone Creator](zone_creator/) | Search an address, drop a pin and create a Home Assistant zone, with optional AI name and icon suggestions | HA add-on |
 | [Creator & AI Builder](ai_builder/) | Build automations, scenes, scripts, helpers and more from plain English with your `ai_task` entity, make AI voice announcements and dashboard facts, and back it all up | HA add-on |
-| [SVG Maker](svg_maker/) | Turn photos into clean, scalable SVG icons from the sidebar, with a crop editor and color or black and white tracing | HA add-on |
+| [SVG Maker](svg_maker/) | Moved into Photo Hub. The stand-alone add-on still works but gets no new features | HA add-on |
 | [File Reader](file_reader/) | Web UI and MQTT file manager for Home Assistant sensors, automations and text logging, with an optional REST API | HA add-on |
-| [Photo Hub](photo_shuffle/) | Turn folders of photos and Unsplash collections into Home Assistant image entities over MQTT | HA add-on |
+| [Photo Hub](photo_shuffle/) | Photo shuffles and Unsplash collections as image entities, the shared add-on wallpaper, a Photo Editor with AI tools, and SVG Maker | HA add-on |
 | [Release Tracker](release_tracker/) | Track anything with a release date: shows, movies, games, albums, tech launches and merch drops | HA add-on |
 | [Team Tracker Lite](team_tracker_lite/) | One lightweight sports sensor, pick any team from a menu, with an optional calendar feed | HA add-on |
 | [Work Hours Tracker](work_hours/) | Logs time spent in chosen zones, one file per person, with MQTT sensors | HA add-on |
@@ -226,7 +226,7 @@ It needs Home Assistant API access and an `ai_task` entity. Setup: [ai_builder/D
 
 ## SVG Maker
 
-Turn photos into clean, scalable SVG icons from the sidebar. Auto-suggested crop (circle, rounded, square or full), auto-enhance,
+**Now part of Photo Hub (SVG Maker tab).** This stand-alone add-on still works but gets no new features. Turn photos into clean, scalable SVG icons from the sidebar. Auto-suggested crop (circle, rounded, square or full), auto-enhance,
 color or black and white tracing, and icon-friendly file names. Everything runs locally. Icons save to `/homeassistant/custom_icons` by default.
 It runs on a Debian (glibc) Python image because the tracer (vtracer) crashes on Alpine. Setup: [svg_maker/DOCS.md](svg_maker/DOCS.md).
 
@@ -238,8 +238,10 @@ An optional REST API on port 8100 is protected by `api_token`. It needs the MQTT
 
 ## Photo Hub
 
-Turns folders of photos (default `/media`) and Unsplash collections into Home Assistant image entities over MQTT.
-Images are resized (default 1920 px, JPEG quality 85) and Unsplash needs your own access key. Folders are mounted read-only.
+Turns folders of photos (default `/media`) and Unsplash collections into Home Assistant image entities over MQTT, sets one
+wallpaper for every add-on page (with darken / lighten / blur), and has a Photo Editor (adjust, filters, crop, AI edits through an
+`ai_task` entity) and SVG Maker built in. Images are resized (default 1920 px, JPEG quality 85) and Unsplash needs your own access key.
+Runs on a Debian Python image for SVG Maker's tracer.
 Setup: [photo_shuffle/DOCS.md](photo_shuffle/DOCS.md).
 
 ## Release Tracker
@@ -259,4 +261,4 @@ Setup: [work_hours/DOCS.md](work_hours/DOCS.md).
 
 ## Web UIs follow your Home Assistant theme
 
-Every add-on page carries [`.shared/ha-theme.js`](.shared/ha-theme.js). Inside Home Assistant it reads the active theme (colors, light/dark, dashboard wallpaper, glass blur, card corners) and remaps the page to it, live. Outside Home Assistant it does nothing. Pick one wallpaper for all of them in **Photo Hub → Add-on wallpaper** (upload, pick a photo, or follow a shuffle / Unsplash collection). Each add-on also has its own **Wallpaper** option on its Configuration tab, which wins over that: empty uses your theme's wallpaper, `none` turns it off, or give an image in `/config/www` (`pic.jpg` or `/local/pic.jpg`) or an `https://` link. Edit `.shared/ha-theme.js`, then run `.shared/sync.sh` (or `python3 .shared/sync_theme.py`) to copy it into every page. To add it to a new page: `python3 .shared/sync_theme.py path/to/page.html`.
+Every add-on page carries [`.shared/ha-theme.js`](.shared/ha-theme.js). Inside Home Assistant it reads the active theme (colors, light/dark, dashboard wallpaper, glass blur, card corners) and remaps the page to it, live. Outside Home Assistant it does nothing. Over a wallpaper it measures how bright the picture is and tints behind the text just enough to keep it readable. Pick one wallpaper for all of them in **Photo Hub → Wallpaper** (upload, pick a photo, or follow a shuffle / Unsplash collection). Each add-on also has its own **Wallpaper** option on its Configuration tab, which wins over that: empty uses your theme's wallpaper, `none` turns it off, or give an image in `/config/www` (`pic.jpg` or `/local/pic.jpg`) or an `https://` link. Edit `.shared/ha-theme.js`, then run `.shared/sync.sh` (or `python3 .shared/sync_theme.py`) to copy it into every page. To add it to a new page: `python3 .shared/sync_theme.py path/to/page.html`.
