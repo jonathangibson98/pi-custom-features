@@ -36,3 +36,31 @@ configuration:
     name: Wallpaper
     description: >-
       Background image for this add-on's web UI. Leave empty to use your Home Assistant theme's wallpaper, "none" for no wallpaper, or an image: put it in /config/www and enter its file name (pic.jpg) or /local/pic.jpg, or a full https:// link.
+  files_path:
+    name: Files folder
+    description: >-
+      Folder for the Files section (the old File Reader). Every text file in it becomes an MQTT sensor. Must start
+      with /share, /media, /homeassistant, /config, /addon_configs or /data. If you used File Reader with a folder
+      this add-on can see, it is picked up by itself; its private files are copied over from its newest backup.
+  files_scan_interval:
+    name: Files scan interval (seconds)
+    description: How often the Files folder is checked for changes made outside the add-on (Samba, File editor). Default 30.
+  files_api_token:
+    name: Files REST API token
+    description: >-
+      Password for the Files REST API on port 8100 (rest_command, curl, scripts). Leave empty to keep it off. Also
+      set a host port for 8100 under Network if you call it from outside Home Assistant. MQTT updates don't need it.
+  mqtt_host:
+    name: MQTT host (optional)
+    description: Leave empty to use the Mosquitto add-on automatically.
+  mqtt_port:
+    name: MQTT port (optional)
+    description: Usually 1883.
+  mqtt_user:
+    name: MQTT username (optional)
+    description: Leave empty to use the Mosquitto add-on login from Home Assistant automatically.
+  mqtt_password:
+    name: MQTT password (optional)
+    description: Only for your own broker.
+network:
+  8100/tcp: Files REST API (needs files_api_token)

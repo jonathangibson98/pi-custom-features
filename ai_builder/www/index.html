@@ -16,6 +16,8 @@
   #frames{flex:1;position:relative;min-height:0}
   iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
   @media (max-width:560px){.brand span{display:none}header{gap:8px}}
+  nav.sub{flex:none;margin:0;padding:0 12px;background:var(--bg2);border-bottom:1px solid var(--line)}
+  nav.sub .tab{padding:9px 12px;font-size:.9rem}
 </style>
 </head>
 <body>
@@ -666,38 +668,46 @@ window.__hbAddon = "ai_builder";
 <!-- /ha-theme -->
 
 <header>
-  <div class="brand"><i>&#9656;</i><span>Creator &amp; AI Builder</span></div>
-  <nav class="tabs" aria-label="Sections">
-    <button class="tab" id="b-builder" data-t="builder">Build</button>
-    <button class="tab" id="b-announcements" data-t="announcements">Announcements</button>
-    <button class="tab" id="b-facts" data-t="facts">Facts</button>
-    <button class="tab" id="b-cards" data-t="cards">Cards</button>
-    <button class="tab" id="b-backup" data-t="backup">Backup</button>
-  </nav>
+  <div class="brand"><svg viewBox="24 24 208 208" width="24" height="24" aria-hidden="true"><rect x="40" y="40" width="80" height="80" rx="18" fill="#8ea2ff"/><rect x="136" y="40" width="80" height="80" rx="18" fill="#7ee0b0"/><rect x="40" y="136" width="80" height="80" rx="18" fill="#ffcf70"/><rect x="136" y="136" width="80" height="80" rx="18" fill="#c39bff"/></svg><span>Creator &amp; AI Builder</span></div>
+  <nav class="tabs" id="groups" aria-label="Sections"></nav>
 </header>
-<div id="frames">
-  <iframe id="f-builder" title="Build" hidden></iframe>
-  <iframe id="f-announcements" title="Announcements" hidden></iframe>
-  <iframe id="f-facts" title="Facts" hidden></iframe>
-  <iframe id="f-cards" title="Cards" hidden></iframe>
-  <iframe id="f-backup" title="Backup" hidden></iframe>
-</div>
+<nav class="tabs sub" id="subs" aria-label="Pages"></nav>
+<div id="frames"></div>
 <script>
-const TABS = ["builder", "announcements", "facts", "cards", "backup"];
+/* Menu: groups across the top, the pages of the open group underneath. */
+const MENU = [
+  {id: "build", label: "Build", pages: [
+    {id: "builder", label: "Automations & more", hint: "Automations, scripts, scenes, helpers, templates, blueprints, AppDaemon, add-ons"},
+    {id: "dashboards", label: "Dashboards", hint: "Edit whole dashboards with AI, sized for a TV, tablet or phone"},
+    {id: "cards", label: "Cards", hint: "One dashboard card from a description"}]},
+  {id: "voice", label: "Voice & facts", pages: [
+    {id: "announcements", label: "Announcements"},
+    {id: "facts", label: "Facts"}]},
+  {id: "files", label: "Files", pages: [{id: "files", label: "Files"}]},
+  {id: "backup", label: "Backup", pages: [{id: "backup", label: "Backup"}]},
+];
+const PAGES = MENU.flatMap(g => g.pages.map(p => Object.assign({group: g.id}, p)));
+const frames = document.getElementById("frames"), groups = document.getElementById("groups"), subs = document.getElementById("subs");
+const lastIn = {};
+try { Object.assign(lastIn, JSON.parse(localStorage.getItem("aib_last") || "{}")); } catch (e) {}
+MENU.forEach(g => { const b = document.createElement("button"); b.className = "tab"; b.dataset.g = g.id; b.textContent = g.label; b.onclick = () => show(lastIn[g.id] || g.pages[0].id); groups.append(b); });
+PAGES.forEach(p => { const f = document.createElement("iframe"); f.id = "f-" + p.id; f.title = p.label; f.hidden = true; frames.append(f); });
 function show(t) {
-  if (!TABS.includes(t)) t = "builder";
-  for (const k of TABS) {
-    const f = document.getElementById("f-" + k);
-    if (k === t && !f.getAttribute("src")) f.setAttribute("src", k);  /* load each page the first time it is opened, then keep it alive */
-    f.hidden = k !== t;
-    document.getElementById("b-" + k).classList.toggle("on", k === t);
+  const p = PAGES.find(x => x.id === t) || PAGES[0], g = MENU.find(x => x.id === p.group);
+  lastIn[g.id] = p.id;
+  groups.querySelectorAll(".tab").forEach(b => b.classList.toggle("on", b.dataset.g === g.id));
+  subs.replaceChildren(...(g.pages.length > 1 ? g.pages.map(x => { const b = document.createElement("button"); b.className = "tab" + (x.id === p.id ? " on" : ""); b.textContent = x.label; if (x.hint) b.title = x.hint; b.onclick = () => show(x.id); return b; }) : []));
+  subs.hidden = g.pages.length < 2;
+  for (const x of PAGES) {
+    const f = document.getElementById("f-" + x.id);
+    if (x.id === p.id && !f.getAttribute("src")) f.setAttribute("src", x.id);  /* load each page the first time it is opened, then keep it alive */
+    f.hidden = x.id !== p.id;
   }
-  try { localStorage.setItem("aib_tab", t); } catch (e) {}
-  try { history.replaceState(null, "", "#" + t); } catch (e) {}
+  try { localStorage.setItem("aib_tab", p.id); localStorage.setItem("aib_last", JSON.stringify(lastIn)); } catch (e) {}
+  try { history.replaceState(null, "", "#" + p.id); } catch (e) {}
 }
-document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => show(b.dataset.t)));
 let start = location.hash.slice(1);
-if (!TABS.includes(start)) { try { start = localStorage.getItem("aib_tab"); } catch (e) {} }
+if (!PAGES.some(p => p.id === start)) { try { start = localStorage.getItem("aib_tab"); } catch (e) {} }
 show(start);
 </script>
 </body>

@@ -3555,14 +3555,30 @@ def listen_stdin(on_backup, log_info, log_error):
     threading.Thread(target=run, daemon=True).start()
 
 
+import dashboards  # noqa: E402
+import files_hub  # noqa: E402
+
+FILES = files_hub.Files(OPTS, ask_ai)
+DASH = dashboards.Dashboards(DATA, ws_call, ask_ai, ha, extract_json)
+
+
 async def on_startup(app):
     listen_stdin(write_backup, log.info, log.error)
     app["http"] = aiohttp.ClientSession()
+    try:
+        if not FILES.list() and FILES._old_backup():  # first start after File Reader moved in here
+            log.info("Files: %s", FILES.import_old()[1])
+    except Exception as e:  # noqa: BLE001
+        log.warning("Files: couldn't copy files from the old File Reader backup: %s", e)
+    FILES.start()
+    app["files_api"] = await FILES.start_api()
     render_package(load_json(STORE, {}))
     log.info("Creator & AI Builder ready - using %s, template file /config/%s, AppDaemon dir %s, backups %s", ENTITY, TEMPLATE_REL, AD_DIR, BACKUP_PATH)
 
 
 async def on_cleanup(app):
+    if app.get("files_api"):
+        await app["files_api"].cleanup()
     await app["http"].close()
 
 
@@ -3577,6 +3593,8 @@ def main():
         web.get("/facts", page("facts.html")),
         web.get("/cards", page("cards.html")),
         web.get("/backup", page("backup.html")),
+        web.get("/files", page("files.html")),
+        web.get("/dashboards", page("dashboards.html")),
         web.get("/ui.css", asset("ui.css", "text/css")),
         web.get("/ui.js", asset("ui.js", "application/javascript")),
         web.get("/announcements.js", asset("announcements.js", "application/javascript")),
@@ -3586,6 +3604,8 @@ def main():
         web.get("/cards.js", asset("cards.js", "application/javascript")),
         web.get("/autoform.js", asset("autoform.js", "application/javascript")),
         web.get("/js-yaml.min.js", asset("js-yaml.min.js", "application/javascript")),
+        *FILES.routes(),
+        *DASH.routes(),
         web.get("/api/status", status),
         web.get("/api/targets", targets),
         web.get("/api/mine", mine),
