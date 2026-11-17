@@ -1,5 +1,5 @@
 name: Photo Hub
-version: "4.4.0"
+version: "4.4.1"
 slug: photo_shuffle
 image: "ghcr.io/jonathangibson98/{arch}-addon-photo_shuffle"
 description: Turn folders of photos and Unsplash collections into Home Assistant image entities over MQTT

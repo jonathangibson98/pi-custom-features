@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.4.1 - 2026-11-17
+
+- **Fixed:** picking an Unsplash collection for the add-on wallpaper failed ("Exception on /api/wallpaper"), and the 4.4.0 change could also stop Unsplash photos from refreshing. The wallpaper code reused a name the Unsplash code already used for its refresh timer.
+
 ## 4.4.0 - 2026-11-17
 
 - **New "Add-on wallpaper" tab.** Pick one wallpaper for every add-on's page: upload a picture, pick one from your photo folders, or follow a folder shuffle or Unsplash collection so it changes with every new photo. Turn it off to go back to your theme's wallpaper. Each add-on's own Wallpaper option still wins when set.
