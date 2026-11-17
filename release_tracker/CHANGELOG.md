@@ -1,9 +1,12 @@
 # Changelog
 
+## 1.8.1 - 2026-11-17
+
+- With `ai_task_entity` empty, the AI uses your **default AI**, picked at the top of Personalized Info (`select.default_ai_task`), then the first AI Task.
+
 ## 1.8.0 - 2026-11-17
 
 - **✨ Ideas from AI** on the Add tab: suggestions for new things to track based on what you already track (or a request like "horror games"). Tap **Find** and the normal search fills in the real date. Plus **What's coming (AI rundown)** on the Tracking tab: a short, read-out-loud summary of what's next. Set `ai_task_entity` to pick which AI (empty uses the first one).
-- With `ai_task_entity` empty it uses your **default AI** (picked in Personalized Info, `select.default_ai_task`), then the first AI Task.
 
 ## 1.7.2 - 2026-11-17
 

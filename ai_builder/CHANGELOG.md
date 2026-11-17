@@ -1,12 +1,15 @@
 # Changelog
 
+## 3.0.1 - 2026-11-17
+
+- The AI uses your **default AI**, picked at the top of Personalized Info (`select.default_ai_task`), when `ai_task_entity` points at an AI Task you don't have. Before, the built-in default (`ai_task.google_ai_task`) failed if you didn't have that one.
+
 ## 3.0.0 - 2026-11-17
 
 - **New: Dashboards.** Open any of your dashboards, tell the AI what to change, and preview the draft live at the real screen size before saving: TV 1080p / 720p (cast), Nest Hub, Hub Max, wall tablet, phone, desktop or a custom size. **Does it fit?** measures the real page and **Make it fit** fixes overflow. Quick ideas (fit the screen, TV friendly, tidy up, group by room, sections layout, fix broken, clock & weather header, mobile friendly, dark glass), a health check (missing entities, custom cards that aren't installed), undo/redo, a YAML editor, **Save as a new dashboard**, building a new dashboard from a description, and the last 25 versions kept for every dashboard you save.
 - **File Reader is now built in** as the **Files** section, with the same MQTT topics, sensors and entity IDs, plus AI help (summarize, ask, write, make an automation). Files from File Reader's private folder are copied from its newest backup on first start. New options: `files_path`, `files_scan_interval`, `files_api_token` and optional `mqtt_*`. After updating, uninstall the File Reader add-on.
 - **New menu.** Sections are grouped: **Build** (Automations & more, Dashboards, Cards), **Voice & facts** (Announcements, Facts), **Files** and **Backup**. It remembers the last page in each group.
 - New icon and logo, because it's a lot more than AI now.
-- When `ai_task_entity` points at an AI Task you don't have, it uses your **default AI** picked in Personalized Info (`select.default_ai_task`), then the first AI Task, so the AI works out of the box.
 - Needs MQTT (the Mosquitto add-on) for Files sensors and Supervisor access to find it. Restart once after updating.
 
 ## 2.19.2 - 2026-11-17
