@@ -1,0 +1,51 @@
+name: "File Reader"
+description: "Web UI and MQTT file manager for Home Assistant sensors, automations, and text logging."
+version: "1.4.0"
+slug: "file_reader"
+image: "ghcr.io/jonathangibson98/{arch}-addon-file_reader"
+init: false
+arch:
+  - aarch64
+  - amd64
+ingress: true
+stdin: true
+hassio_api: true
+panel_icon: mdi:file-document-edit-outline
+panel_title: File Reader
+ports:
+  8100/tcp: 8100
+ports_description:
+  8100/tcp: "REST API for automations and scripts (needs api_token)"
+map:
+  - type: share
+    read_only: false
+  - type: media
+    read_only: false
+  - type: homeassistant_config
+    read_only: false
+  - type: addon_config
+    read_only: false
+services:
+  - mqtt:need
+options:
+  files_path: "/data/files"
+  scan_interval: 30
+  api_token: ""
+  mqtt_host: "core-mosquitto"
+  mqtt_port: 1883
+  mqtt_user: ""
+  mqtt_password: ""
+  backup_path: /share/addon_backups/file_reader
+  backup_every: daily
+  backup_keep: 10
+schema:
+  files_path: "match(^/(data|share|media|homeassistant|config)(/.*)?$)"
+  scan_interval: "int(5,3600)"
+  api_token: password?
+  mqtt_host: str
+  mqtt_port: int
+  mqtt_user: str?
+  mqtt_password: password?
+  backup_path: str
+  backup_every: list(off|daily|weekly)
+  backup_keep: int(1,100)

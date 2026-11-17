@@ -1,0 +1,33 @@
+configuration:
+  mqtt_host:
+    name: MQTT host (optional)
+    description: Leave empty to use the Mosquitto add-on automatically.
+  mqtt_port:
+    name: MQTT port
+    description: Only used with an MQTT host. Usually 1883.
+  mqtt_username:
+    name: MQTT username (optional)
+    description: Only used with an MQTT host.
+  mqtt_password:
+    name: MQTT password (optional)
+    description: Only used with an MQTT host.
+  publish_team_selector:
+    name: Publish team selector
+    description: Also create a select entity so dashboards and automations can switch the tracked team (it includes the live game).
+  log_level:
+    name: Log level
+    description: How chatty the add-on log is. Use debug when troubleshooting.
+  backup_path:
+    name: Backup folder
+    description: >-
+      Where backups are saved, inside /share, /media or /homeassistant. A folder keeps several dated backups.
+      A path ending in .zip keeps one file that is replaced each time. Open Backups in the add-on page to back up,
+      download or restore.
+  backup_every:
+    name: Automatic backups
+    description: How often a backup is made by itself (off, daily or weekly).
+  backup_keep:
+    name: Backups to keep
+    description: The newest this many backups are kept in the folder, older ones are deleted.
+network:
+  8100/tcp: Calendar feed (optional, only for subscribing from a phone or another app)

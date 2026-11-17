@@ -24,6 +24,8 @@ from pathlib import Path
 
 from aiohttp import ClientError, ClientSession, ClientTimeout, web
 
+import addon_backup
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("voice_chat")
 
@@ -31,6 +33,9 @@ APP_DIR = Path(__file__).parent
 SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 ADDON = bool(SUPERVISOR_TOKEN)
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
+# created before anything is read, so a queued restore is unpacked first (the self-signed certificate is left out)
+BACKUP = addon_backup.Backup("voice_chat", "Voice Chat", "2.3.0",
+                             [("data", str(DATA_DIR), "replace", ["selfsigned.*"])], data_dir=str(DATA_DIR))
 HA_BASE = "http://supervisor/core" if ADDON else os.environ.get("HA_URL", "http://homeassistant:8123").rstrip("/")
 HA_TOKEN = SUPERVISOR_TOKEN or os.environ.get("HA_TOKEN", "")
 HA_API = HA_BASE + "/api"
@@ -60,7 +65,7 @@ DEFAULTS = {
     "history_limit": (int, 100),
     # 2.1 - household context (who is who, nicknames, places, music...)
     "context_enabled": (bool, True),
-    "context_entity": (str, "sensor.combined_info"),
+    "context_entity": (str, ""),
     "context_attributes": (str, "household_text,friends_text,notable_people,places"),
     "context_skip_agents": (str, "conversation.home_assistant"),
     "context_max_chars": (int, 40000),
@@ -257,8 +262,8 @@ async def wait_playback(mp: str) -> None:
 # ------------------------------------------------------------- household context
 #
 # Reads your combined info sensor (sensor.combined_info) and hands it to the AI
-# agent with the first message of a conversation, so it knows who Jon, MJ, Von,
-# Justin... are when you mention them. The text is NOT stored in chat history and
+# agent with the first message of a conversation, so it knows who Alex, Sam, Chris,
+# Taylor... are when you mention them. The text is NOT stored in chat history and
 # NOT shown on the page.
 
 CONTEXT_CACHE: dict = {"ts": 0.0, "text": "", "facts": ""}
@@ -378,8 +383,7 @@ LIVE_SKIP_ATTRS = {"friendly_name", "icon", "entity_picture", "supported_feature
 LIVE_ENTITY_CHARS = 4000
 LIVE_TOTAL_CHARS = 15000
 LIVE_MAX_ITEMS = 40
-DEFAULT_LIVE = [{"entity_id": "sensor.everybodys_locations", "label": "Where everyone is right now",
-                 "attributes": ""}]
+DEFAULT_LIVE: list[dict] = []  # add entities on the Live info tab
 CONV_LIVE: dict[str, str] = {}  # conversation_id -> hash of the live info the AI last saw
 
 
@@ -730,6 +734,14 @@ async def guard(request, handler):
         return web.json_response({"error": f"Unexpected error: {e}"}, status=500)
 
 
+# ---------- backups (shared module, see addon_backup.py) ----------
+async def backups_route(request):
+    body = await request.read() if request.method == "POST" else b""
+    st, ct, data, hdr = await asyncio.get_running_loop().run_in_executor(
+        None, BACKUP.handle, request.method, request.match_info.get("tail", ""), dict(request.query), body, request.remote)
+    return web.Response(body=data, status=st, headers=dict(hdr, **{"Content-Type": ct}))
+
+
 # ------------------------------------------------------------- startup
 
 def make_ssl_context() -> ssl.SSLContext:
@@ -767,9 +779,10 @@ async def main():
     global SESSION
     ensure_password()
     SESSION = ClientSession(timeout=ClientTimeout(total=300))
-    app = web.Application(middlewares=[guard], client_max_size=16 * 1024 * 1024)
+    app = web.Application(middlewares=[guard], client_max_size=100 * 1024 * 1024)
     app.add_routes([
         web.get("/", index),
+        web.route("*", "/backups{tail:.*}", backups_route),
         web.get("/api/status", status),
         web.post("/api/stt", stt),
         web.post("/api/chat", chat),
@@ -788,12 +801,14 @@ async def main():
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", 8099).start()
+    if ADDON:
+        BACKUP.start()
     if opt("password"):
         await web.TCPSite(runner, "0.0.0.0", 8443, ssl_context=make_ssl_context()).start()
         log.info("HTTPS page listening on port 8443")
     else:
         log.info("Direct HTTPS page is off. Set a password in Configuration to turn it on.")
-    log.info("Voice Chat 2.2.1 ready (%s mode)", "add-on" if ADDON else "standalone")
+    log.info("Voice Chat 2.3.1 ready (%s mode)", "add-on" if ADDON else "standalone")
     try:
         for problem in (await compute_status())["problems"]:
             log.warning("Config problem: %s", problem)

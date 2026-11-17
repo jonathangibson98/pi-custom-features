@@ -1,5 +1,5 @@
 name: "Zone Creator"
-version: "1.1.1"
+version: "1.3.0"
 slug: zone_creator
 image: "ghcr.io/jonathangibson98/{arch}-addon-zone_creator"
 description: "Search an address, drop a pin, and create a Home Assistant zone. Optional AI name and icon suggestions."
@@ -10,11 +10,21 @@ arch:
 init: false
 homeassistant_api: true
 ingress: true
+stdin: true
+hassio_api: true
 panel_icon: mdi:map-marker-plus
 panel_title: "Zone Creator"
+map:
+  - share:rw
 options:
   ai_task_entity: ""
   default_radius: 100
+  backup_path: /share/addon_backups/zone_creator
+  backup_every: daily
+  backup_keep: 10
 schema:
   ai_task_entity: "str?"
   default_radius: "int(10,5000)"
+  backup_path: str
+  backup_every: list(off|daily|weekly)
+  backup_keep: int(1,100)
