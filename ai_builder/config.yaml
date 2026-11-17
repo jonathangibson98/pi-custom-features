@@ -1,8 +1,8 @@
 name: "Creator & AI Builder"
-version: "2.19.2"
+version: "3.0.0"
 slug: ai_builder
 "image": "ghcr.io/jonathangibson98/{arch}-addon-ai_builder"
-description: "Build Home Assistant automations, scenes, scripts, helpers and more from plain English with your ai_task entity, make AI voice announcements and dashboard facts, and back it all up."
+description: "Build automations, dashboards, cards, helpers and more from plain English, edit whole dashboards sized for your TV or tablet, make voice announcements and facts, manage text-file sensors, and back it all up."
 url: "https://github.com/jonathangibson98/ha-ai-builder"
 arch:
   - aarch64
@@ -10,9 +10,16 @@ arch:
 init: false
 ingress: true
 stdin: true
-panel_icon: mdi:robot-happy-outline
+panel_icon: mdi:toolbox-outline
 panel_title: Creator & AI Builder
 homeassistant_api: true
+hassio_api: true
+services:
+  - mqtt:want
+ports:
+  8100/tcp: null
+ports_description:
+  8100/tcp: "Files REST API for automations and scripts (needs files_api_token)"
 map:
   - type: homeassistant_config
     read_only: false
@@ -44,6 +51,8 @@ options:
   backup_keep: 20
   facts_file_path: ""
   wallpaper: ""
+  files_path: /share/file_reader
+  files_scan_interval: 30
 schema:
   log_level: list(debug|info|warning|error)
   ai_task_entity: str
@@ -57,3 +66,10 @@ schema:
   backup_keep: int(1,200)
   facts_file_path: str?
   wallpaper: str?
+  files_path: "match(^/(data|share|media|homeassistant|config|addon_configs)(/.*)?$)"
+  files_scan_interval: int(5,3600)
+  files_api_token: password?
+  mqtt_host: str?
+  mqtt_port: port?
+  mqtt_user: str?
+  mqtt_password: password?

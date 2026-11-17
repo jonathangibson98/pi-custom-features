@@ -370,3 +370,113 @@ Use a path under `/share`, `/media`, `/backup` or `/homeassistant`. Anything sto
 Tap **Import** next to a backup, then tap again to confirm. Import **replaces** the current template sensors, history and announcement settings with the backup's. Before it changes anything it saves a safety copy named `ai_builder_backup_pre-import_...json` in the same place, so you can import that one to undo. Damaged or non-backup files are rejected without changing anything. Template sensors are rewritten to the template file and reloaded straight away.
 
 Moving to a new Home Assistant: install the add-on, set the same `backup_path` (or copy the file there), and import. Announcement Maker settings from the old standalone add-on are a different format; use its Export and the Announcements Import for those.
+
+# Dashboards
+
+**Build → Dashboards.** Open any dashboard, ask the AI for changes, see the result at the real screen size, then save.
+
+1. Pick the **Dashboard** and what it's **Shown on**: TV 1080p (cast), TV / Chromecast 720p, Nest Hub, Nest Hub Max, wall tablet, phone, desktop, or a custom size. A dashboard with "cast" or "TV" in its name starts on the TV size.
+2. Pick **Work on**: the whole dashboard or one view (faster and safer on big dashboards).
+3. Type what you want, or tap a quick idea: *Fit the screen*, *TV friendly*, *Tidy up*, *Group by room*, *Sections layout*, *Fix broken*, *Clock & weather header*, *Mobile friendly*, *Dark glass look*.
+4. **Preview** shows the draft live, scaled to the screen. Tick **No top bar** to see it like a cast screen. **Does it fit?** measures the real page; if it's too tall, **Make it fit** sends the exact overflow to the AI.
+5. **Save to this dashboard** (tap twice). The version before is kept under **Earlier versions** (last 25), so **Load** + Save undoes it. **Save as a new dashboard** keeps the original untouched.
+
+- **+ New dashboard** builds one from a description for the screen you picked (or an empty one).
+- **Health check** lists entities that don't exist and custom cards that aren't installed, and counts cards per view.
+- **Undo / Redo** step through the AI's and your edits before you save. **YAML** lets you edit by hand.
+- The draft lives on a hidden dashboard called **Creator preview** (`/creator-preview`, admins only, not in the sidebar). It's safe to delete; it comes back when needed.
+- Dashboards kept in YAML files (`mode: yaml`) are read only here: save them as a new dashboard or copy the YAML.
+- The AI only gets the entities the dashboard already uses plus ones matching your request, so big setups stay fast.
+
+# Files
+
+**Files** is the old **File Reader** add-on, built in. Create and edit text files from the page; every text file in the folder (and its subfolders) is a Home Assistant sensor over MQTT. The sensor's state is the time the file last changed; the text is in the `content` attribute (last 8000 characters), plus `last_line`, `path`, `line_count` and `truncated`. Files changed outside the add-on (Samba, File editor) are picked up within the scan interval.
+
+**Coming from File Reader:** your sensors keep working with the same entity IDs. Files uses the same MQTT topics, unique IDs and device. If File Reader used a folder this add-on can see (`/share`, `/media`, `/homeassistant`), that folder is used. If it used its private `/data/files`, the files are copied over from File Reader's newest backup (`/share/addon_backups/file_reader`) on first start, or with the button on the Files page. Then uninstall File Reader.
+
+**✨ AI help** works on the open file: *Summarize it*, *Ask a question* about it, *Write / rewrite it* (puts the text in the editor for you to save), or *Make an automation that writes to it*.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `files_path` | `/share/file_reader` | Folder for your files. Every text file in it becomes a sensor. Binary, hidden, `secrets.yaml` and key/database files are ignored. Max 500 files. |
+| `files_scan_interval` | `30` | Seconds between checks for outside changes. |
+| `files_api_token` | empty | Turns on the REST API on port 8100. |
+| `mqtt_host`, `mqtt_port`, `mqtt_user`, `mqtt_password` | empty | Only for your own broker. Empty uses the Mosquitto add-on automatically. |
+
+### Sending updates from automations and scripts
+
+#### Option 1: MQTT (easiest, no token)
+
+Add a line to a file (a new line is added only if the file already has content):
+
+```yaml
+action: mqtt.publish
+data:
+  topic: file_reader/append/logs/door.txt
+  payload: "Front door opened at {{ now().strftime('%H:%M') }}"
+```
+
+Replace the whole file:
+
+```yaml
+action: mqtt.publish
+data:
+  topic: file_reader/overwrite/status/house.txt
+  payload: "{{ states('alarm_control_panel.home') }}"
+```
+
+JSON version (file name, text and mode in one message):
+
+```yaml
+action: mqtt.publish
+data:
+  topic: file_reader/write
+  payload: >-
+    {{ {"file": "logs/door.txt", "text": "Door opened", "mode": "append"} | tojson }}
+```
+
+Do **not** turn on `retain` for these. Retained messages are ignored on purpose.
+
+#### Option 2: REST API (rest_command, curl, scripts)
+
+1. Set **files_api_token** on the Configuration tab, give port 8100 a host port under **Network** if you call it from outside Home Assistant, and restart.
+2. Put the token in your `secrets.yaml` and add this to `configuration.yaml`:
+
+```yaml
+rest_command:
+  file_reader_append:
+    url: "http://YOUR_HA_IP:8100/api/file/{{ file }}"
+    method: post
+    headers:
+      Authorization: "Bearer YOUR_TOKEN"
+      Content-Type: application/json
+    payload: '{"text": {{ text | tojson }}, "mode": "append"}'
+```
+
+3. Call it from an automation or script:
+
+```yaml
+action: rest_command.file_reader_append
+data:
+  file: logs/door.txt
+  text: "Front door opened"
+```
+
+
+From a computer or script:
+
+```
+curl -X POST -H "Authorization: Bearer YOUR_TOKEN" \
+  --data "hello" "http://HA_IP:8100/api/file/logs/door.txt?mode=append"
+```
+
+| Request | What it does |
+| --- | --- |
+| `GET /api/files` | List every file (with folders). |
+| `GET /api/file/<path>` | Read a file. |
+| `POST /api/file/<path>` | Write. JSON `{"text": "...", "mode": "append" or "overwrite"}`, or a plain text body with `?mode=`. |
+| `DELETE /api/file/<path>` | Delete a file. |
+
+
+- Folders are created automatically when you write to `folder/sub/file.txt`.
+- The editor opens files up to 2 MB.

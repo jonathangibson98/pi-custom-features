@@ -11,9 +11,8 @@ below can also run as a plain Docker container.
 | [Voice Chat](voice_chat/) | Hands-free voice conversation with any Home Assistant AI agent, answered out loud on the speaker you choose | HA add-on or Docker |
 | [Personal AI Speech](personal_ai_speech/) | Natural text-to-speech with emotion tags (Kokoro) and local speech-to-text (faster-whisper), as an OpenAI-compatible server for the Personal AI integration | HA add-on |
 | [Zone Creator](zone_creator/) | Search an address, drop a pin and create a Home Assistant zone, with optional AI name and icon suggestions | HA add-on |
-| [Creator & AI Builder](ai_builder/) | Build automations, scenes, scripts, helpers and more from plain English with your `ai_task` entity, make AI voice announcements and dashboard facts, and back it all up | HA add-on |
+| [Creator & AI Builder](ai_builder/) | Build automations, dashboards, cards, helpers and more from plain English with your `ai_task` entity, edit whole dashboards sized for a TV or tablet, voice announcements and facts, text-file sensors (the old File Reader) and backups | HA add-on |
 | [SVG Maker](svg_maker/) | Moved into Photo Hub. The stand-alone add-on still works but gets no new features | HA add-on |
-| [File Reader](file_reader/) | Web UI and MQTT file manager for Home Assistant sensors, automations and text logging, with an optional REST API | HA add-on |
 | [Photo Hub](photo_shuffle/) | Photo shuffles and Unsplash collections as image entities, the shared add-on wallpaper, a Photo Editor with AI tools, and SVG Maker | HA add-on |
 | [Release Tracker](release_tracker/) | Track anything with a release date: shows, movies, games, albums, tech launches and merch drops | HA add-on |
 | [Team Tracker Lite](team_tracker_lite/) | One lightweight sports sensor, pick any team from a menu, with an optional calendar feed | HA add-on |
@@ -54,7 +53,6 @@ sequence:
         - sleep_tracker
         - work_hours
         - photo_shuffle
-        - file_reader
         - voice_chat
         - team_tracker_lite
         - svg_maker
@@ -94,7 +92,6 @@ pi-custom-features/
 ├── zone_creator/                add-on
 ├── ai_builder/                  add-on (Creator & AI Builder)
 ├── svg_maker/                   add-on
-├── file_reader/                 add-on
 ├── photo_shuffle/               add-on (Photo Hub)
 ├── release_tracker/             add-on
 ├── team_tracker_lite/           add-on
@@ -221,7 +218,7 @@ Setup: [zone_creator/DOCS.md](zone_creator/DOCS.md).
 ## Creator & AI Builder
 
 Describe what you want in plain English and your `ai_task` entity builds Home Assistant automations, scenes, scripts, helpers and more.
-It also makes AI voice announcements and dashboard facts, and backs everything up (default `/share/ai_builder_backups`, newest 20 kept).
+It also edits whole dashboards with a live, screen-sized preview (cast TV, Nest Hub, tablet, phone), makes AI voice announcements and dashboard facts, keeps text-file sensors over MQTT (the old File Reader, now its Files section), and backs everything up (default `/share/ai_builder_backups`, newest 20 kept).
 It needs Home Assistant API access and an `ai_task` entity. Setup: [ai_builder/DOCS.md](ai_builder/DOCS.md).
 
 ## SVG Maker
@@ -229,12 +226,6 @@ It needs Home Assistant API access and an `ai_task` entity. Setup: [ai_builder/D
 **Now part of Photo Hub (SVG Maker tab).** This stand-alone add-on still works but gets no new features. Turn photos into clean, scalable SVG icons from the sidebar. Auto-suggested crop (circle, rounded, square or full), auto-enhance,
 color or black and white tracing, and icon-friendly file names. Everything runs locally. Icons save to `/homeassistant/custom_icons` by default.
 It runs on a Debian (glibc) Python image because the tracer (vtracer) crashes on Alpine. Setup: [svg_maker/DOCS.md](svg_maker/DOCS.md).
-
-## File Reader
-
-A web UI and MQTT file manager: expose text files as Home Assistant sensors, edit them from the sidebar and log text from automations.
-Files live in `/data/files` by default, and you can point it at `/share`, `/media` or your Home Assistant config folder.
-An optional REST API on port 8100 is protected by `api_token`. It needs the MQTT service. Setup: [file_reader/DOCS.md](file_reader/DOCS.md).
 
 ## Photo Hub
 
