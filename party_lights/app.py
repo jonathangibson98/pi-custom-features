@@ -15,6 +15,9 @@ import colorsys
 import io
 import json
 import logging
+import math
+import sys
+import threading
 import os
 import random
 import re
@@ -65,16 +68,67 @@ THEMES = {
     "birthday": ["#ff4fd8", "#ffd23f", "#3ec1ff", "#7cff6b", "#ff8a3d"],
     "fire": ["#ff3000", "#ff6a00", "#ff9a00", "#ffbf00"],
     "police": ["#ff0000", "#0030ff"],
+    "aurora": ["#00ff9c", "#00c3ff", "#7a00ff", "#b400ff", "#00ffd5"],
+    "candy": ["#ff2d55", "#ffffff"],
+    "tropical": ["#ff6f61", "#ffb400", "#00c9a7", "#ff3e9a", "#00a6ff"],
 }
 THEME_NAMES = {"party": "Party", "rainbow": "Rainbow", "neon": "Neon", "chill": "Chill", "sunset": "Sunset", "ocean": "Ocean",
                "christmas": "Christmas", "halloween": "Halloween", "july4": "4th of July", "valentine": "Valentine's",
                "stpatricks": "St. Patrick's", "newyear": "New Year's", "birthday": "Birthday", "album": "Album art",
-               "team": "Team colors", "custom": "My colors", "ai": "AI theme"}
+               "team": "Team colors", "custom": "My colors", "ai": "AI theme", "aurora": "Aurora", "candy": "Candy cane",
+               "tropical": "Tropical"}
 EFFECTS = {
     "off": "Off", "music": "Music sync", "static": "Static colors", "color_loop": "Color loop", "rainbow_wave": "Rainbow wave",
     "disco": "Disco", "chase": "Chase", "pulse": "Pulse to the beat", "breathe": "Breathe", "strobe": "Strobe",
     "sparkle": "Sparkle", "fire": "Fire", "police": "Police", "lightning": "Lightning storm",
+    "twinkle": "Twinkle", "comet": "Comet", "ping_pong": "Ping pong", "heartbeat": "Heartbeat", "aurora": "Aurora",
+    "ocean": "Ocean waves", "alternate": "Alternate", "fireworks": "Fireworks", "spotlight": "Spotlight", "glitch": "Glitch",
+    "lava": "Lava lamp", "shuffle": "Shuffle shows",
 }
+EFFECT_ICONS = {
+    "off": "⏻", "music": "🎵", "static": "🎨", "color_loop": "🔄", "rainbow_wave": "🌈", "disco": "🪩", "chase": "🏃", "pulse": "💓",
+    "breathe": "🌬️", "strobe": "⚡", "sparkle": "✨", "fire": "🔥", "police": "🚨", "lightning": "🌩️", "twinkle": "⭐", "comet": "☄️",
+    "ping_pong": "🏓", "heartbeat": "❤️", "aurora": "🌌", "ocean": "🌊", "alternate": "🍬", "fireworks": "🎆", "spotlight": "🔦",
+    "glitch": "👾", "lava": "🫧", "shuffle": "🔀",
+}
+SHUFFLE_POOL = ["color_loop", "rainbow_wave", "disco", "chase", "breathe", "sparkle", "twinkle", "comet", "ping_pong", "aurora",
+                "ocean", "alternate", "fireworks", "spotlight", "lava"]
+# Games and extras. kind: "loop" runs until stopped (a switch), "once" is a single round (a button).
+GAMES = {
+    "power_hour": ("🍺", "Power hour", "loop"), "shots": ("🥃", "Shot caller", "loop"), "countdown": ("⏳", "Countdown", "loop"),
+    "hype": ("🎤", "AI hype MC", "loop"), "freeze": ("🧊", "Freeze dance", "loop"), "red_green": ("🚦", "Red light, green light", "loop"),
+    "never": ("🙊", "Never have I ever", "loop"), "truth_dare": ("😈", "Truth or dare", "loop"), "trivia": ("🧠", "Party trivia", "loop"),
+    "name_tune": ("🎧", "Name that tune", "loop"), "rules": ("📜", "Rule maker", "loop"), "welcome": ("👋", "Welcome arrivals", "loop"),
+    "last_call": ("🌙", "Last call", "loop"), "hot_potato": ("🥔", "Hot potato", "once"), "roulette": ("🎯", "Light roulette", "once"),
+    "cheers": ("🥂", "Cheers!", "once"), "dance_battle": ("🕺", "Dance battle", "once"),
+    "flash": ("💥", "Flash", "once"), "drop": ("⬇️", "Drop the beat", "once"), "birthday": ("🎂", "Birthday blast", "once"),
+    "blackout": ("🌑", "Blackout", "once"),
+}
+GAME_IDS = {"shots": "shot_caller", "hype": "hype_mc"}   # keep the 1.0 entity IDs
+GAME_MDI = {"power_hour": "mdi:beer", "shots": "mdi:glass-wine", "countdown": "mdi:timer-sand", "hype": "mdi:microphone-variant",
+            "freeze": "mdi:snowflake", "red_green": "mdi:traffic-light", "never": "mdi:hand-back-left", "truth_dare": "mdi:emoticon-devil",
+            "trivia": "mdi:head-question", "name_tune": "mdi:music-circle", "rules": "mdi:script-text", "welcome": "mdi:human-greeting",
+            "last_call": "mdi:weather-night", "hot_potato": "mdi:fire", "roulette": "mdi:bullseye-arrow", "cheers": "mdi:glass-cocktail",
+            "dance_battle": "mdi:dance-ballroom", "flash": "mdi:flash", "drop": "mdi:arrow-collapse-down", "birthday": "mdi:cake-variant",
+            "blackout": "mdi:lightbulb-off"}
+NEVER = ["Never have I ever sung karaoke in public.", "Never have I ever fallen asleep at a party.", "Never have I ever lied about my age.",
+         "Never have I ever sent a text to the wrong person.", "Never have I ever ghosted someone.", "Never have I ever cried at a movie.",
+         "Never have I ever been kicked out of a bar.", "Never have I ever gotten a tattoo I regret.", "Never have I ever eaten food off the floor.",
+         "Never have I ever pretended to know a song.", "Never have I ever stalked an ex online.", "Never have I ever called in sick to stay home.",
+         "Never have I ever broken something and hidden it.", "Never have I ever danced on a table.", "Never have I ever forgotten a friend's birthday."]
+TRUTHS = ["What's the most embarrassing song on your playlist?", "Who here would you call to help hide a body?", "What's your worst date story?",
+          "What's the dumbest thing you've done for money?", "What's a secret talent nobody here knows about?", "Who was your first crush?",
+          "What's the last lie you told?", "What's your guilty pleasure TV show?"]
+DARES = ["Do your best impression of someone here.", "Dance with no music for 20 seconds.", "Let the group pick your next song.",
+         "Talk in an accent until your next turn.", "Show the last photo on your phone.", "Do 10 push-ups right now.",
+         "Sing the chorus of the song that's playing.", "Speak only in rhymes for the next 2 minutes."]
+TRIVIA = [("What planet is known as the red planet?", "Mars"), ("How many legs does a spider have?", "Eight"),
+          ("What's the largest ocean on Earth?", "The Pacific"), ("Which country gave us pizza?", "Italy"),
+          ("What's the tallest animal?", "The giraffe"), ("How many strings does a standard guitar have?", "Six"),
+          ("What's the capital of Japan?", "Tokyo"), ("Which metal is liquid at room temperature?", "Mercury")]
+RULES = ["Anyone who says 'drink' has to drink.", "No pointing. Pointers drink.", "You must cheers before every sip.",
+         "Left hand only for your drink.", "Anyone who checks their phone takes a sip.", "Last person to touch their nose drinks.",
+         "No first names. Use nicknames only.", "Every time the song changes, swap seats."]
 DEFAULTS = {
     "lights": [],                    # every light the party uses (light shows, extras)
     "music": {"media_players": [], "lights": [], "saturate": True, "brightness": 0, "transition": 2,
@@ -93,6 +147,19 @@ DEFAULTS = {
     "hype": {"every_minutes": 15, "style": "party DJ hyping the crowd"},
     "birthday": {"name": "", "message": "Happy birthday {name}! Make some noise!"},
     "speed_limit": 0.5,              # fastest seconds between light commands (protects slow bulbs)
+    "shuffle_minutes": 3,
+    "mode_entity": "",               # a select / input_select whose option picks the mode (Off = party over)
+    "freeze": {"min_seconds": 20, "max_seconds": 60, "freeze_seconds": 8, "pause_music": ""},
+    "red_green": {"min_seconds": 4, "max_seconds": 12},
+    "prompts": {"every_minutes": 5, "use_ai": True},
+    "trivia": {"every_minutes": 6, "answer_after": 20, "use_ai": True, "topic": ""},
+    "name_tune": {"every_minutes": 8, "seconds": 15, "player": ""},
+    "rules": {"every_minutes": 15, "use_ai": True},
+    "welcome": {"message": "Welcome to the party, {name}!", "use_ai": False},
+    "last_call": {"time": "01:30", "end_party": True, "minutes_warning": 15},
+    "hot_potato": {"min_seconds": 15, "max_seconds": 45},
+    "cheers": {"message": "Everybody raise your glass. Cheers!"},
+    "dance_battle": {"seconds": 30},
 }
 
 
@@ -217,6 +284,18 @@ class HA:
                 log.warning("Home Assistant connection lost (%s), retrying in 10 s", e)
             await asyncio.sleep(10)
 
+    async def ws_cmd(self, msg):
+        """One websocket command (helper creation and the like)."""
+        async with self.http.ws_connect(WS) as ws:
+            await ws.receive_json()
+            await ws.send_json({"type": "auth", "access_token": TOKEN})
+            await ws.receive_json()
+            await ws.send_json(dict(msg, id=1))
+            while True:
+                r = await ws.receive_json(timeout=20)
+                if r.get("id") == 1:
+                    return r
+
     def state(self, eid):
         return (self.states.get(eid) or {}).get("state")
 
@@ -240,6 +319,7 @@ class Party:
         self.last_art_url = {}
         self.status = "Ready"
         self.events = []             # recent things that happened, for the page
+        self.slug = ""
         self.mq = None
         self.last_cmd = 0.0
 
@@ -332,6 +412,7 @@ class Party:
             if self.s["restore"] and lights:
                 await ha.call("scene", "turn_on", {"entity_id": "scene.party_lights_before", "transition": 2})
             self.note("Party mode off, lights put back")
+        self.sync_helper()
         self.publish()
 
     # ---- light shows
@@ -352,6 +433,20 @@ class Party:
         self.publish()
 
     async def run_show(self, eff):
+        if eff == "shuffle":
+            try:
+                while True:
+                    pick = random.choice(SHUFFLE_POOL)
+                    self.extra_info["shuffle"] = EFFECTS[pick]
+                    self.publish()
+                    inner = asyncio.ensure_future(self.run_show(pick))
+                    try:
+                        await asyncio.sleep(max(1, float(self.s.get("shuffle_minutes") or 3)) * 60)
+                    finally:
+                        inner.cancel()
+            except asyncio.CancelledError:
+                self.extra_info.pop("shuffle", None)
+                return
         L = self.lights()
         if not L:
             self.note("Pick the party lights first (Setup)")
@@ -412,6 +507,56 @@ class Party:
                     if L[half:]:
                         await self.light(L[half:], c, 255, transition=0)
                     step = max(float(self.s.get("speed_limit") or 0.5), step / 2)
+                elif eff == "twinkle":
+                    for e in L:
+                        if random.random() < 0.35:
+                            await self.light(e, random.choice(pal), random.choice([b, max(1, b // 8)]), transition=step)
+                elif eff == "comet":
+                    head = i % n
+                    for k, e in enumerate(L):
+                        dist = (head - k) % n
+                        await self.light(e, pal[(i // n) % len(pal)], b if dist == 0 else max(1, b // (3 * dist + 1)) if dist < 3 else 1, transition=step / 2)
+                elif eff == "ping_pong":
+                    pos = i % (2 * n - 2) if n > 1 else 0
+                    pos = pos if pos < n else 2 * n - 2 - pos
+                    for k, e in enumerate(L):
+                        await self.light(e, pal[i % len(pal)] if k == pos else pal[(i + 1) % len(pal)], b if k == pos else max(1, b // 10), transition=0)
+                elif eff == "heartbeat":
+                    c = pal[(i // 4) % len(pal)]
+                    phase = i % 4
+                    await self.light(L, c, b if phase in (0, 2) else max(1, b // 8), transition=0)
+                    step = max(float(self.s.get("speed_limit") or 0.5), [0.25, 0.25, 0.25, 1.2][phase] * 10 / max(1, int(self.s["show"]["speed"])) * 0.5)
+                elif eff == "aurora":
+                    ap = [hex_rgb(c) for c in (self.palette() if self.s["show"]["theme"] not in ("party",) else THEMES["aurora"])]
+                    for k, e in enumerate(L):
+                        await self.light(e, ap[(i + k) % len(ap)], int(b * (0.4 + 0.6 * abs(math.sin((time.time() - t0) / 6 + k)))), transition=max(step, 3))
+                    step = max(step, 3)
+                elif eff == "ocean":
+                    for k, e in enumerate(L):
+                        wave = 0.5 + 0.5 * math.sin((time.time() - t0) / 3 + k * 0.9)
+                        await self.light(e, [0, int(80 + 120 * wave), int(160 + 95 * wave)], int(b * (0.25 + 0.75 * wave)), transition=max(step, 1.5))
+                    step = max(step, 1.5)
+                elif eff == "alternate":
+                    for k, e in enumerate(L):
+                        await self.light(e, pal[(k + i) % 2 % len(pal)], b, transition=0)
+                elif eff == "fireworks":
+                    if random.random() < 0.6:
+                        e = random.choice(L)
+                        await self.light(e, random.choice(pal), 255, transition=0)
+                        await asyncio.sleep(0.4)
+                        await self.light(e, random.choice(pal), 1, transition=2)
+                    step = random.uniform(0.6, 2.0)
+                elif eff == "spotlight":
+                    for k, e in enumerate(L):
+                        await self.light(e, [255, 244, 220] if k == i % n else pal[k % len(pal)], 255 if k == i % n else max(1, b // 6), transition=step * 0.5)
+                elif eff == "glitch":
+                    e = random.choice(L)
+                    await self.light(e, random.choice(pal + [[255, 255, 255]]), random.choice([255, 30, 120]), transition=0)
+                    step = random.uniform(max(float(self.s.get("speed_limit") or 0.5), 0.3), 1.6)
+                elif eff == "lava":
+                    for k, e in enumerate(L):
+                        await self.light(e, pal[int((time.time() - t0) / 8 + k) % len(pal)], int(b * random.uniform(0.5, 1)), transition=max(step * 2, 5))
+                    step = max(step * 2, 5)
                 elif eff == "lightning":
                     if random.random() < 0.25:
                         await self.light(L, [230, 240, 255], 255, transition=0)
@@ -685,6 +830,280 @@ class Party:
         self.note("AI theme: %s" % self.s["ai_theme"]["name"])
         return self.s["ai_theme"]
 
+    # ---- more games
+    def all_lights(self):
+        return sorted(set(self.lights() + self.s["music"]["lights"]))
+
+    async def ai_line(self, prompt, fallback, task="Party game"):
+        try:
+            out = await asyncio.get_running_loop().run_in_executor(None, ha_ai.ask, prompt + " Plain text only, no quotes, keep it fun and friendly.",
+                                                                     OPTS.get("ai_task_entity") or "", task)
+            out = (out or "").strip().strip('"')
+            if out and not out.startswith(("{", "[")):
+                return out
+        except Exception as e:  # noqa: BLE001
+            log.info("AI unavailable for %s (%s), using a built-in one", task, e)
+        return random.choice(fallback)
+
+    async def wait_info(self, key, seconds, label):
+        end = time.time() + seconds
+        while time.time() < end:
+            left = int(end - time.time())
+            self.extra_info[key] = label % (left // 60, left % 60) if "%d:%02d" in label else label
+            if left % 10 == 0:
+                self.publish()
+            await asyncio.sleep(min(1, max(0.1, end - time.time())))
+
+    async def freeze_dance(self):
+        f = self.s["freeze"]
+        while True:
+            await self.wait_info("freeze", random.uniform(f["min_seconds"], max(f["min_seconds"], f["max_seconds"])), "Dancing… freeze coming")
+            await self.stop_show()
+            if f.get("pause_music"):
+                await ha.call("media_player", "media_pause", {"entity_id": f["pause_music"]})
+            await self.light(self.all_lights(), [120, 200, 255], 255, transition=0)
+            await self.say("Freeze!")
+            await self.wait_info("freeze", f["freeze_seconds"], "FROZEN! Anyone moving is out")
+            if f.get("pause_music"):
+                await ha.call("media_player", "media_play", {"entity_id": f["pause_music"]})
+            await self.say("Dance!")
+            await self.start_show()
+
+    async def red_green(self):
+        rg = self.s["red_green"]
+        await self.stop_show()
+        L = self.all_lights()
+        try:
+            while True:
+                await self.light(L, [0, 255, 60], 255, transition=0)
+                await self.say("Green light!")
+                await self.wait_info("red_green", random.uniform(rg["min_seconds"], max(rg["min_seconds"], rg["max_seconds"])), "🟢 Go!")
+                await self.light(L, [255, 0, 0], 255, transition=0)
+                await self.say("Red light!")
+                await self.wait_info("red_green", random.uniform(3, 6), "🔴 Stop!")
+        finally:
+            asyncio.ensure_future(self.start_show())
+
+    async def prompts(self, key):
+        pr = self.s["prompts"]
+        while True:
+            people = self.people_home()
+            if key == "never":
+                line = await self.ai_line("Write one new 'Never have I ever...' statement for a house party of adults.", NEVER, "Never have I ever") \
+                    if pr["use_ai"] else random.choice(NEVER)
+                asyncio.ensure_future(self.flash(None, 1))
+                await self.say(line + " If you have, drink!")
+            else:
+                who = random.choice(people) if people else "Somebody"
+                truth = random.random() < 0.5
+                if pr["use_ai"]:
+                    line = await self.ai_line("Write one %s for a friendly house party game, for %s." % ("truth question" if truth else "fun, safe dare", who),
+                                              TRUTHS if truth else DARES, "Truth or dare")
+                else:
+                    line = random.choice(TRUTHS if truth else DARES)
+                asyncio.ensure_future(self.flash(None, 1))
+                await self.say("%s, %s! %s" % (who, "truth" if truth else "dare", line))
+            self.extra_info[key] = "Last: " + line[:60]
+            await self.wait_info(key, max(1, pr["every_minutes"]) * 60, self.extra_info[key])
+
+    async def trivia(self):
+        t = self.s["trivia"]
+        while True:
+            q, a = random.choice(TRIVIA)
+            if t["use_ai"]:
+                try:
+                    out = await asyncio.get_running_loop().run_in_executor(None, ha_ai.ask_json,
+                        "Write one fun party trivia question%s with a short answer. Reply ONLY with JSON {\"q\": \"question\", \"a\": \"answer\"}."
+                        % ((" about " + t["topic"]) if t.get("topic") else ""), OPTS.get("ai_task_entity") or "", "Party trivia")
+                    q, a = str(out.get("q") or q), str(out.get("a") or a)
+                except Exception as e:  # noqa: BLE001
+                    log.info("Trivia AI unavailable: %s", e)
+            asyncio.ensure_future(self.flash(None, 1))
+            await self.say("Trivia time! " + q)
+            await self.wait_info("trivia", max(5, t["answer_after"]), "Q: " + q[:70])
+            await self.say("The answer is: " + a)
+            self.extra_info["trivia"] = "A: " + a[:60]
+            await self.wait_info("trivia", max(1, t["every_minutes"]) * 60, self.extra_info["trivia"])
+
+    async def name_tune(self):
+        nt = self.s["name_tune"]
+        while True:
+            await self.wait_info("name_tune", max(1, nt["every_minutes"]) * 60, "Next round soon")
+            player = nt.get("player") or (self.s["music"]["media_players"] or [""])[0]
+            title, artist = ha.attr(player, "media_title"), ha.attr(player, "media_artist")
+            if not title:
+                continue
+            await self.say("Name that tune! First to shout the artist wins.")
+            asyncio.ensure_future(self.flash(None, 2))
+            await self.wait_info("name_tune", max(5, nt["seconds"]), "Guess the artist!")
+            await self.say("It's %s by %s!" % (title, artist or "someone"))
+
+    async def rule_maker(self):
+        r = self.s["rules"]
+        while True:
+            rule = await self.ai_line("Invent one short, funny house party rule for a drinking game (like Kings Cup rules).", RULES, "Rule maker") \
+                if r["use_ai"] else random.choice(RULES)
+            asyncio.ensure_future(self.flash(None, 2))
+            await self.say("New rule! " + rule)
+            self.extra_info["rules"] = "Rule: " + rule[:60]
+            await self.wait_info("rules", max(1, r["every_minutes"]) * 60, self.extra_info["rules"])
+
+    async def welcome(self):
+        self.extra_info["welcome"] = "Watching the front door"
+        self.publish()
+        seen = set(self.people_home())
+        while True:
+            await asyncio.sleep(5)
+            now = set(self.people_home())
+            for who in now - seen:
+                w = self.s["welcome"]
+                line = w["message"].replace("{name}", who)
+                if w.get("use_ai"):
+                    line = await self.ai_line("Write one short, warm, funny line welcoming %s as they arrive at a house party." % who, [line], "Welcome")
+                asyncio.ensure_future(self.flash("birthday", 2))
+                await self.say(line)
+                self.note("Welcomed " + who)
+            seen = now
+
+    async def last_call(self):
+        lc = self.s["last_call"]
+        hh, mm = (int(x) for x in (lc["time"] or "01:30").split(":")[:2])
+        now = datetime.now()
+        target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        if target <= now:
+            target += timedelta(days=1)
+        warn = target - timedelta(minutes=max(0, int(lc["minutes_warning"])))
+        if warn > now:
+            await self.wait_info("last_call", (warn - now).total_seconds(), "Last call at %s" % lc["time"])
+            await self.say("Last call! %d minutes left, get your last drinks." % lc["minutes_warning"])
+            await self.light(self.all_lights(), [255, 160, 60], self.bri(40), transition=10)
+        left = (target - datetime.now()).total_seconds()
+        if left > 0:
+            await self.wait_info("last_call", left, "Closing time soon")
+        await self.say("That's the party, folks! Thanks for coming. Get home safe.")
+        if lc.get("end_party"):
+            asyncio.ensure_future(self.set_on(False))
+
+    async def hot_potato(self):
+        hp = self.s["hot_potato"]
+        await self.stop_show()
+        L = self.all_lights()
+        await self.say("Hot potato! Pass it around before it blows!")
+        total = random.uniform(hp["min_seconds"], max(hp["min_seconds"], hp["max_seconds"]))
+        start = time.time()
+        while time.time() - start < total:
+            frac = (time.time() - start) / total
+            await self.light(L, [255, int(200 * (1 - frac)), 0], 255 if int((time.time() - start) * (1 + frac * 6)) % 2 == 0 else 40, transition=0)
+            self.extra_info["hot_potato"] = "Tick… tick…"
+            await asyncio.sleep(max(float(self.s.get("speed_limit") or 0.5), 1.2 - frac))
+        await self.light(L, [255, 0, 0], 255, transition=0)
+        await self.say("Boom! Whoever's holding it drinks!")
+        await asyncio.sleep(3)
+        self.extra_info.pop("hot_potato", None)
+        await self.start_show()
+
+    async def roulette(self):
+        await self.stop_show()
+        L = self.all_lights()
+        if not L:
+            return
+        await self.say("Spinning the light roulette!")
+        delay, k = 0.5, random.randrange(len(L))
+        for _ in range(random.randint(10, 18)):
+            k = (k + 1) % len(L)
+            await self.light(L, [40, 0, 60], 30, transition=0)
+            await self.light(L[k], [255, 220, 0], 255, transition=0)
+            await asyncio.sleep(max(float(self.s.get("speed_limit") or 0.5), delay))
+            delay *= 1.12
+        name = ha.attr(L[k], "friendly_name") or L[k]
+        for _ in range(3):
+            await self.light(L[k], [255, 255, 255], 255, transition=0)
+            await asyncio.sleep(0.5)
+            await self.light(L[k], [255, 0, 120], 255, transition=0)
+            await asyncio.sleep(0.5)
+        await self.say("It landed on %s! Whoever's closest to it drinks!" % name)
+        await asyncio.sleep(4)
+        await self.start_show()
+
+    async def cheers(self):
+        asyncio.ensure_future(self.flash("newyear", 3))
+        await self.say(self.s["cheers"]["message"])
+
+    async def dance_battle(self):
+        people = self.people_home()
+        if len(people) < 2:
+            people = (people + ["Team one", "Team two"])[:2]
+        a, b = random.sample(people, 2)
+        L = self.all_lights()
+        await self.stop_show()
+        secs = max(10, int(self.s["dance_battle"]["seconds"]))
+        await self.say("Dance battle! %s versus %s. %s, you're up first!" % (a, b, a))
+        for who, col in ((a, [255, 0, 150]), (b, [0, 200, 255])):
+            await self.light(L, col, 255, transition=0)
+            await self.wait_info("dance_battle", secs, "%s is dancing!" % who)
+            if who == a:
+                await self.say("Time! %s, show us what you got!" % b)
+        await self.say("Make some noise for %s!" % a)
+        await asyncio.sleep(4)
+        await self.say("And now for %s!" % b)
+        await asyncio.sleep(4)
+        await self.say("You decide the winner. Loser drinks!")
+        self.extra_info.pop("dance_battle", None)
+        await self.start_show()
+
+    # ---- modes from outside the page: a helper entity, MQTT, or hassio.addon_stdin
+    async def set_mode(self, key):
+        """One way in for every 'pick a mode' control. 'off' ends the party."""
+        if key == "off":
+            self.s["show"]["effect"] = "off"
+            save_settings(self.s)
+            await self.set_on(False)
+        elif key in EFFECTS:
+            self.s["show"]["effect"] = key
+            save_settings(self.s)
+            if self.on:
+                await self.start_show()
+            else:
+                await self.set_on(True)
+        self.sync_helper()
+        self.publish()
+
+    def sync_helper(self):
+        ent = self.s.get("mode_entity")
+        if not ent:
+            return
+        want = EFFECTS.get(self.s["show"]["effect"] if self.on else "off", "Off")
+        if ha.state(ent) == want:
+            return
+        domain = ent.split(".")[0]
+        if want in (ha.attr(ent, "options") or []):
+            asyncio.ensure_future(ha.call(domain, "select_option", {"entity_id": ent, "option": want}))
+
+    def helper_changed(self, eid, old, new):
+        if eid != self.s.get("mode_entity") or not new or (old and old.get("state") == new.get("state")):
+            return
+        label = str(new.get("state") or "")
+        key = next((k for k, v in EFFECTS.items() if v.lower() == label.lower() or k == label.lower()), None)
+        if key is None and label.lower() in ("on", "party", "party mode"):
+            key = self.s["show"]["effect"] if self.s["show"]["effect"] != "off" else "disco"
+        if key and not (key == "off" and not self.on) and not (self.on and key == self.s["show"]["effect"]):
+            self.note("Mode from %s: %s" % (eid, label))
+            asyncio.ensure_future(self.set_mode(key))
+
+    async def create_helper(self):
+        """Make input_select.party_lights_mode with every mode, and use it."""
+        opts = list(EFFECTS.values())
+        r = await ha.ws_cmd({"type": "input_select/create", "name": "Party Lights Mode", "icon": "mdi:party-popper", "options": opts})
+        if not r.get("success"):
+            raise RuntimeError((r.get("error") or {}).get("message") or "Home Assistant didn't make the helper")
+        eid = "input_select." + str((r.get("result") or {}).get("id") or "party_lights_mode")
+        self.s["mode_entity"] = eid
+        save_settings(self.s)
+        await asyncio.sleep(1)
+        await ha.fetch_states()
+        self.sync_helper()
+        return eid
+
     # ---- MQTT entities
     def device(self):
         return {"identifiers": [BASE], "name": "Party Lights", "manufacturer": "Party Lights add-on", "model": "Party controller"}
@@ -724,14 +1143,11 @@ class Party:
             ("number", "party_speed", {"name": "Party speed", "icon": "mdi:speedometer", "min": 1, "max": 10, "step": 1, "command_topic": base + "/speed/set", "state_topic": base + "/speed/state"}),
             ("number", "party_brightness", {"name": "Party brightness", "icon": "mdi:brightness-6", "min": 5, "max": 100, "step": 5, "unit_of_measurement": "%", "command_topic": base + "/brightness/set", "state_topic": base + "/brightness/state"}),
             ("number", "party_bpm", {"name": "Party beat", "icon": "mdi:metronome", "min": 60, "max": 180, "step": 1, "unit_of_measurement": "BPM", "command_topic": base + "/bpm/set", "state_topic": base + "/bpm/state"}),
-            ("switch", "party_power_hour", {"name": "Power hour", "icon": "mdi:beer", "command_topic": base + "/power_hour/set", "state_topic": base + "/power_hour/state"}),
-            ("switch", "party_shot_caller", {"name": "Shot caller", "icon": "mdi:glass-wine", "command_topic": base + "/shots/set", "state_topic": base + "/shots/state"}),
-            ("switch", "party_countdown", {"name": "Party countdown", "icon": "mdi:timer-sand", "command_topic": base + "/countdown/set", "state_topic": base + "/countdown/state"}),
-            ("switch", "party_hype_mc", {"name": "AI hype MC", "icon": "mdi:microphone-variant", "command_topic": base + "/hype/set", "state_topic": base + "/hype/state"}),
-            ("button", "party_flash", {"name": "Party flash", "icon": "mdi:flash", "command_topic": base + "/flash/press"}),
-            ("button", "party_drop", {"name": "Drop the beat", "icon": "mdi:arrow-collapse-down", "command_topic": base + "/drop/press"}),
-            ("button", "party_birthday", {"name": "Birthday blast", "icon": "mdi:cake-variant", "command_topic": base + "/birthday/press"}),
-            ("button", "party_blackout", {"name": "Blackout", "icon": "mdi:lightbulb-off", "command_topic": base + "/blackout/press"}),
+        ] + [
+            ("switch" if kind == "loop" else "button", "party_" + GAME_IDS.get(key, key), dict({"name": name, "icon": GAME_MDI.get(key, "mdi:party-popper")},
+             **({"command_topic": base + "/g_%s/set" % key, "state_topic": base + "/g_%s/state" % key} if kind == "loop" else {"command_topic": base + "/g_%s/press" % key})))
+            for key, (_icon, name, kind) in GAMES.items()
+        ] + [
             ("sensor", "party_status", {"name": "Party status", "icon": "mdi:party-popper", "state_topic": base + "/status_text", "json_attributes_topic": base + "/status_attrs"}),
         ]
         for kind, oid, cfg in ents:
@@ -770,8 +1186,9 @@ class Party:
         p(base + "/speed/state", str(s["speed"]), retain=True)
         p(base + "/brightness/state", str(s["brightness"]), retain=True)
         p(base + "/bpm/state", str(s["bpm"]), retain=True)
-        for name, topic in (("power_hour", "power_hour"), ("shots", "shots"), ("countdown", "countdown"), ("hype", "hype")):
-            p(base + "/%s/state" % topic, "ON" if name in self.extras else "OFF", retain=True)
+        for key, (_i, _n, kind) in GAMES.items():
+            if kind == "loop":
+                p(base + "/g_%s/state" % key, "ON" if key in self.extras else "OFF", retain=True)
         p(base + "/status_text", ("Party: " + EFFECTS.get(s["effect"], "")) if self.on else "Off", retain=True)
         p(base + "/status_attrs", json.dumps({"extras": self.extra_info, "theme": THEME_NAMES.get(s["theme"]),
                                               "now_playing": self.art.get("title"), "last": self.events[0]["text"] if self.events else ""}), retain=True)
@@ -779,12 +1196,14 @@ class Party:
     async def mqtt_cmd(self, topic, payload):
         key = topic.split("/")[1]
         on = payload.upper() in ("ON", "1", "TRUE", "PRESS")
-        if key == "party":
+        if key.startswith("g_"):
+            await self.run_game(key[2:], on)
+        elif key == "party":
             await self.set_on(on)
         elif key == "effect":
             k = next((k for k, v in EFFECTS.items() if v == payload), None)
             if k:
-                await self.apply({"show": {"effect": k}})
+                await self.set_mode(k)
         elif key == "theme":
             k = next((k for k, v in THEME_NAMES.items() if v == payload), None)
             if k:
@@ -794,25 +1213,32 @@ class Party:
                 await self.apply({"show": {key: int(float(payload))}})
             except ValueError:
                 pass
-        elif key in ("power_hour", "shots", "countdown", "hype"):
-            await self.toggle_extra(key, on)
-        elif key == "flash":
-            asyncio.ensure_future(self.flash())
-        elif key == "drop":
-            asyncio.ensure_future(self.drop())
-        elif key == "birthday":
-            asyncio.ensure_future(self.birthday())
-        elif key == "blackout":
-            asyncio.ensure_future(self.blackout())
+
+
+    LOOP_GAMES = property(lambda self: {
+        "power_hour": self.power_hour, "shots": self.shot_caller, "countdown": self.countdown, "hype": self.hype_mc,
+        "freeze": self.freeze_dance, "red_green": self.red_green, "never": lambda: self.prompts("never"),
+        "truth_dare": lambda: self.prompts("truth_dare"), "trivia": self.trivia, "name_tune": self.name_tune,
+        "rules": self.rule_maker, "welcome": self.welcome, "last_call": self.last_call})
+    ONCE_GAMES = property(lambda self: {
+        "hot_potato": self.hot_potato, "roulette": self.roulette, "cheers": self.cheers, "dance_battle": self.dance_battle,
+        "flash": self.flash, "drop": self.drop, "birthday": self.birthday, "blackout": self.blackout})
 
     async def toggle_extra(self, key, on):
         if not on:
             self.stop_extra(key)
-            if key == "countdown":
+            if key in ("countdown", "freeze", "red_green"):
                 await self.start_show()
             return
-        fn = {"power_hour": self.power_hour, "shots": self.shot_caller, "countdown": self.countdown, "hype": self.hype_mc}[key]
-        self.start_extra(key, fn())
+        if key in self.LOOP_GAMES:
+            self.start_extra(key, self.LOOP_GAMES[key]())
+
+    async def run_game(self, key, on=True):
+        if key in self.LOOP_GAMES:
+            await self.toggle_extra(key, on)
+        elif key in self.ONCE_GAMES:
+            self.note("%s %s" % (GAMES[key][0], GAMES[key][1]))
+            asyncio.ensure_future(self.ONCE_GAMES[key]())
 
     async def apply(self, patch):
         old_show = dict(self.s["show"])
@@ -820,6 +1246,8 @@ class Party:
         save_settings(self.s)
         if "art" in patch:
             self.publish_art_config()
+        if "mode_entity" in patch:
+            self.sync_helper()
         sh = self.s["show"]
         if (sh["effect"], sh["theme"]) != (old_show["effect"], old_show["theme"]) or "lights" in patch:
             if self.on:
@@ -827,10 +1255,11 @@ class Party:
         self.publish()
 
     def view(self):
-        return {"on": self.on, "settings": self.s, "effects": EFFECTS, "themes": THEME_NAMES,
+        return {"on": self.on, "settings": self.s, "effects": EFFECTS, "effect_icons": EFFECT_ICONS, "themes": THEME_NAMES,
+                "games": {k: {"icon": v[0], "name": v[1], "kind": v[2]} for k, v in GAMES.items()},
                 "palettes": {k: self.palette(k) for k in THEME_NAMES}, "art": self.art, "extras": self.extra_info,
                 "running": sorted(self.extras), "events": self.events[:15], "ha_ok": ha.ok, "mqtt": bool(self.mq and self.mq.is_connected()),
-                "people_home": self.people_home()}
+                "people_home": self.people_home(), "slug": self.slug}
 
 
 party = Party()
@@ -882,13 +1311,12 @@ async def action(request):
         if a == "party":
             await party.set_on(bool(b.get("on")))
         elif a == "effect":
-            await party.apply({"show": {"effect": b.get("effect")}})
-            if not party.on and b.get("effect") not in ("off",):
-                await party.set_on(True)
-        elif a in ("power_hour", "shots", "countdown", "hype"):
-            await party.toggle_extra(a, bool(b.get("on")))
-        elif a in ("flash", "drop", "birthday", "blackout"):
-            asyncio.ensure_future(getattr(party, a)())
+            await party.set_mode(str(b.get("effect") or "off"))
+        elif a == "game":
+            await party.run_game(str(b.get("game")), bool(b.get("on", True)))
+        elif a == "create_helper":
+            eid = await party.create_helper()
+            return web.json_response({"ok": True, "entity": eid, "state": party.view()})
         elif a == "music_now":
             await party.music_now()
         elif a == "say":
@@ -902,11 +1330,43 @@ async def action(request):
     return web.json_response({"ok": True, "state": party.view()})
 
 
+def stdin_listener(loop):
+    """hassio.addon_stdin: send 'off', a mode ('disco', 'Rainbow wave'), 'party on', or 'game power_hour on'."""
+    try:
+        for raw in sys.stdin:
+            line = raw.strip().strip('"').strip()
+            if not line:
+                continue
+            low = line.lower()
+            words = low.split()
+            if words[:1] == ["party"]:
+                fut = party.set_on(len(words) < 2 or words[1] in ("on", "start", "1", "true"))
+            elif words[:1] == ["game"] and len(words) >= 2:
+                fut = party.run_game(words[1], len(words) < 3 or words[2] in ("on", "start", "1", "true"))
+            else:
+                key = next((k for k, v in EFFECTS.items() if low in (k, v.lower(), k.replace("_", " "))), None)
+                if not key:
+                    log.warning("stdin: didn't understand %r", line)
+                    continue
+                fut = party.set_mode(key)
+            log.info("stdin: %s", line)
+            asyncio.run_coroutine_threadsafe(fut, loop)
+    except Exception as e:  # noqa: BLE001
+        log.warning("stdin listener stopped: %s", e)
+
+
 async def on_startup(app):
     party.loop = asyncio.get_running_loop()
     await ha.start()
     ha.listeners.append(party.on_state)
+    ha.listeners.append(party.helper_changed)
+    threading.Thread(target=stdin_listener, args=(asyncio.get_running_loop(),), daemon=True).start()
     party.mqtt_start()
+    try:
+        async with ha.http.get(os.environ.get("SUPERVISOR_URL", "http://supervisor") + "/addons/self/info", timeout=aiohttp.ClientTimeout(total=8)) as r:
+            party.slug = ((await r.json()).get("data") or {}).get("slug") or ""
+    except Exception:  # noqa: BLE001
+        party.slug = ""
     log.info("Party Lights ready")
 
 

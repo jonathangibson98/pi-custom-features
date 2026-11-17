@@ -13,7 +13,7 @@ below can also run as a plain Docker container.
 | [Zone Creator](zone_creator/) | Search an address, drop a pin and create a Home Assistant zone, with optional AI name and icon suggestions | HA add-on |
 | [Creator & AI Builder](ai_builder/) | Build automations, dashboards, cards, helpers and more from plain English with your `ai_task` entity, edit whole dashboards sized for a TV or tablet, voice announcements and facts, text-file sensors (the old File Reader) and backups | HA add-on |
 | [SVG Maker](svg_maker/) | Moved into Photo Hub. The stand-alone add-on still works but gets no new features | HA add-on |
-| [Party Lights](party_lights/) | Music-synced lights (album art colors), light shows, color themes and party games (power hour, shot caller, countdown, birthday blast, AI hype MC), all controllable from Home Assistant | HA add-on |
+| [Party Lights](party_lights/) | Music-synced lights, 25 light modes, color themes and 20+ party games (freeze dance, trivia, truth or dare, power hour, light roulette…) with a phone-friendly page; pick the mode from a dashboard helper, automation or MQTT | HA add-on |
 | [Photo Hub](photo_shuffle/) | Photo shuffles and Unsplash collections as image entities, the shared add-on wallpaper, a Photo Editor with AI tools, and SVG Maker | HA add-on |
 | [Release Tracker](release_tracker/) | Track anything with a release date: shows, movies, games, albums, tech launches and merch drops | HA add-on |
 | [Team Tracker Lite](team_tracker_lite/) | One lightweight sports sensor, pick any team from a menu, with an optional calendar feed | HA add-on |
@@ -231,7 +231,7 @@ It runs on a Debian (glibc) Python image because the tracer (vtracer) crashes on
 
 ## Party Lights
 
-Music-synced lights from the album art, light shows (color loop, disco, chase, pulse, strobe, fire, lightning…) with holiday, team, album-art and AI color themes, and party games: power hour, shot caller, countdown, birthday blast and an AI hype MC. Every control is also an MQTT entity. Replaces the media_lights_sync and art_color AppDaemon apps. Setup: [party_lights/DOCS.md](party_lights/DOCS.md).
+Music-synced lights from the album art, 25 light modes (disco, comet, aurora, fireworks, lava lamp, shuffle…) with holiday, team, album-art and AI color themes, and 20+ party games: freeze dance, red light green light, trivia, truth or dare, never have I ever, name that tune, power hour, shot caller, last call, light roulette, hot potato and more. Phone-friendly page. Pick the mode or turn it off from a dropdown helper, `hassio.addon_stdin` or MQTT. Replaces the media_lights_sync and art_color AppDaemon apps. Setup: [party_lights/DOCS.md](party_lights/DOCS.md).
 
 ## Photo Hub
 

@@ -1,5 +1,5 @@
 name: "Party Lights"
-version: "1.0.0"
+version: "1.1.0"
 slug: party_lights
 image: "ghcr.io/jonathangibson98/{arch}-addon-party_lights"
 description: "Music-synced lights, light shows and party games: album-art colors, disco, chase, pulse, strobe, power hour, shot caller, countdown, birthday blast and an AI hype MC"
@@ -13,6 +13,7 @@ panel_icon: mdi:party-popper
 panel_title: Party Lights
 homeassistant_api: true
 hassio_api: true
+stdin: true
 services:
   - mqtt:want
 options:
