@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.1 - 2026-11-17
+
+- **Easier to read over wallpapers.** The page checks how bright the wallpaper is and tints behind the text just enough to keep it readable.
+
 ## 1.4.0 - 2026-11-17
 
 - **Junk cleanup.** New card with **Clean now**: clears Docker build leftovers (from add-ons built on the Pi), old add-on images left after updates, and Alexa voice clips older than 30 days, and shows what it freed. Home Assistant can run it too: `hassio.addon_stdin` with `input: cleanup` (e.g. a monthly automation).
