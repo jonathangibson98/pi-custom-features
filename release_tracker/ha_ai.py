@@ -11,7 +11,7 @@ import re
 import urllib.error
 import urllib.request
 
-API = "http://supervisor/core/api"
+API = os.environ.get("HA_API", "http://supervisor/core/api")
 
 
 def _token():

@@ -13,6 +13,7 @@ below can also run as a plain Docker container.
 | [Zone Creator](zone_creator/) | Search an address, drop a pin and create a Home Assistant zone, with optional AI name and icon suggestions | HA add-on |
 | [Creator & AI Builder](ai_builder/) | Build automations, dashboards, cards, helpers and more from plain English with your `ai_task` entity, edit whole dashboards sized for a TV or tablet, voice announcements and facts, text-file sensors (the old File Reader) and backups | HA add-on |
 | [SVG Maker](svg_maker/) | Moved into Photo Hub. The stand-alone add-on still works but gets no new features | HA add-on |
+| [Party Lights](party_lights/) | Music-synced lights (album art colors), light shows, color themes and party games (power hour, shot caller, countdown, birthday blast, AI hype MC), all controllable from Home Assistant | HA add-on |
 | [Photo Hub](photo_shuffle/) | Photo shuffles and Unsplash collections as image entities, the shared add-on wallpaper, a Photo Editor with AI tools, and SVG Maker | HA add-on |
 | [Release Tracker](release_tracker/) | Track anything with a release date: shows, movies, games, albums, tech launches and merch drops | HA add-on |
 | [Team Tracker Lite](team_tracker_lite/) | One lightweight sports sensor, pick any team from a menu, with an optional calendar feed | HA add-on |
@@ -92,6 +93,7 @@ pi-custom-features/
 ├── zone_creator/                add-on
 ├── ai_builder/                  add-on (Creator & AI Builder)
 ├── svg_maker/                   add-on
+├── party_lights/                add-on (Party Lights)
 ├── photo_shuffle/               add-on (Photo Hub)
 ├── release_tracker/             add-on
 ├── team_tracker_lite/           add-on
@@ -226,6 +228,10 @@ It needs Home Assistant API access and an `ai_task` entity. Setup: [ai_builder/D
 **Now part of Photo Hub (SVG Maker tab).** This stand-alone add-on still works but gets no new features. Turn photos into clean, scalable SVG icons from the sidebar. Auto-suggested crop (circle, rounded, square or full), auto-enhance,
 color or black and white tracing, and icon-friendly file names. Everything runs locally. Icons save to `/homeassistant/custom_icons` by default.
 It runs on a Debian (glibc) Python image because the tracer (vtracer) crashes on Alpine. Setup: [svg_maker/DOCS.md](svg_maker/DOCS.md).
+
+## Party Lights
+
+Music-synced lights from the album art, light shows (color loop, disco, chase, pulse, strobe, fire, lightning…) with holiday, team, album-art and AI color themes, and party games: power hour, shot caller, countdown, birthday blast and an AI hype MC. Every control is also an MQTT entity. Replaces the media_lights_sync and art_color AppDaemon apps. Setup: [party_lights/DOCS.md](party_lights/DOCS.md).
 
 ## Photo Hub
 

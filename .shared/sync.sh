@@ -8,7 +8,7 @@ for dest in sleep_tracker work_hours photo_shuffle voice_chat/app team_tracker_l
 done
 echo "addon_backup.py synced"
 # The shared AI Task helper into the add-ons with AI buttons.
-for dest in sleep_tracker work_hours team_tracker_lite release_tracker; do
+for dest in sleep_tracker work_hours team_tracker_lite release_tracker party_lights; do
   cp .shared/ha_ai.py "$dest/ha_ai.py"
 done
 echo "ha_ai.py synced"
