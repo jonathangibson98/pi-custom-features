@@ -39,6 +39,7 @@
   table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
   td, th { padding: 4px; text-align: left; }
   .err { background: #7f1d1d; padding: 10px; border-radius: 8px; display: none; }
+.aiask{margin-top:10px;gap:6px}.aiask input{flex:1}.aiout{white-space:pre-wrap;margin-top:8px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -836,7 +837,12 @@ document.getElementById('addbtn').onclick = () => {
 };
 
 /* ---------- status ---------- */
+const ASKQ = {}, ASKA = {};
+let LAST = null;
 function renderStatus(d) {
+  LAST = d;
+  const fa = document.activeElement;
+  if (fa && fa.closest && fa.closest('.aiask') && fa.tagName === 'INPUT') return;  // don't wipe a question being typed
   const box = document.getElementById('status');
   box.innerHTML = '';
   if (!d.status.length) box.appendChild(el('div', 'muted', 'Add a person and a work zone, then hit Save.'));
@@ -866,6 +872,18 @@ function renderStatus(d) {
       });
       c.appendChild(t);
     }
+    const ask = el('div', 'row aiask');
+    const q = el('input'); q.placeholder = 'Ask about the hours, e.g. how much overtime this month?'; q.value = ASKQ[p.id] || '';
+    q.oninput = () => { ASKQ[p.id] = q.value; };
+    ask.appendChild(q);
+    ask.appendChild(btn('✨ Ask', 'small', async () => {
+      ASKA[p.id] = 'Thinking…'; renderStatus(LAST);
+      try { const r = await (await fetch('api/ai', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: p.id, question: ASKQ[p.id] || ''})})).json(); ASKA[p.id] = r.ok ? r.text : r.error; }
+      catch (e) { ASKA[p.id] = e.message; }
+      renderStatus(LAST);
+    }));
+    c.appendChild(ask);
+    if (ASKA[p.id]) c.appendChild(el('div', 'muted aiout', ASKA[p.id]));
     box.appendChild(c);
   });
   const i = d.info;

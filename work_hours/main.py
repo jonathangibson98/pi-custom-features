@@ -623,6 +623,37 @@ def index():
     return send_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html"))
 
 
+@app.post("/api/ai")
+def api_ai():
+    """Answer a question about someone's logged hours (Home Assistant AI Task)."""
+    import ha_ai
+    b = request.get_json(force=True, silent=True) or {}
+    pid, q = str(b.get("id") or ""), str(b.get("question") or "").strip()[:500]
+    with lock:
+        s = load_settings()
+    p = next((x for x in s["people"] if x["id"] == pid), None)
+    if not p:
+        return jsonify({"ok": False, "error": "Unknown person"})
+    rows = read_rows(p["file"])
+    days = {}
+    for r in rows:
+        days.setdefault(r["date"], []).append(r)
+    recent = sorted(days)[-120:]
+    lines = ["%s (%s): %.2f h, %s" % (d, date.fromisoformat(d).strftime("%a"), sum(float(r["hours"]) for r in days[d]),
+             ", ".join("%s %s-%s" % (r["zone"], r["start"], r["end"]) for r in days[d])) for d in recent]
+    t = now()
+    try:
+        text = ha_ai.ask("Today is %s. Below is one person's work log from a home time tracker (date: total hours, visits). "
+                         "Their pay period: %s, %d week(s). Answer the question in plain words with the numbers, short. If no "
+                         "question, give a quick summary: this week vs usual, longest days, typical start and end times, "
+                         "overtime (over 40 h a week).\n\nQuestion: %s\n\n%s"
+                         % (t.strftime("%A %Y-%m-%d"), p["period"]["start_day"], p["period"]["weeks"], q or "(none)",
+                            "\n".join(lines) or "No hours logged yet."), OPTS.get("ai_task_entity") or "", "Work hours")
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": str(e)})
+    return jsonify({"ok": True, "text": text})
+
+
 @app.get("/api/state")
 def api_state():
     with lock:

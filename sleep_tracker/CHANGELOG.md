@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.0 - 2026-11-17
+
+- **✨ Sleep insights**: one tap on a person's card and your Home Assistant AI Task reads their recent nights and explains them in plain words (average sleep, how regular bed and wake times are, weekdays vs weekends, wake-ups) with a tip or two. Set `ai_task_entity` to pick which AI (empty uses the first one).
+
 ## 1.3.2 - 2026-11-17
 
 - **Easier to read over wallpapers.** When the page shows a wallpaper (your theme's, the shared one from Photo Hub, or your own), it now checks how bright the picture is and lays down just enough of a tint for the text to stay readable: bright wallpapers get more, dark ones barely any. Text also gets a soft shadow.

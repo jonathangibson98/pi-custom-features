@@ -1,5 +1,5 @@
 name: Release Tracker
-version: "1.7.2"
+version: "1.8.0"
 slug: release_tracker
 description: Track anything with a release date, like shows, movies, games, albums, celebrities, tech launches, and merch drops
 arch:
@@ -15,7 +15,10 @@ map:
   - share:rw
 services:
   - mqtt:want
+homeassistant_api: true
 options:
   wallpaper: ""
+  ai_task_entity: ""
 schema:
   wallpaper: str?
+  ai_task_entity: str?

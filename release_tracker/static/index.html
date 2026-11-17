@@ -771,9 +771,19 @@ window.__hbAddon = "release_tracker";
     <div class="chips filters" id="filters" hidden></div>
     <div id="list"></div>
     <button class="btn ghost" id="refresh">Refresh now</button>
+    <button class="btn ghost" id="ai-rundown">&#10024; What's coming (AI rundown)</button>
+    <div id="rundown" class="hint" style="white-space:pre-wrap;margin-top:8px"></div>
   </section>
 
   <section id="tab-add" hidden>
+    <details class="card" id="ai-ideas">
+      <summary><span class="ct">&#10024; Ideas from AI</span></summary>
+      <div class="cbody">
+        <div class="hint">Suggestions based on what you already track. Tap Find to search for it, so the real date comes from the normal lookup.</div>
+        <div class="row"><input id="ai-hint" placeholder="Optional: like horror games, or albums from rappers I follow" autocomplete="off"><button class="btn" id="ai-go">Suggest</button></div>
+        <div id="ai-out"></div>
+      </div>
+    </details>
     <div class="chips kind" id="kind">
       <button class="chip on" data-kind="video" aria-pressed="true">TV &amp; Movies</button>
       <button class="chip" data-kind="games" aria-pressed="false">Games &amp; DLC</button>
@@ -1408,6 +1418,30 @@ function setKind(k) {
   if (msg) box.append(el("div", "err", msg));
 }
 document.querySelectorAll("#kind .chip").forEach(b => b.onclick = () => setKind(b.dataset.kind));
+$("#ai-go").onclick = async () => {
+  const out = $("#ai-out"); out.replaceChildren(el("div", "quiet", "Thinking..."));
+  try {
+    const r = await send("ai", "POST", { hint: $("#ai-hint").value });
+    if (!r.ok) throw new Error(r.error);
+    out.replaceChildren(...r.ideas.map(i => {
+      const card = el("div", "item"), body = el("div", "body");
+      body.append(el("div", "title", i.title), el("div", "sub", i.why || ""));
+      const b = el("button", "btn", "Find");
+      b.onclick = () => {
+        setKind(i.kind);
+        if (i.kind === "custom") { $("#c-title").value = i.title; $("#c-title").focus(); }
+        else { $("#q").value = i.title; search(); }
+        $("#search-box").scrollIntoView({ behavior: "smooth" });
+      };
+      const w = el("div", "when"); w.append(b); card.append(body, w); return card;
+    }));
+  } catch (e) { out.replaceChildren(el("div", "err", e.message)); }
+};
+$("#ai-rundown").onclick = async () => {
+  const box = $("#rundown"); box.textContent = "Thinking...";
+  try { const r = await send("ai", "POST", { action: "rundown" }); box.textContent = r.ok ? r.text : r.error; }
+  catch (e) { box.textContent = e.message; }
+};
 
 async function addCustom() {
   const btn = $("#c-add"); btn.disabled = true;

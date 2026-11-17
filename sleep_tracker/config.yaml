@@ -1,5 +1,5 @@
 name: Sleep Tracker
-version: "1.3.2"
+version: "1.4.0"
 slug: sleep_tracker
 description: Tracks whether chosen people are asleep from several signals at once (phone, Focus, lights, TV, motion), with MQTT sensors and sleep history
 url: https://github.com/jonathangibson98/pi-custom-features
@@ -18,6 +18,7 @@ services:
 map:
   - share:rw
 options:
+  ai_task_entity: ""
   check_seconds: 30
   keep_days: 90
   backup_path: /share/addon_backups/sleep_tracker
@@ -35,3 +36,4 @@ schema:
   backup_every: list(off|daily|weekly)
   backup_keep: int(1,100)
   wallpaper: str?
+  ai_task_entity: str?

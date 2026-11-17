@@ -1,4 +1,7 @@
 configuration:
+  ai_task_entity:
+    name: AI Task entity (optional)
+    description: The Home Assistant AI Task entity behind the ✨ AI button. Leave empty to use the first one Home Assistant has.
   wallpaper:
     name: Wallpaper
     description: >-

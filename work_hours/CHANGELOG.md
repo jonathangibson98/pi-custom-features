@@ -2,6 +2,10 @@
 
 All notable changes to this add-on are documented here.
 
+## 1.8.0 - 2026-11-17
+
+- **✨ Ask about the hours**: each person's card has a question box ("how much overtime this month?", "when do I usually leave?"). Leave it empty for a quick summary. Answered by your Home Assistant AI Task from the logged hours. Set `ai_task_entity` to pick which AI (empty uses the first one).
+
 ## 1.7.2 - 2026-11-17
 
 - **Easier to read over wallpapers.** When the page shows a wallpaper (your theme's, the shared one from Photo Hub, or your own), it now checks how bright the picture is and lays down just enough of a tint for the text to stay readable: bright wallpapers get more, dark ones barely any. Text also gets a soft shadow.
