@@ -7,5 +7,10 @@ for dest in sleep_tracker work_hours photo_shuffle file_reader/app voice_chat/ap
   cp .shared/addon_backup.py "$dest/addon_backup.py"
 done
 echo "addon_backup.py synced"
+# The shared AI Task helper into the add-ons with AI buttons.
+for dest in sleep_tracker work_hours team_tracker_lite release_tracker; do
+  cp .shared/ha_ai.py "$dest/ha_ai.py"
+done
+echo "ha_ai.py synced"
 # Then the theme script into every page (each copy gets its own add-on name).
 python3 .shared/sync_theme.py

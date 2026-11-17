@@ -232,3 +232,9 @@ Swap `notify.notify` for the notify service of whoever should get it.
 - **Music search says MusicBrainz is busy**: it allows about one request per second. Wait a minute and try again.
 - **A new album or product is missing**: it may not be in the database yet. Add it under **Anything else** with the date.
 - **Wrong or missing date**: hit **Refresh now**. If the source itself is wrong, there is nothing to fix on this end.
+
+## AI help
+
+**✨ Ideas from AI** on the Add tab: suggestions for new things to track based on what you already track (or a request like "horror games"). Tap **Find** and the normal search fills in the real date. Plus **What's coming (AI rundown)** on the Tracking tab: a short, read-out-loud summary of what's next.
+
+It uses a Home Assistant AI Task entity (`ai_task_entity` on the Configuration tab; empty uses the first one). The data shown is sent to your AI provider when you tap it.

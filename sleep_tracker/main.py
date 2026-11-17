@@ -684,6 +684,32 @@ def api_state():
                     "keep_days": KEEP_DAYS, "version": VERSION}})
 
 
+@app.post("/api/ai")
+def api_ai():
+    """Sleep insights for one person from their recent nights (Home Assistant AI Task)."""
+    import ha_ai
+    pid = str((request.get_json(force=True, silent=True) or {}).get("id") or "")
+    with lock:
+        s, hist = load_settings(), load_json(HISTORY, {})
+    p = next((x for x in s["people"] if x["id"] == pid), None)
+    if not p:
+        return jsonify({"ok": False, "error": "Unknown person"})
+    recs = [r for r in hist.get(pid, []) if isinstance(r, dict)][-45:]
+    if len(recs) < 3:
+        return jsonify({"ok": False, "error": "Not enough nights yet. Check back after a few more nights."})
+    rows = ["%s to %s: %.1f h asleep, %d wake-ups (%d min up)%s" % (r["start"][:16], r["end"][11:16], r["minutes"] / 60,
+            r.get("interruptions", 0), r.get("awake_minutes", 0), " NAP" if r.get("nap") else "") for r in recs]
+    try:
+        text = ha_ai.ask("Here are %s's recent sleep sessions from a home sleep tracker (start to end, hours asleep, wake-ups). "
+                         "Write a friendly, plain-words read-out: average sleep, how regular bed and wake times are, weekday vs "
+                         "weekend, any trend over the period, interruptions, and one or two practical tips. Under 150 words, no "
+                         "medical claims.\n\n%s" % (p.get("name") or pid, "\n".join(rows)),
+                         OPTS.get("ai_task_entity") or "", "Sleep insights")
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": str(e)})
+    return jsonify({"ok": True, "text": text})
+
+
 @app.post("/api/settings")
 def api_settings():
     data = request.get_json(force=True) or {}

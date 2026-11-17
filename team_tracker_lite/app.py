@@ -891,6 +891,30 @@ def poll_once():
     return wait
 
 
+def ai_blurb(style=""):
+    """A short preview, live update or recap of the current game, written by Home Assistant's AI Task."""
+    import ha_ai
+    with LOCK:
+        cur = json.loads(json.dumps(LAST))
+    a = cur.get("attributes") or {}
+    if not a.get("opponent_abbr"):
+        return {"ok": False, "error": "No game to talk about yet."}
+    keep = {k: v for k, v in a.items() if not str(k).endswith(("_logo", "_colors", "_url")) and v not in (None, "", [])}
+    what = {"PRE": "a short preview of the upcoming game (what to watch for, records, when and where to watch)",
+            "IN": "a short live update of the game in progress",
+            "POST": "a short recap of the finished game"}.get(cur.get("state"), "a short note about this game")
+    tone = {"hype": " Make it hype, like a fan.", "trash": " Light, friendly trash talk about the opponent.",
+            "radio": " Write it like a radio announcer, good for reading out loud."}.get(style, "")
+    try:
+        text = ha_ai.ask("Write %s, 2 to 4 sentences, from the point of view of a fan of %s. Use only these facts from the "
+                         "live sensor, don't invent stats or injuries.%s\n\n%s"
+                         % (what, a.get("team_name") or a.get("team_abbr"), tone, json.dumps(keep, default=str)[:4000]),
+                         OPTS.get("ai_task_entity") or "", "Game blurb")
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": str(e)}
+    return {"ok": True, "text": text}
+
+
 def poll_loop():
     while True:
         WAKE.clear()
@@ -993,6 +1017,8 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             return self.send_body(400, {"error": "bad json"})
 
+        if p == "/api/ai":
+            return self.send_body(200, ai_blurb(str(body.get("style") or "")))
         with LOCK:
             before = [f["key"] for f in S["favorites"]]
         if p == "/api/favorites":

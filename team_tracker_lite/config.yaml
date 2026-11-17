@@ -1,5 +1,5 @@
 name: "Team Tracker Lite"
-version: "0.6.2"
+version: "0.7.0"
 slug: team_tracker_lite
 image: "ghcr.io/jonathangibson98/{arch}-addon-team_tracker_lite"
 description: "One lightweight sports sensor. Pick any team from a menu."
@@ -24,6 +24,7 @@ ports_description:
 services:
   - "mqtt:want"
 options:
+  ai_task_entity: ""
   mqtt_host: ""
   mqtt_port: 1883
   mqtt_username: ""
@@ -45,3 +46,4 @@ schema:
   backup_every: list(off|daily|weekly)
   backup_keep: int(1,100)
   wallpaper: str?
+  ai_task_entity: str?

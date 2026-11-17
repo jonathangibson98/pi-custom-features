@@ -143,3 +143,9 @@ Tap **Backups** at the bottom of the add-on page to back up, download or restore
 - **Restore from a file** takes a backup `.zip` you downloaded, for example to move to another Home Assistant.
 - A backup from a different add-on is refused. The page only works from the Home Assistant sidebar, never on the add-on's own ports, because backups include its settings.
 - Backups also hold any passwords or API keys from the Configuration tab, so treat the backup folder like your secrets.
+
+## AI help
+
+**✨ Sleep insights**: one tap on a person's card and your Home Assistant AI Task reads their recent nights and explains them in plain words (average sleep, how regular bed and wake times are, weekdays vs weekends, wake-ups) with a tip or two.
+
+It uses a Home Assistant AI Task entity (`ai_task_entity` on the Configuration tab; empty uses the first one). The data shown is sent to your AI provider when you tap it.

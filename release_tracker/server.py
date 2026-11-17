@@ -1048,6 +1048,44 @@ def api_refresh():
     return jsonify({"ok": True})
 
 
+# ---------- AI ideas (Home Assistant AI Task) ----------
+def ai_opts():
+    return load("/data/options.json", {})
+
+
+@app.route("/api/ai", methods=["POST"])
+def api_ai():
+    """Ideas for new things to track (real dates still come from the normal search), or a rundown of what's coming."""
+    import ha_ai
+    b = request.get_json(force=True, silent=True) or {}
+    tracked = load(TRACK_FILE, [])
+    mine = ["%s (%s)" % (t.get("title") or (t.get("info") or {}).get("title") or t.get("id"), TYPE_LABEL.get(t.get("type"), t.get("category") or "Other"))
+            for t in tracked][:80]
+    ent = ai_opts().get("ai_task_entity") or ""
+    try:
+        if b.get("action") == "rundown":
+            soon = upcoming()[:25]
+            lines = ["%s: %s in %s days (%s)" % (u.get("title"), u.get("label") or u.get("type"), u.get("days_until"), u.get("date")) for u in soon]
+            text = ha_ai.ask("Write a short, upbeat rundown (under 120 words, plain text, no lists) of what's coming up soon from "
+                             "this release list, soonest first. Good for reading out loud.\n\n" + ("\n".join(lines) or "Nothing coming up."),
+                             ent, "Release rundown")
+            return jsonify({"ok": True, "text": text})
+        hint = str(b.get("hint") or "").strip()[:500]
+        out = ha_ai.ask_json(
+            "Suggest 8 upcoming or recently announced releases this person would probably want to track, based on what they "
+            "already track%s. Mix kinds when it fits. Don't repeat anything they track. Don't give dates (a search finds the "
+            "real ones). Reply ONLY with JSON {\"ideas\": [{\"title\": \"search words\", \"kind\": \"video|games|music|people|custom\", "
+            "\"why\": \"one short reason\"}]}.\n\nThey track: %s"
+            % ((", and this request: " + hint) if hint else "", "; ".join(mine) or "nothing yet"), ent, "Release ideas")
+        ideas = [i for i in (out.get("ideas") if isinstance(out, dict) else out) or [] if isinstance(i, dict) and i.get("title")]
+        for i in ideas:
+            if i.get("kind") not in ("video", "games", "music", "people", "custom"):
+                i["kind"] = "video"
+        return jsonify({"ok": True, "ideas": ideas[:10]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
 @app.route("/api/settings", methods=["POST"])
 def api_settings():
     b = request.get_json(force=True)

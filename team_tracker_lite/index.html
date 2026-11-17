@@ -75,6 +75,7 @@
   details summary { cursor: pointer; color: var(--text); min-height: 28px; }
   details ol { padding-left: 20px; margin: 8px 0; }
   details b { color: var(--text); }
+.aibar{display:flex;gap:8px;margin:10px 0 0;flex-wrap:wrap}.aibar select{width:auto}.aiout{white-space:pre-wrap;margin-top:10px;line-height:1.5;padding:12px;border-radius:12px;background:rgba(127,127,127,.12)}
 </style>
 </head>
 <body>
@@ -726,6 +727,9 @@ window.__hbAddon = "team_tracker_lite";
 
 
 <div class="board" id="board"></div>
+<div class="aibar"><button type="button" id="aiblurb">&#10024; Preview / recap</button>
+  <select id="aistyle" aria-label="Style"><option value="">Plain</option><option value="hype">Hype</option><option value="trash">Trash talk</option><option value="radio">Radio voice</option></select></div>
+<div id="aiout" class="aiout" hidden></div>
 
 <h2>Teams you can switch between</h2>
 <div class="card" id="teams"></div>
@@ -804,6 +808,14 @@ function sideBlock(a, p) {
     el("div", {class: "rec"}, a[p + "_record"] || ""));
 }
 
+$("aiblurb").onclick = async () => {
+  const o = $("aiout"); o.hidden = false; o.textContent = "Writing…"; $("aiblurb").disabled = true;
+  try {
+    const r = await (await fetch("api/ai", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({style: $("aistyle").value})})).json();
+    o.textContent = r.ok ? r.text : (r.error || "That didn't work.");
+  } catch (e) { o.textContent = e.message; }
+  $("aiblurb").disabled = false;
+};
 function drawBoard(sensor) {
   const a = sensor.attributes || {}, st = sensor.state;
   const b = $("board");
