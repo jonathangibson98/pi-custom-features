@@ -26,11 +26,11 @@ mic (phone/browser) → speech-to-text → conversation agent → text-to-speech
 | `browser_playback` | Offer "This device" as a speaker. |
 | `save_history` / `history_limit` | Keep past chats (and how many). |
 | `context_enabled` | On: the AI gets your household info (below). |
-| `context_entity` | Sensor that holds it, default `sensor.combined_info`. |
+| `context_entity` | Sensor that holds it (blank by default), for example `sensor.combined_info`. |
 | `context_attributes` | Which attributes to send, default `household_text,friends_text,notable_people,places`. |
 | `context_skip_agents` | Agents that must not get it, default `conversation.home_assistant` (the built-in one matches fixed sentences only). |
 | `context_max_chars` | Safety cap, default 40000. |
-| `speaker_name` | Who is talking, e.g. `Jon`, so "I" and "my" make sense to the AI. |
+| `speaker_name` | Who is talking, e.g. `Alex`, so "I" and "my" make sense to the AI. |
 | `password` | Turns on the direct HTTPS page (below). |
 | `certfile` / `keyfile` | Certificate names in `/ssl`. A self-signed one is generated if missing. |
 
@@ -50,7 +50,7 @@ With `context_enabled` on, the first message of each conversation carries the te
 
 ### Live info (locations and anything else that changes)
 
-Tap **Live info** on the page, search for an entity (for example `sensor.everybodys_locations`), tap it to add it, rename it if you like, and press **Save**. Each entry can also list the attributes to send (for example `jon,mj,von`); leave it blank to send the state and every attribute. Add the word `state` to the list to include the state too. Up to 40 entities.
+Tap **Live info** on the page, search for an entity (for example `sensor.everybodys_locations`), tap it to add it, rename it if you like, and press **Save**. Each entry can also list the attributes to send (for example `alex,sam,chris`); leave it blank to send the state and every attribute. Add the word `state` to the list to include the state too. Up to 40 entities.
 
 Their current values are read from Home Assistant at the moment you send a message. The AI gets them with the first message of a conversation and again whenever they have changed since it last saw them. Press **Preview what the AI sees** to check the text. The list lives in `/data/live_entities.json`.
 
@@ -92,3 +92,19 @@ The same options are environment variables with a `VC_` prefix (`VC_MEDIA_PLAYER
 - **Cuts in on itself**: raise `silence_ms`, lower `sensitivity`, or move the speaker away from the phone.
 - **Wake word never triggers**: set an `stt_entity` (better than browser recognition) and try a longer phrase such as "hey computer".
 - Docker: `docker compose logs -f voice-chat` shows each exchange and config problems.
+
+## Backups
+
+Tap **Backups** at the bottom of the add-on page (the Backups button at the top for Voice Chat) to back up, download or restore. A backup is a `.zip` with your live info entities and chat history (the self-signed certificate is left out, a new one is made), plus everything in the Configuration tab.
+
+| Option | Default | What |
+|---|---|---|
+| `backup_path` | `/share/addon_backups/voice_chat` | Where backups go, inside `/share`, `/media` or `/homeassistant`. A folder keeps several dated backups. A path ending in `.zip` keeps one file that is replaced each time |
+| `backup_every` | `daily` | `off`, `daily` or `weekly` automatic backups |
+| `backup_keep` | `10` | How many backups to keep in the folder. Older ones are deleted |
+
+- **Back up now** makes one straight away. **Download** saves one to your phone or computer.
+- **Restore** (tap twice) first saves a safety copy (`..._pre-restore_...zip`, the newest 3 are kept), puts the Configuration tab settings back, and restarts the add-on. The data is put back as it starts, before it reads anything.
+- **Restore from a file** takes a backup `.zip` you downloaded, for example to move to another Home Assistant.
+- A backup from a different add-on is refused. The page only works from the Home Assistant sidebar, never on the add-on's own ports, because backups include its settings.
+- Backups also hold any passwords or API keys from the Configuration tab, so treat the backup folder like your secrets.

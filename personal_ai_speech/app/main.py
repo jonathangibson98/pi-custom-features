@@ -15,12 +15,17 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Upload
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from pydantic import BaseModel
 
-from . import audio
+from . import addon_backup, audio
 from .emotion import EMOTIONS, infer_emotion, normalize, split_segments
 from .engines import EngineError, KokoroEngine, ProxyEngine
 from .settings import load_settings
 from .stt import WhisperService
 
+# created before the settings are read, so a queued restore is unpacked first. The downloaded voice and speech
+# models are big and download again by themselves, so they're left out.
+BACKUP = addon_backup.Backup("personal_ai_speech", "Personal AI Speech", "1.1.0",
+                             [("data", os.environ.get("PAS_DATA_DIR", "/data"), "replace", ["models"])],
+                             data_dir=os.environ.get("PAS_DATA_DIR", "/data"))
 settings = load_settings()
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -42,6 +47,7 @@ async def lifespan(_: FastAPI):
     """Start loading models in the background so the API answers immediately."""
     LOGGER.info("TTS engine: %s | STT: %s", engine.name, whisper.state)
     engine.start()
+    BACKUP.start()
     if settings.stt_preload:
         whisper.preload()
     yield
@@ -60,6 +66,16 @@ def check_auth(request: Request) -> None:
     if scheme.lower() == "bearer" and hmac.compare_digest(token.strip(), settings.api_key):
         return
     raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
+@app.api_route("/backups{tail:path}", methods=["GET", "POST"], include_in_schema=False)
+async def backups(request: Request, tail: str = "") -> Response:
+    """The backup page and its API (shared module, see addon_backup.py). Ingress only."""
+    body = await request.body() if request.method == "POST" else b""
+    st, ct, data, hdr = await asyncio.get_running_loop().run_in_executor(
+        None, BACKUP.handle, request.method, tail, dict(request.query_params), body,
+        request.client.host if request.client else None)
+    return Response(content=data, status_code=st, media_type=ct, headers=hdr)
 
 
 @app.exception_handler(HTTPException)

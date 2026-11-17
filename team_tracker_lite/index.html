@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team Tracker Lite</title>
+<style>
+  :root {
+    --ink: #0f1219; --panel: #171c27; --line: #2a3142;
+    --text: #e8ecf4; --muted: #8b95ab; --good: #52d29a; --bad: #ff7a7a;
+    --me: #6f8cff; --opp: #3a4258;
+    --score: "Arial Narrow", "Roboto Condensed", "Helvetica Neue", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ink); color: var(--text);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 14px 14px 40px; max-width: 640px; margin-inline: auto;
+  }
+  h2 { font-size: 1.05rem; margin: 26px 0 10px; font-weight: 650; }
+  .board {
+    border-radius: 14px; border: 1px solid var(--line); padding: 18px 12px 14px;
+    background:
+      linear-gradient(90deg, color-mix(in srgb, var(--me) 38%, transparent), transparent 42%, transparent 58%,
+                              color-mix(in srgb, var(--opp) 38%, transparent)),
+      var(--panel);
+  }
+  .row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 6px; text-align: center; }
+  .side img { width: 64px; height: 64px; object-fit: contain; }
+  .side .abbr { font: 700 1.35rem var(--score); letter-spacing: .02em; }
+  .side .rec { color: var(--muted); font-size: .85rem; }
+  .score { font: 700 3.1rem/1 var(--score); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .score small { color: var(--muted); font-weight: 400; margin: 0 .2em; }
+  .status { text-align: center; margin-top: 12px; color: var(--muted); font-size: .92rem; }
+  .pill { display: inline-block; padding: 1px 10px; border-radius: 99px; font-weight: 650; font-size: .8rem;
+          border: 1px solid var(--line); color: var(--text); margin-right: 8px; }
+  .pill.IN { background: var(--good); color: #06281b; border-color: var(--good); }
+  .pill.PRE { border-color: var(--me); }
+  .empty { text-align: center; color: var(--muted); padding: 18px 8px; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .team { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-top: 1px solid var(--line); }
+  .team:first-child { border-top: 0; }
+  .team.active { box-shadow: inset 3px 0 0 var(--me); }
+  .team img { width: 34px; height: 34px; object-fit: contain; }
+  .team .nm { flex: 1; min-width: 0; }
+  .team .nm b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .team .nm span { color: var(--muted); font-size: .82rem; }
+
+  button, select, input {
+    font: inherit; color: var(--text); background: #1f2535; border: 1px solid var(--line);
+    border-radius: 9px; padding: 9px 12px; min-height: 42px;
+  }
+  button { cursor: pointer; }
+  button.primary { background: var(--me); border-color: var(--me); color: #0b1020; font-weight: 650; }
+  button.ghost { background: transparent; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .form { display: grid; gap: 10px; padding: 12px; }
+  .inline { display: flex; gap: 10px; }
+  .inline input { flex: 1; min-width: 0; }
+  label { display: grid; gap: 4px; color: var(--muted); font-size: .85rem; }
+  .foot { margin-top: 22px; color: var(--muted); font-size: .85rem; display: flex; gap: 8px; align-items: center; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--bad); display: inline-block; }
+  .dot.ok { background: var(--good); }
+  #msg { min-height: 1.3em; margin-top: 8px; color: var(--bad); font-size: .9rem; }
+  #msg.ok { color: var(--good); }
+  .note { color: var(--muted); font-size: .88rem; }
+  .note.bad { color: var(--bad); }
+  .game { padding: 10px 12px; border-top: 1px solid var(--line); }
+  .game:first-child { border-top: 0; }
+  .game .ln { font: 700 1.15rem var(--score); font-variant-numeric: tabular-nums; }
+  .game .btns { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  details { color: var(--muted); font-size: .9rem; }
+  details summary { cursor: pointer; color: var(--text); min-height: 28px; }
+  details ol { padding-left: 20px; margin: 8px 0; }
+  details b { color: var(--text); }
+</style>
+</head>
+<body>
+<!-- ha-theme v1.0.0: copied from .shared/ha-theme.js, edit it there -->
+<script>
+/* HA Theme Bridge v1.0.0
+ * Makes an add-on web UI follow the active Home Assistant theme (colors, dark/light,
+ * dashboard wallpaper, glass blur, card corners and shadows) and updates live when
+ * the theme changes. It reads the theme from the Home Assistant page that holds the
+ * add-on (ingress runs on the same origin) and remaps this page's own colors to it.
+ * Opened outside Home Assistant it does nothing, so the page keeps its own look.
+ * Opt out on a page: <html data-ha-theme-off>
+ * Variables you can use in new pages: --hb-bg --hb-card --hb-text --hb-text2 --hb-line
+ * --hb-primary --hb-accent --hb-on --hb-error --hb-warning --hb-success --hb-field,
+ * plus every core HA variable (--primary-color, --card-background-color, ...).
+ */
+(function () {
+  'use strict';
+  if (window.__haThemeBridge) return;
+  window.__haThemeBridge = 1;
+  var doc = document, root = doc.documentElement;
+  if (root.hasAttribute('data-ha-theme-off')) return;
+
+  /* ---------- find the Home Assistant window above us ---------- */
+  var HA = null;
+  try {
+    var w = window;
+    while (w.parent && w.parent !== w) {
+      w = w.parent;
+      if (w.document && w.document.querySelector('home-assistant')) HA = w;
+    }
+  } catch (e) { /* cross-origin parent: stop climbing */ }
+  if (!HA) return;
+  var nested = window.parent !== HA;
+
+  /* ---------- color helpers ---------- */
+  function parse(c) {
+    if (!c) return null;
+    c = String(c).trim().toLowerCase();
+    var m;
+    if (c.charAt(0) === '#') {
+      var h = c.slice(1);
+      if (!/^[0-9a-f]+$/.test(h)) return null;
+      if (h.length === 3 || h.length === 4) h = h.replace(/./g, '$&$&');
+      if (h.length !== 6 && h.length !== 8) return null;
+      return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16),
+        h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1];
+    }
+    if ((m = c.match(/^rgba?\(([^)]+)\)$/))) {
+      var p = m[1].split(/[\s,\/]+/).filter(Boolean);
+      if (p.length < 3) return null;
+      var f = function (v, alpha) {
+        return /%$/.test(v) ? parseFloat(v) * (alpha ? 0.01 : 2.55) : parseFloat(v);
+      };
+      var out = [f(p[0]), f(p[1]), f(p[2]), p.length > 3 ? f(p[3], 1) : 1];
+      for (var i = 0; i < 4; i++) if (isNaN(out[i])) return null;
+      return out;
+    }
+    if (c === 'white') return [255, 255, 255, 1];
+    if (c === 'black') return [0, 0, 0, 1];
+    if (c === 'transparent') return [0, 0, 0, 0];
+    return null;
+  }
+  function info(c) {
+    var r = c[0] / 255, g = c[1] / 255, b = c[2] / 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), ch = mx - mn, h = 0;
+    if (ch) {
+      if (mx === r) h = ((g - b) / ch) % 6;
+      else if (mx === g) h = (b - r) / ch + 2;
+      else h = (r - g) / ch + 4;
+      h *= 60;
+      if (h < 0) h += 360;
+    }
+    return { l: (mx + mn) / 2, ch: ch, h: h, a: c[3] };
+  }
+  /* greys, plus the dark navy/indigo shades many dark UIs use as their "grey" */
+  function isNeutral(i) {
+    return i.ch < 0.12 || (i.ch < 0.2 && i.h >= 200 && i.h <= 290 && (i.l < 0.32 || i.l > 0.85));
+  }
+  function lum(c) { return c ? (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255 : 0; }
+  function rgbStr(c) { return Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]); }
+  function hueRole(h) {
+    return (h < 15 || h >= 335) ? 'error' : h < 65 ? 'warning' : h < 170 ? 'success' : 'primary';
+  }
+  function tint(role, a) { return 'rgba(var(--hb-' + role + '-rgb),' + (Math.round(a * 1000) / 1000) + ')'; }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  var probe = null;
+  function toRGB(v) {
+    v = (v || '').trim();
+    if (!v) return null;
+    var p = parse(v);
+    if (p) return p;
+    if (!probe) {
+      probe = doc.createElement('i');
+      probe.style.display = 'none';
+      (doc.body || root).appendChild(probe);
+    }
+    probe.style.color = '';
+    probe.style.color = v;
+    if (!probe.style.color) return null;
+    return parse(getComputedStyle(probe).color);
+  }
+
+  /* ---------- what the page looked like before we touched it ---------- */
+  var REFS = { dark: { b: 0.08, t: 0.92 }, light: { b: 0.96, t: 0.12 } };
+  var designScheme = 'dark';
+  (function measure() {
+    var el = doc.body || root, cs = getComputedStyle(el);
+    var txt = parse(cs.color), bg = parse(cs.backgroundColor);
+    if (!bg || bg[3] < 0.5) bg = parse(getComputedStyle(root).backgroundColor);
+    if (txt) designScheme = info(txt).l > 0.5 ? 'dark' : 'light';
+    else if (bg && bg[3] > 0.5) designScheme = info(bg).l < 0.5 ? 'dark' : 'light';
+    var ref = REFS[designScheme];
+    if (txt) ref.t = info(txt).l;
+    if (bg && bg[3] > 0.5 && Math.abs(info(bg).l - ref.t) > 0.3) ref.b = info(bg).l;
+  })();
+
+  /* ---------- color rewriting rules ---------- */
+  var COLOR_RE = /#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)|\b(?:white|black)\b/g;
+  var cardVars = {}, solidVars = {}, pageVars = {};
+
+  function lastCompound(sel) {
+    return (sel || '').split(',').map(function (s) {
+      var parts = s.trim().split(/\s*[\s>+~]\s*/);
+      return parts[parts.length - 1] || '';
+    });
+  }
+  function kindOf(sel) {
+    var lasts = lastCompound(sel), k = '';
+    for (var i = 0; i < lasts.length; i++) {
+      var s = lasts[i].toLowerCase();
+      if (/^(html|body|:root)\b/.test(s)) return 'page';
+      if (/\.(overlay|backdrop|scrim|mask|shade|sheet|modal|lightbox)\b|::backdrop/.test(s)) return 'scrim';
+      if (/^(input|select|textarea)\b|\.(input|field-input|textfield)\b/.test(s)) k = k || 'input';
+      else if (/^(header|nav|footer)\b|\.(top|topbar|nav|navbar|header|footer|bar|toolbar|appbar|bottom|tabbar|savebar)\b/.test(s)) k = k || 'bar';
+      else if (/\.(card|panel|surface|sheet|modal|dialog|popup|menu|toast|drawer|pane|tile)\b|^(dialog|details)\b/.test(s)) k = k || 'card';
+    }
+    return k;
+  }
+  function ctxOf(p) {
+    if (/^background(-color|-image)?$/.test(p)) return 'bg';
+    if (p === 'color' || p === 'caret-color' || p === '-webkit-text-fill-color' || p === 'text-decoration-color') return 'text';
+    if (/^border(-(top|right|bottom|left|block|inline)(-(start|end))?)?-color$/.test(p) || p === 'outline-color' || p === 'column-rule-color') return 'line';
+    if (p === 'accent-color') return 'accent';
+    return '';
+  }
+
+  /* returns {v, solid, card} or null to leave the color alone */
+  function mapColor(c, ctx, ref, kind) {
+    var i = info(c), a = i.a, dark = ref.b < 0.5;
+    if (a === 0) return null;
+    var span = ref.t - ref.b, t = span ? (i.l - ref.b) / span : 0, at = Math.abs(t);
+    var neutral = isNeutral(i) || (ctx === 'line' && i.ch < 0.26 && (dark ? i.l < 0.45 : i.l > 0.6));
+    if (neutral) {
+      if (a < 0.98) {
+        if (t > 0.5) return { v: tint('text', a) };            /* light-on-dark wash -> text tint */
+        if (ctx !== 'bg' || kind === 'scrim') return null;     /* overlays and shadows stay */
+        if (i.l < 0.05 && a < 0.5) return { v: 'var(--hb-inset)' };  /* black wash = inset box */
+        if (i.l < 0.05) return null;
+        if (kind === 'bar' || a > 0.8) return { v: 'var(--hb-bar)', card: true };
+        if (kind === 'card' || a > 0.4) return { v: 'var(--hb-card)', card: true };
+        return { v: 'var(--hb-inset)' };
+      }
+      if (ctx === 'text') return { v: t > 0.72 ? 'var(--hb-text)' : 'var(--hb-text2)' };
+      if (ctx === 'line') return { v: 'var(--hb-line)' };
+      if (ctx === 'accent') return { v: 'var(--hb-primary)' };
+      if (kind === 'page') return { v: 'var(--hb-bg)' };
+      if (kind === 'input') return { v: 'var(--hb-field)' };
+      if (kind === 'bar') return { v: 'var(--hb-bar)', card: true };
+      if (kind === 'card' && t < 0.45) return { v: 'var(--hb-card)', card: true };
+      if (at < 0.04) return { v: 'var(--hb-inset)' };
+      if (t > 0.6) return null;                                 /* bright chip on dark page: leave */
+      return { v: tint('text', clamp(0.03 + at * 0.4, 0.05, 0.16)) };
+    }
+    var role = hueRole(i.h);
+    if (a < 0.98) return { v: tint(role, a) };
+    if (ctx === 'bg') {
+      if (dark ? i.l < 0.3 : i.l > 0.82) return { v: tint(role, 0.2) };   /* tinted note/chip bg */
+      return { v: 'var(--hb-' + role + ')', solid: true };
+    }
+    return { v: 'var(--hb-' + role + ')' };
+  }
+
+  var SEM_NAMES = [
+    [/^(ok|good|success|live|green|pos|positive)(-?\d)?$/, 'success'],
+    [/^(bad|red|danger|err|error|neg|negative)(-?\d)?$/, 'error'],
+    [/^(warn|warning|amber)(-?\d)?$/, 'warning'],
+    [/^(acc|accent|ac|primary|brand|link)$/, 'primary'],
+    [/^(acc|accent|ac|primary)-?2$/, 'accent']
+  ];
+  function mapVar(name, val, ref) {
+    var n = name.slice(2).toLowerCase();
+    if (/^hb-/.test(n)) return null;
+    var c = parse(val);
+    if (!c) return null;
+    var i = info(c), neutral = isNeutral(i), dark = ref.b < 0.5;
+    var span = ref.t - ref.b, t = span ? (i.l - ref.b) / span : 0, at = Math.abs(t);
+    if (n === 'on' || /^(acc|accent|ac|primary)-?(ink|on|fg|text)$|^on-(acc|accent|primary)$/.test(n)) return { v: 'var(--hb-on)' };
+    var soft = /(-|^)(soft|tint|wash|bg|bg2|weak)$|soft$/.test(n), base = n.replace(/-?(soft|tint|wash|bg|bg2|weak|ink)$|soft$/, '');
+    for (var k = 0; k < SEM_NAMES.length; k++) {
+      if (SEM_NAMES[k][0].test(base) && (!neutral || base !== n)) {
+        var role = SEM_NAMES[k][1];
+        if (/-ink$/.test(n)) return { v: 'var(--hb-text)' };
+        if (soft || i.a < 0.98) return { v: tint(role === 'accent' ? 'primary' : role, i.a < 0.98 ? i.a : 0.16) };
+        return { v: 'var(--hb-' + role + ')', solid: true };
+      }
+    }
+    if (/-ink$/.test(n)) return { v: 'var(--hb-text)' };
+    if (!neutral) return null;                                 /* unknown colorful var (state colors): leave */
+    if (i.a < 0.98) return t > 0.5 ? { v: tint('text', i.a) } : null;
+    if (/line|border|sep|divid|rule|stroke|outline/.test(n)) return { v: 'var(--hb-line)' };
+    if (/^(mut|muted|dim|mu|sub|sec|secondary|faint|hint|txt2|text2|tx2|ink2|subtle)(-?\d)?$/.test(n)) return { v: 'var(--hb-text2)' };
+    if (/^(text|txt|tx|fg|fore|ink|c|font-color|text-color)(-?\d)?$/.test(n) && t > 0.3) return { v: t > 0.72 ? 'var(--hb-text)' : 'var(--hb-text2)' };
+    if (/field|input|code|well/.test(n)) return { v: 'var(--hb-field)' };
+    if (/chip|card-?2|panel-?2|surface-?2|bg-?3|raised|hover|alt|elev/.test(n)) return { v: tint('text', dark ? 0.08 : 0.06) };
+    if (/card|panel|surface|sheet|tile|box|pane/.test(n)) return { v: 'var(--hb-card)', card: true };
+    if (/^(bg|bg-?[0-2]|background|base|page|canvas|app-bg|ink)$/.test(n) || at < 0.04) return { v: 'var(--hb-bg)' };
+    if (t > 0.72) return { v: 'var(--hb-text)' };
+    if (t > 0.4) return { v: 'var(--hb-text2)' };
+    return { v: tint('text', clamp(0.03 + at * 0.4, 0.05, 0.14)) };
+  }
+
+  function refVarNames(v) {
+    var out = [], re = /var\(\s*(--[\w-]+)/g, m;
+    while ((m = re.exec(v || ''))) out.push(m[1]);
+    return out;
+  }
+
+  function doStyle(st, sel, scheme) {
+    var ref = REFS[scheme], kind = kindOf(sel), names = [], k;
+    for (k = 0; k < st.length; k++) names.push(st[k]);
+    var solidBg = false, isCard = false;
+    names.forEach(function (p) {
+      var v = st.getPropertyValue(p), pr = st.getPropertyPriority(p);
+      if (p.indexOf('--') === 0) {
+        var r = mapVar(p, v, ref);
+        pageVars[p] = 1;
+        if (r) {
+          if (r.card) cardVars[p] = 1;
+          if (r.solid) solidVars[p] = 1;
+          st.setProperty(p, r.v, pr);
+        }
+        return;
+      }
+      var ctx = ctxOf(p);
+      if (!ctx || !v) return;
+      var nv = v.replace(COLOR_RE, function (tok) {
+        var c = parse(tok);
+        if (!c) return tok;
+        var r = mapColor(c, ctx, ref, kind);
+        if (!r) return tok;
+        if (ctx === 'bg' && r.solid) solidBg = true;
+        if (ctx === 'bg' && r.card) isCard = true;
+        return r.v;
+      });
+      if (nv !== v) st.setProperty(p, nv, pr);
+    });
+    /* shorthands that mix var() with literal colors only show up on the shorthand itself */
+    ['background', 'border', 'border-top', 'border-right', 'border-bottom', 'border-left', 'outline'].forEach(function (p) {
+      var v = st.getPropertyValue(p);
+      if (!v || v.indexOf('var(') < 0) return;
+      var ctx = p === 'background' ? 'bg' : 'line', pr = st.getPropertyPriority(p);
+      var nv = v.replace(COLOR_RE, function (tok) {
+        var c = parse(tok), r = c && mapColor(c, ctx, REFS[scheme], kind);
+        if (!r) return tok;
+        if (ctx === 'bg' && r.card) isCard = true;
+        return r.v;
+      });
+      if (nv !== v) st.setProperty(p, nv, pr);
+    });
+    /* backgrounds written as var(--card) / var(--accent) */
+    ['background', 'background-color', 'background-image'].forEach(function (p) {
+      refVarNames(st.getPropertyValue(p)).forEach(function (n) {
+        if (cardVars[n]) isCard = true;
+        if (solidVars[n]) solidBg = true;
+      });
+    });
+    if (solidBg) {
+      var col = st.getPropertyValue('color');
+      if (!col || /var\(--hb-text2?\)/.test(col) || refVarNames(col).some(function (n) {
+        return /^--(text|txt|tx|ink|fg|c)$/.test(n);
+      })) st.setProperty('color', 'var(--hb-on)');
+    }
+    if (isCard && kind !== 'page') {
+      st.setProperty('-webkit-backdrop-filter', 'var(--hb-blur)');
+      st.setProperty('backdrop-filter', 'var(--hb-blur)');
+      ['top-left', 'top-right', 'bottom-right', 'bottom-left'].forEach(function (c) {
+        var p = 'border-' + c + '-radius', v = st.getPropertyValue(p);
+        if (v && v.indexOf('--hb-radius') < 0) st.setProperty(p, 'var(--hb-radius,' + v + ')');
+      });
+      var sh = st.getPropertyValue('box-shadow');
+      if (sh.indexOf('--hb-shadow') < 0) st.setProperty('box-shadow', 'var(--hb-shadow,' + (sh || 'none') + ')');
+      ['top', 'right', 'bottom', 'left'].forEach(function (s) {
+        var p = 'border-' + s + '-color', v = st.getPropertyValue(p);
+        if (v === 'var(--hb-line)') st.setProperty(p, 'var(--hb-card-border,var(--hb-line))');
+      });
+    }
+  }
+
+  function schemeOfMedia(text, fallback) {
+    var m = /prefers-color-scheme\s*:\s*(dark|light)/.exec(text || '');
+    return m ? m[1] : fallback;
+  }
+  function walk(rules, scheme) {
+    for (var i = 0; i < rules.length; i++) {
+      var r = rules[i];
+      if (r.style && r.selectorText != null) {
+        doStyle(r.style, r.selectorText, scheme);
+        if (r.cssRules && r.cssRules.length) walk(r.cssRules, scheme);
+      } else if (r.cssRules && !(r.type === 7)) {           /* media / supports / layer / container */
+        walk(r.cssRules, r.media ? schemeOfMedia(r.media.mediaText, scheme) : scheme);
+      }
+    }
+  }
+  var done = typeof WeakSet === 'function' ? new WeakSet() : null, doneList = [];
+  function seen(s) {
+    if (done) { if (done.has(s)) return true; done.add(s); return false; }
+    if (doneList.indexOf(s) >= 0) return true; doneList.push(s); return false;
+  }
+  function baseScheme(rules) {
+    var dark = false, light = false;
+    (function scan(rs) {
+      for (var i = 0; i < rs.length; i++) {
+        var r = rs[i];
+        if (r.media) {
+          var s = schemeOfMedia(r.media.mediaText, '');
+          if (s === 'dark') dark = true;
+          if (s === 'light') light = true;
+        }
+      }
+    })(rules);
+    if (dark && !light) return 'light';
+    if (light && !dark) return 'dark';
+    return designScheme;
+  }
+  function processSheets() {
+    for (var i = 0; i < doc.styleSheets.length; i++) {
+      var s = doc.styleSheets[i], rules;
+      if (s.ownerNode && s.ownerNode.id === 'hb-style') continue;
+      try { rules = s.cssRules; } catch (e) { continue; }   /* other-origin CSS (CDN): skip */
+      if (!rules || seen(s)) continue;
+      walk(rules, baseScheme(rules));
+    }
+  }
+
+  /* ---------- read the HA theme and publish it as variables ---------- */
+  var CORE = ['primary-color', 'dark-primary-color', 'light-primary-color', 'accent-color', 'text-primary-color',
+    'primary-text-color', 'secondary-text-color', 'disabled-text-color', 'text-light-primary-color',
+    'primary-background-color', 'secondary-background-color', 'card-background-color', 'ha-card-background',
+    'divider-color', 'error-color', 'warning-color', 'success-color', 'info-color', 'state-icon-color',
+    'paper-item-icon-color', 'sidebar-background-color', 'sidebar-text-color', 'app-header-background-color',
+    'app-header-text-color', 'ha-card-border-radius', 'ha-card-box-shadow', 'ha-card-border-color',
+    'ha-card-border-width', 'primary-font-family', 'paper-font-body1_-_font-family', 'lovelace-background',
+    'input-fill-color', 'mdc-theme-primary', 'switch-checked-color', 'table-row-background-color',
+    'table-row-alternative-background-color', 'code-editor-background-color', 'markdown-code-background-color'];
+  var BLUR_VARS = ['ha-card-backdrop-filter', 'card-backdrop-filter', 'ha-card-backdrop', 'backdrop-filter',
+    'glass-blur', 'ha-blur', 'blur', 'card-blur', 'ha-card-blur'];
+  var MOD_VARS = ['card-mod-card', 'card-mod-card-yaml', 'card-mod-root', 'card-mod-view', 'card-mod-row'];
+  var lastKey = '', copied = {};
+
+  function themeSource() {
+    var d = HA.document;
+    return d.querySelector('home-assistant') || d.documentElement;
+  }
+  function readTheme() {
+    var cs = HA.getComputedStyle(themeSource());
+    var g = function (n) { return (cs.getPropertyValue('--' + n) || '').trim(); };
+    var th = { vars: {} };
+    var names = CORE.slice(), i, st = HA.document.documentElement.style;
+    for (i = 0; i < st.length; i++) if (st[i].indexOf('--') === 0) names.push(st[i].slice(2));
+    for (i = 0; i < cs.length; i++) if (cs[i].indexOf('--') === 0 && names.length < 900) names.push(cs[i].slice(2));
+    names.forEach(function (n) {
+      var v = g(n);
+      if (v && v.length < 400) th.vars['--' + n] = v;
+    });
+    var blur = '';
+    for (i = 0; i < BLUR_VARS.length && !blur; i++) blur = g(BLUR_VARS[i]);
+    for (i = 0; i < MOD_VARS.length && !blur; i++) {
+      var m = /backdrop-filter\s*:\s*([^;}!\n]+)/i.exec(g(MOD_VARS[i]));
+      if (m) blur = m[1].trim();
+    }
+    if (/^[\d.]+(px|rem|em)$/.test(blur)) blur = 'blur(' + blur + ')';
+    if (/var\(/.test(blur)) blur = '';
+    th.blur = blur;
+    th.bg = toRGB(g('primary-background-color')) || [17, 17, 17, 1];
+    th.bg2 = toRGB(g('secondary-background-color')) || th.bg;
+    th.text = toRGB(g('primary-text-color')) || (lum(th.bg) < 0.5 ? [225, 225, 225, 1] : [33, 33, 33, 1]);
+    th.text2 = toRGB(g('secondary-text-color')) || th.text;
+    th.cardRaw = g('ha-card-background') || g('card-background-color');
+    th.card = toRGB(th.cardRaw) || th.bg2;
+    th.line = g('divider-color') || 'rgba(' + rgbStr(th.text) + ',.12)';
+    th.primary = toRGB(g('primary-color')) || [3, 169, 244, 1];
+    th.accent = toRGB(g('accent-color')) || th.primary;
+    th.on = toRGB(g('text-primary-color')) || [255, 255, 255, 1];
+    th.error = toRGB(g('error-color')) || [219, 68, 55, 1];
+    th.warning = toRGB(g('warning-color')) || [255, 166, 0, 1];
+    th.success = toRGB(g('success-color')) || [67, 160, 71, 1];
+    th.info = toRGB(g('info-color')) || [3, 155, 229, 1];
+    th.wall = g('lovelace-background');
+    if (th.wall && !/url\(|gradient\(/.test(th.wall) && !toRGB(th.wall)) th.wall = '';
+    th.radius = g('ha-card-border-radius');
+    th.shadow = g('ha-card-box-shadow');
+    th.cardBorder = g('ha-card-border-color');
+    th.dark = th.wall ? lum(th.text) > 0.5 : lum(th.bg) < 0.5;
+    return th;
+  }
+
+  function set(n, v) {
+    if (v == null || v === '') root.style.removeProperty(n);
+    else root.style.setProperty(n, v);
+  }
+  function css(c) {
+    return c[3] < 1 ? 'rgba(' + rgbStr(c) + ',' + (Math.round(c[3] * 1000) / 1000) + ')' : 'rgb(' + rgbStr(c) + ')';
+  }
+
+  function apply() {
+    var th;
+    try { th = readTheme(); } catch (e) { return; }
+    var key = JSON.stringify(th);
+    if (key === lastKey) return;
+    lastKey = key;
+
+    /* every HA variable, so new pages can just use var(--primary-color) */
+    Object.keys(copied).forEach(function (n) { if (!th.vars[n]) root.style.removeProperty(n); });
+    copied = {};
+    Object.keys(th.vars).forEach(function (n) {
+      if (pageVars[n]) return;
+      root.style.setProperty(n, th.vars[n]);
+      copied[n] = 1;
+    });
+
+    var cardSame = Math.abs(lum(th.card) - lum(th.bg)) < 0.01 && th.card[3] > 0.95 && !th.wall;
+    set('--hb-bg', th.wall ? 'rgba(' + rgbStr(th.bg) + ',.45)' : css(th.bg));
+    set('--hb-bg2', css(th.bg2));
+    set('--hb-card', cardSame ? 'rgba(' + rgbStr(th.text) + ',.05)' : (th.cardRaw && !toRGB(th.cardRaw) ? th.cardRaw : css(th.card)));
+    set('--hb-text', css(th.text));
+    set('--hb-text2', css(th.text2));
+    set('--hb-line', th.line);
+    set('--hb-primary', css(th.primary));
+    set('--hb-accent', css(th.accent));
+    set('--hb-on', css(th.on));
+    ['error', 'warning', 'success', 'info'].forEach(function (k) { set('--hb-' + k, css(th[k])); });
+    ['text', 'bg', 'primary', 'accent', 'error', 'warning', 'success', 'info'].forEach(function (k) {
+      set('--hb-' + k + '-rgb', rgbStr(th[k]));
+    });
+    set('--hb-field', 'rgba(' + rgbStr(th.text) + ',' + (th.dark ? '.07' : '.05') + ')');
+    set('--hb-inset', 'rgba(' + rgbStr(th.bg) + ',' + (th.wall ? '.35' : '.6') + ')');
+    set('--hb-bar', th.card[3] < 0.95 || th.wall ? 'var(--hb-card)' : 'rgba(' + rgbStr(th.bg) + ',.92)');
+    set('--hb-blur', th.blur || 'none');
+    set('--hb-radius', th.radius);
+    set('--hb-shadow', th.shadow);
+    set('--hb-card-border', th.cardBorder);
+    set('--hb-page', th.wall || css(th.bg));
+    root.style.setProperty('color-scheme', th.dark ? 'dark' : 'light');
+    root.classList.toggle('hb-dark', th.dark);
+    root.classList.toggle('hb-light', !th.dark);
+    root.classList.toggle('hb-wallpaper', !!th.wall);
+    root.classList.toggle('hb-glass', !!th.blur);
+
+    var s = doc.getElementById('hb-style');
+    if (!s) {
+      s = doc.createElement('style');
+      s.id = 'hb-style';
+      (doc.head || root).appendChild(s);
+    }
+    var page = nested && th.wall ? 'transparent' : 'var(--hb-page)';
+    s.textContent =
+      'html.hb-themed{background:' + page + ' !important;min-height:100%}' +
+      'html.hb-themed body{background:transparent !important;color:var(--hb-text)}' +
+      (th.wall ? 'html.hb-themed iframe{background:transparent !important}' : '') +
+      'html.hb-themed ::placeholder{color:var(--hb-text2);opacity:.8}';
+    root.classList.add('hb-themed');
+  }
+
+  /* ---------- run now, then follow changes ---------- */
+  function run() { try { processSheets(); } catch (e) {} apply(); }
+  run();
+  var tm = null;
+  function later() { clearTimeout(tm); tm = setTimeout(run, 120); }
+  try {
+    var mo = new HA.MutationObserver(later);
+    mo.observe(HA.document.documentElement, { attributes: true, attributeFilter: ['style', 'class'] });
+    mo.observe(themeSource(), { attributes: true, attributeFilter: ['style', 'class'] });
+    if (HA.document.head) mo.observe(HA.document.head, { childList: true, subtree: true, characterData: true });
+    var mq = HA.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', later); else if (mq.addListener) mq.addListener(later);
+  } catch (e) {}
+  try {
+    new MutationObserver(function (list) {
+      for (var i = 0; i < list.length; i++) {
+        for (var j = 0; j < list[i].addedNodes.length; j++) {
+          var n = list[i].addedNodes[j];
+          if (n.id === 'hb-style') continue;
+          if (n.tagName === 'STYLE') later();
+          if (n.tagName === 'LINK') n.addEventListener('load', later);
+        }
+      }
+    }).observe(doc.head || root, { childList: true });
+  } catch (e) {}
+  doc.addEventListener('visibilitychange', function () { if (!doc.hidden) later(); });
+  window.addEventListener('load', later);
+  window.haThemeBridge = { refresh: function () { lastKey = ''; run(); } };
+})();
+</script>
+<!-- /ha-theme -->
+
+
+<div class="board" id="board"></div>
+
+<h2>Teams you can switch between</h2>
+<div class="card" id="teams"></div>
+
+<h2>Live game</h2>
+<div class="card form">
+  <div class="note">Pick any game that's on right now and track its score. It never goes in the calendar.</div>
+  <label>Sport <select id="lsport"></select></label>
+  <div class="card" id="games"></div>
+  <button id="lfind">Find live games</button>
+</div>
+
+<h2>Add a team</h2>
+<div class="card form">
+  <label>League <select id="league"></select></label>
+  <label>Find a team <input id="filter" type="search" placeholder="Start typing a team name" autocomplete="off"></label>
+  <label>Team <select id="team" size="1"></select></label>
+  <button class="primary" id="add" disabled>Add team</button>
+</div>
+
+<h2>How often to refresh</h2>
+<div class="card form">
+  <label>When no game is live
+    <select id="idle"></select></label>
+  <label>During a game
+    <select id="live"></select></label>
+</div>
+
+<h2>Calendar</h2>
+<div class="card form">
+  <div class="note" id="calstatus"></div>
+  <label>Update the calendar every day at <input type="time" id="caltime" step="60"></label>
+  <label>Calendar entity to refresh after each update <input id="calent" placeholder="calendar.team_games" autocomplete="off" spellcheck="false"></label>
+  <button id="calnow">Update calendar now</button>
+  <details>
+    <summary>Set up the calendar in Home Assistant (one time)</summary>
+    <ol>
+      <li>Add your teams first. The calendar holds every game for each saved team.</li>
+      <li>Settings, Devices &amp; services, Add integration, <b>Remote Calendar</b>.</li>
+      <li>Name it <b>Team Games</b> and paste this link:</li>
+    </ol>
+    <div class="inline"><input id="calurl" readonly><button id="copyurl">Copy</button></div>
+  </details>
+</div>
+
+<h2>Sensor name</h2>
+<div class="card form">
+  <div class="inline"><input id="sname" maxlength="60"><button id="savename">Save name</button></div>
+</div>
+
+<div id="msg" role="status"></div>
+<div class="foot"><span class="dot" id="dot"></span><span id="mq"></span><button class="ghost" id="refresh" style="margin-left:auto">Refresh now</button></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const api = (path, body) => fetch("api/" + path, body === undefined ? {} : {
+  method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)
+}).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); return j; });
+
+function el(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") n.className = v; else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v);
+  }
+  for (const k of kids) n.append(k);
+  return n;
+}
+const say = (t, ok) => { $("msg").textContent = t || ""; $("msg").className = ok ? "ok" : ""; };
+let teams = [], lastNameSeen = null;
+
+function sideBlock(a, p) {
+  const logo = a[p + "_logo"];
+  return el("div", {class: "side"},
+    logo ? el("img", {src: logo, alt: ""}) : el("div", {style: "height:64px"}),
+    el("div", {class: "abbr"}, a[p + "_abbr"] || "?"),
+    el("div", {class: "rec"}, a[p + "_record"] || ""));
+}
+
+function drawBoard(sensor) {
+  const a = sensor.attributes || {}, st = sensor.state;
+  const b = $("board");
+  b.replaceChildren();
+  const root = document.documentElement.style;
+  root.setProperty("--me", (a.team_colors && a.team_colors[0]) || "#6f8cff");
+  root.setProperty("--opp", (a.opponent_colors && a.opponent_colors[0]) || "#3a4258");
+  if (!a.opponent_abbr) {
+    b.append(el("div", {class: "empty"}, a.api_message || "Nothing to show yet"));
+    if (a.team_name) b.prepend(el("div", {class: "status"}, a.team_name));
+    return;
+  }
+  const hasScore = a.team_score !== null && a.team_score !== undefined;
+  b.append(el("div", {class: "row"}, sideBlock(a, "team"),
+    el("div", {class: "score"}, hasScore ? String(a.team_score) : "vs", hasScore ? el("small", {}, "–") : "",
+      hasScore ? String(a.opponent_score ?? 0) : ""),
+    sideBlock(a, "opponent")));
+  let detail = "";
+  if (st === "IN") detail = [a.quarter ? "Period " + a.quarter : "", a.clock].filter(Boolean).join("  ") || a.status_detail || "";
+  else if (st === "PRE") detail = [a.kickoff_in, a.date ? new Date(a.date).toLocaleString([], {weekday: "short", hour: "numeric", minute: "2-digit"}) : ""].filter(Boolean).join(" – ");
+  else detail = a.status_detail || "";
+  b.append(el("div", {class: "status"}, el("span", {class: "pill " + st}, st), detail));
+}
+
+function drawTeams(s) {
+  const box = $("teams");
+  box.replaceChildren();
+  const lg = s.settings.live_game;
+  if (lg) {
+    const on = s.settings.active === "LIVE";
+    box.append(el("div", {class: "team" + (on ? " active" : "")},
+      lg.logo ? el("img", {src: lg.logo, alt: ""}) : el("div", {style: "width:34px"}),
+      el("div", {class: "nm"}, el("b", {}, "Live: " + lg.label), el("span", {}, "Tracking " + lg.abbr + " · not in the calendar")),
+      on ? el("span", {class: "pill PRE"}, "Tracking")
+         : el("button", {onclick: () => act("active", {key: "LIVE"})}, "Track"),
+      el("button", {class: "ghost", "aria-label": "Clear live game", onclick: () => act("livegame/clear", {})}, "✕")));
+  }
+  if (!s.settings.favorites.length && !lg) { box.append(el("div", {class: "empty"}, "No teams yet. Add one below.")); return; }
+  for (const f of s.settings.favorites) {
+    const on = f.key === s.settings.active;
+    box.append(el("div", {class: "team" + (on ? " active" : "")},
+      f.logo ? el("img", {src: f.logo, alt: ""}) : el("div", {style: "width:34px"}),
+      el("div", {class: "nm"}, el("b", {}, f.name), el("span", {}, f.league)),
+      on ? el("span", {class: "pill PRE"}, "Tracking")
+         : el("button", {onclick: () => act("active", {key: f.key})}, "Track"),
+      el("button", {class: "ghost", "aria-label": "Remove " + f.name, onclick: () => act("remove", {key: f.key})}, "✕")));
+  }
+}
+
+function draw(s) {
+  drawBoard(s.sensor);
+  drawTeams(s);
+  drawCalendar(s);
+  $("dot").className = "dot" + (s.mqtt ? " ok" : "");
+  $("mq").textContent = s.mqtt ? "Connected to MQTT" : "Not connected to MQTT. Check the add-on options.";
+  if (document.activeElement !== $("idle")) $("idle").value = String(s.settings.idle_minutes);
+  if (document.activeElement !== $("live")) $("live").value = String(s.settings.live_seconds);
+  if (document.activeElement !== $("sname") && lastNameSeen !== s.settings.sensor_name) {
+    $("sname").value = s.settings.sensor_name; lastNameSeen = s.settings.sensor_name;
+  }
+}
+
+function drawCalendar(s) {
+  const c = s.calendar, st = $("calstatus");
+  const when = c.built_at ? new Date(c.built_at).toLocaleString() : null;
+  st.className = "note" + (c.error ? " bad" : "");
+  if (c.error) st.textContent = "Last update failed, keeping the old calendar: " + c.error;
+  else if (!when) st.textContent = s.settings.favorites.length ? "Building the calendar for the first time…" : "Add a team and the calendar builds itself.";
+  else st.textContent = c.events + " games from " + c.teams + " team" + (c.teams === 1 ? "" : "s") + ". Updated " + when + (c.poke ? ". " + c.poke + "." : ".");
+  if (document.activeElement !== $("caltime")) $("caltime").value = s.settings.calendar_time;
+  if (document.activeElement !== $("calent")) $("calent").value = s.settings.calendar_entity || "";
+  $("calurl").value = c.url;
+  $("caltime").title = "Times are in " + c.tz;
+}
+
+async function act(path, body) {
+  try { say(""); draw(await api(path, body)); return true; } catch (e) { say(e.message); return false; }
+}
+
+function fillTeams() {
+  const q = $("filter").value.trim().toLowerCase();
+  const sel = $("team");
+  sel.replaceChildren();
+  const shown = teams.filter(t => !q || t.name.toLowerCase().includes(q) || t.abbr.toLowerCase() === q);
+  for (const t of shown) sel.append(el("option", {value: t.id}, t.name + (t.abbr ? " (" + t.abbr + ")" : "")));
+  $("add").disabled = !shown.length;
+}
+
+async function loadTeams() {
+  teams = []; fillTeams(); $("add").disabled = true;
+  try { say("Loading teams…"); teams = await api("teams?league=" + encodeURIComponent($("league").value)); say(""); fillTeams(); }
+  catch (e) { say(e.message); }
+}
+
+async function findLive() {
+  const box = $("games");
+  box.replaceChildren(el("div", {class: "empty"}, "Looking…"));
+  try {
+    const games = await api("live?league=" + encodeURIComponent($("lsport").value));
+    box.replaceChildren();
+    if (!games.length) { box.append(el("div", {class: "empty"}, "Nothing is live in this sport right now.")); return; }
+    for (const g of games) {
+      const [a, h] = [g.teams[0], g.teams[g.teams.length - 1]];
+      box.append(el("div", {class: "game"},
+        el("div", {class: "ln"}, `${a.abbr} ${a.score ?? 0} – ${h.score ?? 0} ${h.abbr}`),
+        el("div", {class: "note"}, g.detail || ""),
+        el("div", {class: "btns"}, ...g.teams.map(t =>
+          el("button", {onclick: () => act("livegame", {league: $("lsport").value, event_id: g.event_id, team_id: t.id})}, "Track " + t.abbr)))));
+    }
+  } catch (e) { box.replaceChildren(el("div", {class: "empty"}, e.message)); }
+}
+$("lsport").addEventListener("change", findLive);
+$("lfind").addEventListener("click", findLive);
+const saveCal = () => act("calendar", {calendar_time: $("caltime").value || "04:00", calendar_entity: $("calent").value}).then(ok => ok && say("Calendar settings saved", true));
+$("caltime").addEventListener("change", saveCal);
+$("calent").addEventListener("change", saveCal);
+$("calnow").addEventListener("click", () => act("calendar/refresh", {}).then(ok => ok && say("Updating the calendar now…", true)));
+$("copyurl").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($("calurl").value); say("Link copied", true); }
+  catch (e) { $("calurl").select(); say("Press and hold the link to copy it"); }
+});
+
+$("league").addEventListener("change", () => { $("filter").value = ""; loadTeams(); });
+$("filter").addEventListener("input", fillTeams);
+$("add").addEventListener("click", () => {
+  const t = teams.find(x => x.id === $("team").value);
+  if (t) act("favorites", {league: $("league").value, team_id: t.id, abbr: t.abbr, name: t.name, logo: t.logo});
+});
+$("savename").addEventListener("click", () => act("name", {name: $("sname").value}).then(ok => ok && say("Name saved", true)));
+const saveRates = () => act("rates", {idle_minutes: +$("idle").value, live_seconds: +$("live").value}).then(ok => ok && say("Refresh speed saved", true));
+$("idle").addEventListener("change", saveRates);
+$("live").addEventListener("change", saveRates);
+$("refresh").addEventListener("click", () => act("refresh", {}));
+
+(async function init() {
+  for (const m of [1, 2, 5, 10, 15, 30, 60]) $("idle").append(el("option", {value: m}, "Every " + m + (m === 1 ? " minute" : " minutes")));
+  for (const n of [5, 10, 15, 30, 60, 120]) $("live").append(el("option", {value: n}, "Every " + n + " seconds"));
+  const leagues = await api("leagues");
+  for (const l of leagues) { $("league").append(el("option", {value: l.id}, l.label)); $("lsport").append(el("option", {value: l.id}, l.label)); }
+  draw(await api("state"));
+  loadTeams();
+  findLive();
+  setInterval(async () => { try { draw(await api("state")); } catch (e) {} }, 5000);
+})().catch(e => say(e.message));
+</script>
+<div style="text-align:center;margin:28px 0 14px;font-size:13px;opacity:.75"><a href="backups" style="color:inherit">&#x1F4BE; Backups</a></div>
+</body>
+</html>

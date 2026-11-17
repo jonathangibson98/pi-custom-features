@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.6.0 - 2026-11-16
+
+- **Follows your Home Assistant theme.** The web UI now uses the colors of whatever theme Home Assistant is showing, light or dark, and changes live when you switch. Themes with a dashboard wallpaper and frosted-glass cards (like Apple / Liquid Glass themes) carry over too: wallpaper behind, see-through blurred cards, matching corners. Opened outside Home Assistant it keeps its own look.
+
+## 1.5.2
+
+- Removed personal names, places and home-specific entity IDs from the defaults, examples and docs, so new installs start clean.
+
+## 1.5.1
+
+- **Back up from Home Assistant.** The add-on now listens on stdin, so the `hassio.addon_stdin` action with `input: backup` makes a backup right away. One script can back up every add-on at once (see the repository README, "Back up all add-ons with one action")
+
 ## 1.5.0
 
 - **Track anything, not just shows and games.** The Add tab now has five choices: **TV & Movies**, **Games & DLC**, **Music**, **Celebrities**, and **Anything else**.
@@ -36,7 +48,7 @@
 
 ## 1.1.0
 
-- Added **people**. Tag each show or movie with who cares about it (you, MJ, anybody you add in Settings).
+- Added **people**. Tag each show or movie with who cares about it (you, Sam, anybody you add in Settings).
 - Every person gets their own sensors: `sensor.release_tracker_<name>_upcoming` and `binary_sensor.release_tracker_<name>_releasing_today`.
 - The main "Releasing Today" sensor now has a `by_person` attribute.
 - Tap a name on any tracked card to change who it belongs to.

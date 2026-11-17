@@ -1,0 +1,91 @@
+configuration:
+  log_level:
+    name: Log level
+    description: How chatty the add-on log is. Use debug when troubleshooting, warning or error to keep it quiet.
+  svg_output_path:
+    name: SVG save folder
+    description: Where SVG Maker puts files when you press Save locally or Both. Default /homeassistant/custom_icons is the folder the Custom Icons integration reads. Any folder this add-on can see works (/homeassistant, /share, /media). Created if missing.
+  svg_temp_path:
+    name: SVG temp folder (auto-saves)
+    description: Every conversion is auto-saved here until you save it yourself. Default /homeassistant/www/svg_maker/temp_icons, which Home Assistant serves at /local/svg_maker/temp_icons/.
+  svg_auto_delete_temp:
+    name: SVG auto-delete temp files
+    description: Turn on to automatically delete old files from the SVG temp folder. Never touches your save folder.
+  svg_auto_delete_after_days:
+    name: SVG delete temp files older than (days)
+    description: Only used when SVG auto-delete temp files is on.
+  svg_filename_style:
+    name: SVG temp file naming
+    description: How auto-saved temp files are named. original = photo name, timestamp = unix time, original_timestamp = both. You choose the name for saved files on the page.
+  svg_on_name_conflict:
+    name: SVG if the file name already exists
+    description: rename adds -1, -2 so nothing gets overwritten. overwrite replaces the old file.
+  svg_default_mode:
+    name: SVG default color mode
+    description: Color keeps colors. bw makes a black and white trace. Changeable per upload on the page.
+  svg_default_detail:
+    name: SVG default detail (1-10)
+    description: 1 is simple and smooth, 10 is highly detailed but bigger files. Changeable per upload.
+  svg_path_style:
+    name: SVG curve style
+    description: spline = smooth curves (best for most). polygon = straight edges. none = raw pixel-ish paths.
+  svg_max_image_dimension:
+    name: SVG max image size (px)
+    description: Photos are shrunk so the longest side fits this before tracing. Lower is faster on a Pi.
+  svg_max_upload_mb:
+    name: SVG max upload size (MB)
+    description: Reject uploads larger than this.
+  svg_icon_names:
+    name: SVG icon-friendly file names
+    description: Save names as lowercase letters, numbers and hyphens (My Dog becomes my-dog) so they work as Home Assistant icon names.
+  svg_bw_follow_theme:
+    name: SVG black and white follows HA colors
+    description: For black and white conversions, use currentColor instead of hard black so the icon takes on the color Home Assistant gives it (for example yellow when a light is on). Color conversions keep their colors.
+  svg_crop_editor:
+    name: SVG show crop editor
+    description: After you pick a photo, show a draggable, zoomable crop window (like the Facebook profile picture screen) so you can approve or adjust the crop before converting.
+  svg_auto_crop:
+    name: SVG auto-crop suggestion
+    description: Automatically find the main subject and position the crop on it. You can still drag and zoom. With the editor off, the auto crop is applied without asking.
+  svg_crop_shape:
+    name: SVG default crop shape
+    description: circle, rounded or square crop the result to that shape (great for icons). none keeps the whole photo. Changeable on the page.
+  svg_crop_padding:
+    name: SVG crop padding (%)
+    description: Extra breathing room around the detected subject. Higher zooms out more.
+  svg_output_size:
+    name: SVG crop output size (px)
+    description: The cropped photo is shrunk to this size before upload and tracing. 512 is good for icons and is fast on a Pi.
+  svg_auto_enhance:
+    name: SVG auto-enhance before tracing
+    description: Boosts contrast, smooths texture noise and simplifies colors so photos trace into clean shapes with smaller files. Changeable on the page.
+  svg_ai_task_entity:
+    name: AI logo - AI Task entity
+    description: The Home Assistant ai_task entity that draws logos in the AI logo tab. Default ai_task.google_ai_task.
+  svg_ai_timeout:
+    name: AI logo - timeout (seconds)
+    description: How long to wait for the AI to draw one logo before giving up. Raise it if your AI is slow.
+  svg_ai_default_style:
+    name: AI logo - default style
+    description: Starting style in the AI logo tab. Changeable on the page.
+  svg_ai_default_count:
+    name: AI logo - default number of ideas
+    description: How many different designs to draw at once (1 to 3). Each one is a separate AI call. Changeable on the page.
+  ha_url:
+    name: Home Assistant URL (optional)
+    description: Only used with the token below. Leave the default unless you need to reach Home Assistant a different way.
+  ha_token:
+    name: Home Assistant long-lived token (optional)
+    description: Leave empty to use the add-on's built-in access. Only fill this in if the AI logo tab says Home Assistant refused the add-on.
+  backup_path:
+    name: Backup folder
+    description: >-
+      Where backups are saved, inside /share, /media or /homeassistant. A folder keeps several dated backups.
+      A path ending in .zip keeps one file that is replaced each time. Open Backups in the add-on page to back up,
+      download or restore.
+  backup_every:
+    name: Automatic backups
+    description: How often a backup is made by itself (off, daily or weekly).
+  backup_keep:
+    name: Backups to keep
+    description: The newest this many backups are kept in the folder, older ones are deleted.

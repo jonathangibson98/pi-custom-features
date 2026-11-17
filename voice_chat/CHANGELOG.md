@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.4.0 - 2026-11-16
+
+- **Follows your Home Assistant theme.** The web UI now uses the colors of whatever theme Home Assistant is showing, light or dark, and changes live when you switch. Themes with a dashboard wallpaper and frosted-glass cards (like Apple / Liquid Glass themes) carry over too: wallpaper behind, see-through blurred cards, matching corners. Opened outside Home Assistant it keeps its own look.
+
+## 2.3.2
+
+- Removed personal names, places and home-specific entity IDs from the defaults, examples and docs, so new installs start clean.
+
+## 2.3.1
+
+- **Back up from Home Assistant.** The add-on now listens on stdin, so the `hassio.addon_stdin` action with `input: backup` makes a backup right away. One script can back up every add-on at once (see the repository README, "Back up all add-ons with one action")
+
+## 2.3.0
+
+- **Backups.** New **Backups** page (link at the top, next to History) to back up now, download, restore, or restore from an uploaded file. Backups go to `backup_path` (a folder, or one `.zip` file) automatically on the `backup_every` schedule, and the newest `backup_keep` are kept
+- A backup holds your live info entities and chat history (the self-signed certificate is left out, a new one is made), plus the Configuration tab settings. Restoring saves a safety copy first, puts the settings back and restarts the add-on to put the data back
+- The add-on now has Supervisor access (`hassio_api`, to restore its settings and restart itself) and `/share` access for the backup folder
+
 ## 2.2.1
 
 - Fix: the standalone Docker setup now ships the `.env.example` that the docs and `docker-compose.yml` tell you to copy. Without it `docker compose up` failed on the missing `.env`.
@@ -17,7 +35,7 @@
 
 ## 2.1.0
 
-- **The AI now knows your household.** Voice Chat reads your combined info sensor (`sensor.combined_info`) and gives it to the AI with the first message of every conversation, so when you say "Von", "Guapo" or "MJ's sister" it knows who you mean. It is sent again automatically if Home Assistant forgets the conversation after a few quiet minutes. The background never shows up in the chat or the saved history.
+- **The AI now knows your household.** Voice Chat reads your combined info sensor (`sensor.combined_info`) and gives it to the AI with the first message of every conversation, so when you say "Chris", "Guapo" or "Sam's sister" it knows who you mean. It is sent again automatically if Home Assistant forgets the conversation after a few quiet minutes. The background never shows up in the chat or the saved history.
 - New options: `context_enabled`, `context_entity`, `context_attributes`, `context_skip_agents`, `context_max_chars`, `speaker_name`.
 - "AI knows my household info" switch on the page (remembered per browser). Hidden for the built-in Home Assistant agent, which only matches fixed sentences.
 - A banner appears if `context_entity` doesn't exist.

@@ -1,0 +1,44 @@
+name: Work Hours Tracker
+version: "1.6.0"
+slug: work_hours
+image: "ghcr.io/jonathangibson98/{arch}-addon-work_hours"
+description: Logs time spent in chosen zones, one file per person, with MQTT sensors
+url: https://github.com/jonathangibson98/my-home-assistant-apps
+arch:
+  - aarch64
+  - amd64
+init: false
+homeassistant_api: true
+ingress: true
+stdin: true
+hassio_api: true
+panel_icon: mdi:clock-check-outline
+panel_title: Work Hours
+services:
+  - mqtt:want
+map:
+  - homeassistant_config:rw
+  - share:rw
+  - media:rw
+options:
+  save_folder: /homeassistant/work_hours
+  keep_days: 365
+  check_seconds: 30
+  grace_minutes: 10
+  min_minutes: 5
+  backup_path: /share/addon_backups/work_hours
+  backup_every: daily
+  backup_keep: 10
+schema:
+  save_folder: str
+  keep_days: int(0,36500)
+  check_seconds: int(10,300)
+  grace_minutes: int(0,120)
+  min_minutes: int(0,120)
+  mqtt_host: str?
+  mqtt_port: port?
+  mqtt_username: str?
+  mqtt_password: password?
+  backup_path: str
+  backup_every: list(off|daily|weekly)
+  backup_keep: int(1,100)
