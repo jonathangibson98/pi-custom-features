@@ -317,6 +317,7 @@ class Party:
         self.extra_info = {}         # name -> text for the page
         self.art = {"palette": [], "brightness": None, "color": None, "text_color": None, "url": None, "title": ""}
         self.last_art_url = {}
+        self.music_last, self.music_used = {}, []
         self.status = "Ready"
         self.events = []             # recent things that happened, for the page
         self.slug = ""
@@ -582,9 +583,45 @@ class Party:
             await self.start_show()
 
     # ---- music sync + album art
+    def watched_players(self):
+        """Players music sync follows: the ones picked, else the album-art player, else whatever is playing."""
+        m = self.s["music"]
+        if m["media_players"]:
+            return list(m["media_players"])
+        if self.s["art"].get("media_player"):
+            return [self.s["art"]["media_player"]]
+        return [e for e, st in ha.states.items() if e.startswith("media_player.") and st.get("state") == "playing"]
+
+    def music_status(self):
+        """Plain-words answer to 'why aren't my lights following the music?'."""
+        m, follow = self.s["music"], self.watched_players()
+        lights = m["lights"] or self.lights()
+        playing = [p for p in follow if ha.state(p) == "playing"]
+        cond = m.get("condition_entity") and m.get("condition_state")
+        checks = [
+            {"ok": bool(follow), "text": ("Following " + ", ".join(ha.attr(p, "friendly_name") or p for p in follow)) if follow
+             else "No music player picked, and nothing is playing"},
+            {"ok": bool(playing), "text": "Playing now" if playing else "Nothing is playing on it"},
+            {"ok": bool(lights), "text": ("Lights: " + ", ".join(ha.attr(e, "friendly_name") or e for e in lights)) if lights else "No lights picked"},
+        ]
+        if cond:
+            now = ha.state(m["condition_entity"])
+            checks.append({"ok": str(now) == str(m["condition_state"]), "text": "%s is %s (needs %s)" % (
+                ha.attr(m["condition_entity"], "friendly_name") or m["condition_entity"], now, m["condition_state"])})
+        else:
+            checks.append({"ok": self.music_allowed(), "text": "Always on" if m.get("always") else
+                           ("Party is on in Music sync" if self.music_allowed() else "Turns on when the party is on in Music sync mode")})
+        ok = all(c["ok"] for c in checks)
+        last = self.music_last
+        return {"ok": ok, "checks": checks, "last": last,
+                "summary": "Syncing ✓" if ok else next(c["text"] for c in checks if not c["ok"])}
+
     def on_state(self, eid, old, new):
         m = self.s["music"]
-        if eid in m["media_players"] or eid == self.s["art"]["media_player"]:
+        follow = self.watched_players()
+        if not follow and eid.startswith("media_player.") and (new or {}).get("state") == "playing":
+            follow = [eid]
+        if eid in follow or eid == self.s["art"]["media_player"]:
             a = (new or {}).get("attributes") or {}
             url = a.get("entity_picture_local") or a.get("entity_picture")
             if url and url != self.last_art_url.get(eid):
@@ -626,8 +663,10 @@ class Party:
                     "text_color": "#000000" if bright > 140 else "#ffffff", "url": url, "player": player,
                     "title": " - ".join(x for x in (attrs.get("media_artist"), attrs.get("media_title")) if x)}
         self.publish_art()
-        if player in self.s["music"]["media_players"] and self.music_allowed():
+        if (player in self.watched_players() or not self.watched_players()) and self.music_allowed():
             await self.apply_music(colors)
+            self.music_last = {"time": time.time(), "player": ha.attr(player, "friendly_name") or player, "title": self.art["title"],
+                               "colors": [rgb_hex(c) for c in self.music_used]}
         if self.s["show"]["theme"] == "album" and self.show_task:
             pass  # the running show reads the new palette on its next step
 
@@ -642,13 +681,17 @@ class Party:
         b = self.bri(m["brightness"]) if m.get("brightness") else None
         tr = float(m.get("transition") or 0)
         if m.get("same_color"):
-            await self.light(L, usable[0], b, transition=tr)
-        else:
-            for k, e in enumerate(L):
-                await self.light(e, usable[k % len(usable)], b, transition=tr)
+            vivid = max(usable, key=lambda c: (max(c) - min(c)) * max(c))  # the most colorful, not the darkest
+            self.music_used = [vivid]
+            await self.light(L, vivid, b, transition=tr)
+            return
+        self.music_used = usable[:len(L)]
+        for k, e in enumerate(L):
+            await self.light(e, usable[k % len(usable)], b, transition=tr)
 
     async def music_now(self):
-        for p in self.s["music"]["media_players"]:
+        follow = sorted(self.watched_players(), key=lambda p: ha.state(p) != "playing")
+        for p in follow:
             a = ha.attr(p, "entity_picture_local") or ha.attr(p, "entity_picture")
             if a:
                 self.last_art_url.pop(p, None)
@@ -1136,20 +1179,24 @@ class Party:
     def mqtt_connected(self):
         c, dev, base = self.mq, self.device(), BASE
         av = {"availability_topic": base + "/status", "device": dev}
+        loops = [n for _i, n, k in GAMES.values() if k == "loop"]
+        quick = [n for _i, n, k in GAMES.values() if k == "once"]
         ents = [
-            ("switch", "party_mode", {"name": "Party mode", "icon": "mdi:party-popper", "command_topic": base + "/party/set", "state_topic": base + "/party/state"}),
-            ("select", "party_effect", {"name": "Party effect", "icon": "mdi:led-strip-variant", "options": list(EFFECTS.values()), "command_topic": base + "/effect/set", "state_topic": base + "/effect/state"}),
-            ("select", "party_theme", {"name": "Party colors", "icon": "mdi:palette", "options": list(THEME_NAMES.values()), "command_topic": base + "/theme/set", "state_topic": base + "/theme/state"}),
-            ("number", "party_speed", {"name": "Party speed", "icon": "mdi:speedometer", "min": 1, "max": 10, "step": 1, "command_topic": base + "/speed/set", "state_topic": base + "/speed/state"}),
-            ("number", "party_brightness", {"name": "Party brightness", "icon": "mdi:brightness-6", "min": 5, "max": 100, "step": 5, "unit_of_measurement": "%", "command_topic": base + "/brightness/set", "state_topic": base + "/brightness/state"}),
-            ("number", "party_bpm", {"name": "Party beat", "icon": "mdi:metronome", "min": 60, "max": 180, "step": 1, "unit_of_measurement": "BPM", "command_topic": base + "/bpm/set", "state_topic": base + "/bpm/state"}),
-        ] + [
-            ("switch" if kind == "loop" else "button", "party_" + GAME_IDS.get(key, key), dict({"name": name, "icon": GAME_MDI.get(key, "mdi:party-popper")},
-             **({"command_topic": base + "/g_%s/set" % key, "state_topic": base + "/g_%s/state" % key} if kind == "loop" else {"command_topic": base + "/g_%s/press" % key})))
-            for key, (_icon, name, kind) in GAMES.items()
-        ] + [
-            ("sensor", "party_status", {"name": "Party status", "icon": "mdi:party-popper", "state_topic": base + "/status_text", "json_attributes_topic": base + "/status_attrs"}),
+            ("switch", "party_mode", {"name": "Party", "icon": "mdi:party-popper", "command_topic": base + "/party/set", "state_topic": base + "/party/state"}),
+            ("select", "party_effect", {"name": "Light mode", "icon": "mdi:led-strip-variant", "options": list(EFFECTS.values()), "command_topic": base + "/effect/set", "state_topic": base + "/effect/state"}),
+            ("select", "party_theme", {"name": "Colors", "icon": "mdi:palette", "options": list(THEME_NAMES.values()), "command_topic": base + "/theme/set", "state_topic": base + "/theme/state"}),
+            ("number", "party_brightness", {"name": "Brightness", "icon": "mdi:brightness-6", "min": 5, "max": 100, "step": 5, "unit_of_measurement": "%", "command_topic": base + "/brightness/set", "state_topic": base + "/brightness/state"}),
+            ("number", "party_speed", {"name": "Speed", "icon": "mdi:speedometer", "min": 1, "max": 10, "step": 1, "command_topic": base + "/speed/set", "state_topic": base + "/speed/state"}),
+            ("select", "party_game", {"name": "Game", "icon": "mdi:dice-multiple", "options": ["None"] + loops, "command_topic": base + "/game/set", "state_topic": base + "/game/state"}),
+            ("select", "party_quick_hit", {"name": "Quick hit", "icon": "mdi:flash", "options": ["Pick one…"] + quick, "command_topic": base + "/quick/set", "state_topic": base + "/quick/state"}),
+            ("sensor", "party_status", {"name": "Status", "icon": "mdi:party-popper", "state_topic": base + "/status_text", "json_attributes_topic": base + "/status_attrs"}),
         ]
+        # 1.1 made a switch or button per game; remove those so the device stays short
+        for oid in ["party_bpm"] + ["party_" + GAME_IDS.get(k, k) for k in GAMES]:
+            for kind in ("switch", "button", "number"):
+                if kind == "number" and oid != "party_bpm":
+                    continue
+                c.publish("homeassistant/%s/%s/%s/config" % (kind, base, oid), "", retain=True)
         for kind, oid, cfg in ents:
             c.publish("homeassistant/%s/%s/%s/config" % (kind, base, oid),
                       json.dumps(dict(cfg, unique_id=base + "_" + oid, default_entity_id="%s.%s" % (kind, oid), **av)), retain=True)
@@ -1185,18 +1232,30 @@ class Party:
         p(base + "/theme/state", THEME_NAMES.get(s["theme"], "Party"), retain=True)
         p(base + "/speed/state", str(s["speed"]), retain=True)
         p(base + "/brightness/state", str(s["brightness"]), retain=True)
-        p(base + "/bpm/state", str(s["bpm"]), retain=True)
-        for key, (_i, _n, kind) in GAMES.items():
-            if kind == "loop":
-                p(base + "/g_%s/state" % key, "ON" if key in self.extras else "OFF", retain=True)
+        running = [GAMES[k][1] for k in GAMES if k in self.extras and GAMES[k][2] == "loop"]
+        p(base + "/game/state", running[0] if running else "None", retain=True)
+        p(base + "/quick/state", "Pick one…", retain=True)
         p(base + "/status_text", ("Party: " + EFFECTS.get(s["effect"], "")) if self.on else "Off", retain=True)
-        p(base + "/status_attrs", json.dumps({"extras": self.extra_info, "theme": THEME_NAMES.get(s["theme"]),
+        p(base + "/status_attrs", json.dumps({"extras": self.extra_info, "theme": THEME_NAMES.get(s["theme"]), "games_running": running,
+                                              "music_sync": self.music_status()["summary"],
                                               "now_playing": self.art.get("title"), "last": self.events[0]["text"] if self.events else ""}), retain=True)
 
     async def mqtt_cmd(self, topic, payload):
         key = topic.split("/")[1]
         on = payload.upper() in ("ON", "1", "TRUE", "PRESS")
-        if key.startswith("g_"):
+        if key == "game":
+            pick = next((k for k, (_i, n, kind) in GAMES.items() if n == payload and kind == "loop"), None)
+            for k in [k for k in list(self.extras) if GAMES.get(k, ("", "", ""))[2] == "loop" and k != pick]:
+                await self.toggle_extra(k, False)
+            if pick and pick not in self.extras:
+                await self.toggle_extra(pick, True)
+            self.publish()
+        elif key == "quick":
+            pick = next((k for k, (_i, n, kind) in GAMES.items() if n == payload and kind == "once"), None)
+            if pick:
+                await self.run_game(pick)
+            self.publish()
+        elif key.startswith("g_"):
             await self.run_game(key[2:], on)
         elif key == "party":
             await self.set_on(on)
@@ -1259,7 +1318,8 @@ class Party:
                 "games": {k: {"icon": v[0], "name": v[1], "kind": v[2]} for k, v in GAMES.items()},
                 "palettes": {k: self.palette(k) for k in THEME_NAMES}, "art": self.art, "extras": self.extra_info,
                 "running": sorted(self.extras), "events": self.events[:15], "ha_ok": ha.ok, "mqtt": bool(self.mq and self.mq.is_connected()),
-                "people_home": self.people_home(), "slug": self.slug}
+                "people_home": self.people_home(), "slug": self.slug, "music_status": self.music_status(),
+                "follow": self.watched_players()}
 
 
 party = Party()
@@ -1290,8 +1350,10 @@ async def entities(request):
     for eid, s in ha.states.items():
         d = eid.split(".")[0]
         if d in ("light", "media_player", "tts", "select", "input_select", "input_boolean", "sensor", "switch", "person"):
-            out.setdefault(d, []).append({"id": eid, "name": (s.get("attributes") or {}).get("friendly_name") or eid,
-                                          "state": s.get("state")})
+            item = {"id": eid, "name": (s.get("attributes") or {}).get("friendly_name") or eid, "state": s.get("state")}
+            if d in ("select", "input_select"):
+                item["options"] = (s.get("attributes") or {}).get("options") or []
+            out.setdefault(d, []).append(item)
     for v in out.values():
         v.sort(key=lambda x: x["name"].lower())
     return web.json_response(out)

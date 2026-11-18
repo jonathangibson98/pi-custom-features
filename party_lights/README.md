@@ -12,7 +12,9 @@ Music-synced lights, 25 light modes, color themes and 20+ party games, run from 
 - **25 light modes**: disco, chase, comet, ping pong, heartbeat, aurora, ocean, fireworks, lava lamp, shuffle and more
 - **Color themes**: holidays, album art, team colors, your own, or AI colors from a description
 - **20+ games**: freeze dance, red light green light, trivia, truth or dare, never have I ever, name that tune, power hour, shot caller, last call, light roulette, hot potato, dance battle…
-- **Pick the mode without the page**: a linked `input_select` (made for you), `hassio.addon_stdin`, or MQTT entities for everything
+- **Control it from anywhere**: a mode dropdown made for you, `hassio.addon_stdin`, or 8 simple MQTT entities (party, mode, colors, brightness, speed, game, quick hit, status)
+- **Music sync checklist** shows exactly why the lights are or aren't following the music
+- iPhone-first page with a bottom tab bar and pull-up settings sheets
 - Lights are put back the way they were when the party ends
 
 ## What you need

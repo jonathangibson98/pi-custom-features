@@ -3,101 +3,120 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0d0b1a">
+<meta name="theme-color" content="#0b0a14">
+<meta name="format-detection" content="telephone=no">
 <title>Party Lights</title>
 <style>
-:root{--bg:#0d0b1a;--card:#17142b;--card2:#211d3d;--line:#2f2a55;--text:#f1eefe;--dim:#a49fc9;--acc:#ff2bd6;--acc2:#00e5ff;--ok:#5cf2a6;--bad:#ff6b8b;--warn:#ffd166;--r:18px;color-scheme:dark}
+:root{--bg:#0b0a14;--card:#16142a;--card2:#201d3a;--line:#2c2850;--text:#f3f1ff;--dim:#a29dc8;--acc:#ff2bd6;--acc2:#00e5ff;--ok:#4ee69b;--bad:#ff6b8b;--r:20px;color-scheme:dark}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
-html,body{margin:0}
-body{background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:calc(84px + env(safe-area-inset-bottom))}
-.wrap{max-width:1100px;margin:0 auto;padding:12px 12px 0}
+html,body{margin:0;overscroll-behavior-y:contain}
+body{background:var(--bg);color:var(--text);font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,"Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;padding-bottom:calc(92px + env(safe-area-inset-bottom))}
 button,input,select,textarea{font:inherit;color:inherit}
-button{cursor:pointer;border:1px solid var(--line);background:var(--card2);border-radius:12px;padding:10px 14px;min-height:42px}
-button:active{transform:scale(.97)}
-button.pri{background:linear-gradient(135deg,var(--acc),#7b2cff);border:0;color:#fff;font-weight:600}
-button.ghost{background:transparent}
-button.danger{border-color:var(--bad);color:var(--bad)}
-input,select,textarea{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-height:42px}
-input[type=checkbox]{width:22px;height:22px;min-height:0;accent-color:var(--acc)}
-input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);min-height:30px}
-input[type=color]{padding:2px;width:46px;height:42px}
-textarea{resize:vertical}
-h2{font-size:17px;margin:0 0 10px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px}
-.dim{color:var(--dim)}.small{font-size:13px}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.grow{flex:1;min-width:0}
-.l{display:block;font-size:13px;color:var(--dim);margin:10px 0 4px}
-.check{display:flex;gap:10px;align-items:center;margin-top:10px}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-/* header */
-.top{position:sticky;top:0;z-index:5;background:linear-gradient(var(--bg) 75%,transparent);padding:10px 12px 6px;margin:-12px -12px 0}
-.top .row{flex-wrap:nowrap}
-h1{margin:0;font-size:22px;background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap}
-.dots{display:flex;gap:6px}.dot{font-size:11px;padding:3px 8px;border-radius:99px;border:1px solid var(--line);color:var(--dim);white-space:nowrap}
-.dot.ok{color:var(--ok);border-color:rgba(92,242,166,.4)}.dot.bad{color:var(--bad);border-color:rgba(255,107,139,.4)}
-.pbtn{border-radius:99px;padding:8px 16px;white-space:nowrap}
-/* hero */
-.hero{display:flex;gap:14px;align-items:center;position:relative;overflow:hidden}
-.hero::before{content:"";position:absolute;inset:-40%;background:conic-gradient(from 0deg,var(--acc),var(--acc2),#ffe600,var(--acc));opacity:0;filter:blur(60px);transition:opacity .6s}
-.hero.on::before{opacity:.22;animation:spin 12s linear infinite}
+input,select,textarea{font-size:16px} /* 16px stops iOS zooming in on focus */
+button{cursor:pointer;border:0;background:var(--card2);border-radius:14px;padding:12px 16px;min-height:46px;font-weight:600;touch-action:manipulation}
+button:active{transform:scale(.97);opacity:.9}
+button.pri{background:linear-gradient(135deg,var(--acc),#7b2cff);color:#fff}
+button.ghost{background:transparent;border:1px solid var(--line)}
+button.small{min-height:36px;padding:7px 12px;font-size:14px;border-radius:11px}
+input,select,textarea{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:13px;padding:12px 14px;min-height:48px;-webkit-appearance:none;appearance:none}
+select{background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);
+  background-position:calc(100% - 20px) 50%,calc(100% - 14px) 50%;background-size:6px 6px;background-repeat:no-repeat;padding-right:36px}
+textarea{resize:vertical;min-height:90px}
+input[type=color]{padding:3px;width:52px;height:48px;border-radius:12px}
+.wrap{max-width:760px;margin:0 auto;padding:0 14px}
+h2{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin:22px 4px 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.card+.card{margin-top:12px}
+.dim{color:var(--dim)}.small{font-size:14px}.tiny{font-size:12.5px}
+.row{display:flex;gap:10px;align-items:center}.grow{flex:1;min-width:0}
+.l{display:block;font-size:14px;color:var(--dim);margin:14px 2px 6px}
+.l:first-child{margin-top:0}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.trunc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header{position:sticky;top:0;z-index:20;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;background:rgba(11,10,20,.82);
+  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid rgba(255,255,255,.06)}
+header .in{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.title{font-size:20px;font-weight:800;letter-spacing:-.01em}
+.sub{font-size:13px;color:var(--dim)}
+.power{width:58px;height:58px;min-height:0;border-radius:50%;padding:0;font-size:26px;flex:none;background:var(--card2);box-shadow:inset 0 0 0 2px var(--line)}
+.power.on{background:conic-gradient(from 0deg,var(--acc),var(--acc2),#ffe600,var(--acc));box-shadow:0 0 24px rgba(255,43,214,.45);animation:spin 6s linear infinite}
+.power.on span{display:inline-block;animation:spin 6s linear infinite reverse}
 @keyframes spin{to{transform:rotate(360deg)}}
-.hero>*{position:relative}
-.art{width:84px;height:84px;border-radius:14px;object-fit:cover;flex:none;background:var(--card2);display:grid;place-items:center;font-size:38px}
-.mode{font-size:20px;font-weight:700}
-.sw{display:flex;gap:3px;margin-top:6px}.sw i{flex:1;height:8px;border-radius:4px;max-width:34px}
+.now{display:flex;gap:14px;align-items:center;margin-top:14px;position:relative;overflow:hidden}
+.now .art{width:76px;height:76px;border-radius:16px;flex:none;object-fit:cover;background:var(--card2);display:grid;place-items:center;font-size:34px}
+.mode{font-size:21px;font-weight:800;line-height:1.15}
+.sw{display:flex;gap:4px;margin-top:8px}.sw i{flex:1;max-width:30px;height:8px;border-radius:4px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{display:inline-flex;gap:6px;align-items:center;background:var(--card2);border:1px solid var(--line);border-radius:99px;padding:4px 6px 4px 12px;font-size:13px}
-.chip button{min-height:0;padding:0 7px;border:0;background:none;font-size:16px;line-height:1}
-.chip.run{border-color:var(--acc);padding-right:12px}
-/* effects */
-.effects{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
-.eff{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;font-size:12.5px;line-height:1.2;text-align:center}
-.eff .ic{font-size:26px;line-height:1}
-.eff.on{border-color:var(--acc);background:linear-gradient(160deg,rgba(255,43,214,.25),rgba(0,229,255,.12));box-shadow:0 0 0 1px var(--acc) inset}
-.eff.off.on{border-color:var(--bad);background:rgba(255,107,139,.14);box-shadow:0 0 0 1px var(--bad) inset}
-.controls{position:sticky;top:58px;z-index:4;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);background:rgba(23,20,43,.86)}
-.sl{display:grid;grid-template-columns:86px 1fr 46px;align-items:center;gap:8px}.sl b{text-align:right;font-size:13px}
-.themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
-.themes button{text-align:left;padding:9px 10px;font-size:13px}
-.themes button.on{border-color:var(--acc2);box-shadow:0 0 0 1px var(--acc2) inset}
-/* games */
-.games{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
-.game{margin:0;display:flex;flex-direction:column;gap:6px;padding:12px}
-.game .hd{display:flex;gap:10px;align-items:center}
-.game .ic{font-size:30px;width:46px;height:46px;display:grid;place-items:center;background:var(--card2);border-radius:12px;flex:none}
-.game.run{border-color:var(--acc);box-shadow:0 0 22px rgba(255,43,214,.25)}
-.game .st{font-size:12.5px;color:var(--dim);min-height:18px}
-.game.run .st{color:var(--ok)}
-.game details summary{list-style:none;cursor:pointer;color:var(--dim);font-size:13px}
-.game details summary::-webkit-details-marker{display:none}
-.game .go{flex:none;min-width:84px;border-radius:99px;padding:8px 14px}
-.seg{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;margin-bottom:10px;scrollbar-width:none}
-.seg button{white-space:nowrap;border-radius:99px;padding:6px 14px;min-height:36px;font-size:13px}
-.seg button.on{background:var(--text);color:var(--bg)}
-/* nav */
-nav{position:fixed;left:0;right:0;bottom:0;z-index:10;display:flex;justify-content:center;background:rgba(13,11,26,.9);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
-nav div{display:flex;width:100%;max-width:560px}
-nav button{flex:1;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11.5px;color:var(--dim);padding:6px 0;min-height:52px}
-nav button .ic{font-size:22px;line-height:1}
-nav button.on{color:var(--text)}nav button.on .ic{filter:drop-shadow(0 0 8px var(--acc))}
-section[hidden]{display:none}
-.log{font:12px/1.5 ui-monospace,monospace;color:var(--dim);max-height:220px;overflow:auto}
-code{background:var(--card2);border-radius:6px;padding:1px 6px;font-size:12.5px;word-break:break-all}
-pre{background:var(--card2);border-radius:12px;padding:10px;font-size:12.5px;overflow:auto;margin:6px 0}
-.toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);opacity:0;transition:.25s;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:99px;font-size:14px;z-index:20;pointer-events:none;max-width:90vw;text-align:center}
-.toast.show{opacity:1;transform:translateX(-50%)}
-.cols{display:grid;gap:12px}
-@media (min-width:900px){
-  body{padding-bottom:30px}
-  nav{position:sticky;top:0;bottom:auto;border:0;border-bottom:1px solid var(--line);background:rgba(13,11,26,.8)}
-  nav button{flex-direction:row;justify-content:center;gap:8px;font-size:14px;min-height:46px}
-  .top{position:static;background:none}
-  .controls{top:62px}
-  .cols{grid-template-columns:1.4fr 1fr;align-items:start}
-  .toast{bottom:30px}
-}
-@media (max-width:420px){.top .dots{display:none}.art{width:68px;height:68px}}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--card2);border-radius:99px;padding:6px 8px 6px 12px;font-size:14px;max-width:100%}
+.chip.run{background:rgba(255,43,214,.16);color:#ffc2f0;padding-right:12px}
+.chip button{min-height:26px;width:26px;padding:0;border-radius:50%;background:rgba(255,255,255,.08);font-size:15px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:4px 10px;border-radius:99px;background:var(--card2);color:var(--dim)}
+.pill.ok{color:var(--ok);background:rgba(78,230,155,.12)}.pill.bad{color:var(--bad);background:rgba(255,107,139,.12)}
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media(min-width:560px){.modes{grid-template-columns:repeat(4,1fr)}}
+.m{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:12px 4px;min-height:84px;border-radius:16px;font-size:13px;font-weight:600;line-height:1.15;text-align:center;background:var(--card)}
+.m .ic{font-size:27px;line-height:1}
+.m.on{background:linear-gradient(160deg,rgba(255,43,214,.32),rgba(0,229,255,.16));box-shadow:inset 0 0 0 2px var(--acc)}
+.m.off.on{background:rgba(255,107,139,.15);box-shadow:inset 0 0 0 2px var(--bad)}
+.hs{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -14px;padding:2px 14px 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.hs::-webkit-scrollbar{display:none}
+.th{scroll-snap-align:start;flex:none;width:118px;text-align:left;padding:10px;border-radius:15px;background:var(--card);font-size:13.5px;min-height:62px}
+.th.on{box-shadow:inset 0 0 0 2px var(--acc2)}
+.sl{display:grid;grid-template-columns:96px 1fr 50px;gap:10px;align-items:center;min-height:46px}
+.sl b{text-align:right;font-size:15px}
+input[type=range]{-webkit-appearance:none;appearance:none;height:30px;padding:0;border:0;background:transparent;min-height:0}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(90deg,var(--acc) var(--p,50%),var(--card2) var(--p,50%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#fff;margin-top:-11px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--card2)}
+input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:var(--acc)}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:#fff;border:0}
+.list{background:var(--card);border-radius:var(--r);overflow:hidden;border:1px solid var(--line)}
+.li{display:flex;align-items:center;gap:12px;padding:12px 14px;min-height:64px;border-bottom:1px solid rgba(255,255,255,.06)}
+.li:last-child{border-bottom:0}
+.li .ic{width:42px;height:42px;border-radius:12px;background:var(--card2);display:grid;place-items:center;font-size:23px;flex:none}
+.li.run .ic{background:rgba(255,43,214,.2)}
+.li .st{font-size:13px;color:var(--dim)}
+.li.run .st{color:var(--ok)}
+.li [data-open]{cursor:pointer}
+.sw2{position:relative;width:52px;height:32px;flex:none}
+.sw2 input{position:absolute;opacity:0;width:100%;height:100%;margin:0;min-height:0;z-index:1;cursor:pointer}
+.sw2 span{position:absolute;inset:0;border-radius:99px;background:#3a3660;transition:.2s}
+.sw2 span::after{content:"";position:absolute;top:2px;left:2px;width:28px;height:28px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 2px 4px rgba(0,0,0,.3)}
+.sw2 input:checked+span{background:var(--ok)}
+.sw2 input:checked+span::after{transform:translateX(20px)}
+.opt{display:flex;align-items:center;gap:12px;min-height:52px;border-bottom:1px solid rgba(255,255,255,.06)}
+.opt:last-child{border-bottom:0}
+.quick{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+@media(min-width:560px){.quick{grid-template-columns:repeat(4,1fr)}}
+.quick button{display:flex;align-items:center;gap:8px;justify-content:flex-start;background:var(--card);font-size:14.5px;min-height:54px;text-align:left;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.quick .ic{font-size:22px}
+.chk{display:flex;gap:10px;align-items:flex-start;padding:7px 0;font-size:15px}
+.chk .d{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px;flex:none;margin-top:1px}
+.chk .d.ok{background:rgba(78,230,155,.2);color:var(--ok)}.chk .d.bad{background:rgba(255,107,139,.2);color:var(--bad)}
+.ents{font-size:14px}
+.ents div{display:flex;flex-wrap:wrap;gap:4px 10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.ents div:last-child{border:0}
+code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--card2);padding:2px 6px;border-radius:6px;word-break:break-all}
+pre{font:12.5px ui-monospace,Menlo,monospace;background:var(--card2);padding:12px;border-radius:12px;overflow:auto;margin:8px 0 0}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(18,16,32,.88);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-top:1px solid rgba(255,255,255,.07);padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
+nav .in{display:flex;max-width:560px;margin:0 auto}
+nav button{flex:1;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--dim);min-height:52px;padding:5px 0}
+nav button .ic{font-size:23px;line-height:1;filter:grayscale(.7);opacity:.8}
+nav button.on{color:var(--text)}nav button.on .ic{filter:none;opacity:1}
+.shade{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .25s}
+.shade.open{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;max-height:88vh;overflow:auto;background:var(--card);border-radius:24px 24px 0 0;
+  padding:8px 16px calc(20px + env(safe-area-inset-bottom));transform:translateY(105%);transition:transform .3s cubic-bezier(.2,.8,.2,1);-webkit-overflow-scrolling:touch}
+.sheet.open{transform:none}
+.sheet .grab{width:40px;height:5px;border-radius:3px;background:#4a466e;margin:4px auto 12px}
+@media(min-width:700px){.sheet{left:50%;width:560px;margin-left:-280px;bottom:20px;border-radius:24px}}
+.toast{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;transition:.25s;background:#fff;color:#111;
+  padding:11px 18px;border-radius:99px;font-size:15px;font-weight:600;z-index:50;pointer-events:none;max-width:90vw;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.banner{margin-top:12px;padding:12px 14px;border-radius:16px;font-size:15px;background:rgba(255,190,90,.12);border:1px solid rgba(255,190,90,.35)}
 </style>
 </head>
 <body>
@@ -747,345 +766,381 @@ window.__hbAddon = "party_lights";
 </script>
 <!-- /ha-theme -->
 
-<nav id="nav"><div>
-  <button data-t="lights" class="on"><span class="ic">💡</span>Lights</button>
+<header><div class="in">
+  <div class="grow">
+    <div class="title">🪩 Party Lights</div>
+    <div class="sub trunc" id="hsub">Loading…</div>
+  </div>
+  <button class="power" id="power" aria-label="Start or end the party"><span>⏻</span></button>
+</div></header>
+
+<main class="wrap">
+  <div class="card now" id="now">
+    <div class="art" id="art">🪩</div>
+    <div class="grow">
+      <div class="small dim trunc" id="np">Party's off</div>
+      <div class="mode trunc" id="modename">Off</div>
+      <div class="sw" id="nowsw"></div>
+    </div>
+  </div>
+  <div class="chips" id="running" style="margin-top:10px"></div>
+  <div id="warn"></div>
+
+  <section id="t-party">
+    <h2>Light mode</h2>
+    <div class="modes" id="modes"></div>
+    <h2>Colors</h2>
+    <div class="hs" id="themes"></div>
+    <div class="card" id="customrow" hidden style="margin-top:8px"><div class="l">My colors</div><div class="row" id="custom" style="flex-wrap:wrap"></div></div>
+    <div class="card" id="teamrow" hidden style="margin-top:8px"><label class="l" for="teamsensor">Team colors from</label><select id="teamsensor"></select></div>
+    <h2>Adjust</h2>
+    <div class="card">
+      <div class="sl"><span>Brightness</span><input type="range" id="bright" min="5" max="100" step="5"><b id="brv"></b></div>
+      <div class="sl"><span>Speed</span><input type="range" id="speed" min="1" max="10"><b id="spv"></b></div>
+      <div class="sl" id="bpmrow"><span>Beat (BPM)</span><input type="range" id="bpm" min="60" max="180"><b id="bpmv"></b></div>
+      <div class="sl" id="shufrow"><span>Shuffle every</span><input type="range" id="shuf" min="1" max="15"><b id="shufv"></b></div>
+    </div>
+    <h2>✨ AI colors</h2>
+    <div class="card">
+      <div class="small dim" style="margin-bottom:10px">Describe a vibe and your AI picks the colors.</div>
+      <input id="vibe" placeholder="80s neon roller rink, beach bonfire…" enterkeyhint="go">
+      <button class="pri" id="aitheme" style="width:100%;margin-top:10px">Make my colors</button>
+    </div>
+  </section>
+
+  <section id="t-games" hidden>
+    <h2>Quick hits</h2>
+    <div class="quick" id="quick"></div>
+    <div class="tiny dim" style="margin:8px 4px 0">Tap to run one. Press and hold for its settings.</div>
+    <h2>Games</h2>
+    <div class="small dim" style="margin:-4px 4px 10px">Flip one on and it runs until you turn it off. Tap a game's name for its settings.</div>
+    <div class="list" id="games"></div>
+    <h2>Who's here</h2>
+    <div class="card"><div id="who" class="small"></div>
+      <label class="l">Leave out of games (pets, people who don't drink…)</label><div id="exclude"></div></div>
+  </section>
+
+  <section id="t-music" hidden>
+    <h2>Music sync</h2>
+    <div class="card">
+      <div class="row"><b class="grow" id="ms-sum">…</b><button class="small" id="m-now">Sync now</button></div>
+      <div id="ms-checks" style="margin-top:8px"></div>
+      <div id="ms-last" class="tiny dim" style="margin-top:6px"></div>
+    </div>
+    <h2>Settings</h2>
+    <div class="card">
+      <label class="l">Music players to follow</label><div id="m-players"></div>
+      <div class="tiny dim" style="margin-top:6px">Empty follows the album-art player below, or whatever is playing.</div>
+      <label class="l">Lights to color</label><div id="m-lights"></div>
+      <div class="tiny dim" style="margin-top:6px">Empty uses the party lights from Setup.</div>
+      <div style="margin-top:12px">
+        <div class="opt"><div class="grow">All lights the same color<div class="tiny dim">The most colorful one from the cover</div></div><label class="sw2"><input type="checkbox" id="m-same"><span></span></label></div>
+        <div class="opt"><div class="grow">Boost dull colors</div><label class="sw2"><input type="checkbox" id="m-sat"><span></span></label></div>
+        <div class="opt"><div class="grow">Sync even when the party is off</div><label class="sw2"><input type="checkbox" id="m-always"><span></span></label></div>
+      </div>
+      <div class="g2"><div><label class="l">Brightness %</label><input type="number" inputmode="numeric" id="m-bri" min="0" max="100" placeholder="0 = leave"></div>
+        <div><label class="l">Fade (sec)</label><input type="number" inputmode="decimal" id="m-tr" min="0" max="10" step="0.5"></div></div>
+      <label class="l">Only sync when this helper…</label><select id="m-cent"></select>
+      <label class="l">…is set to</label><select id="m-cstate"></select>
+      <button class="pri" id="m-save" style="width:100%;margin-top:16px">Save</button>
+    </div>
+    <h2>Album art sensor</h2>
+    <div class="card">
+      <div class="small dim">A sensor with how bright the cover is, its main color and the best text color, for dashboards.</div>
+      <div class="opt" style="margin-top:6px"><div class="grow">Make the sensor</div><label class="sw2"><input type="checkbox" id="a-on"><span></span></label></div>
+      <label class="l">From this player</label><select id="a-player"></select>
+      <label class="l">Entity ID</label><input id="a-eid" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <div id="a-now" class="tiny dim" style="margin-top:8px"></div>
+      <button class="pri" id="a-save" style="width:100%;margin-top:14px">Save</button>
+    </div>
+  </section>
+
+  <section id="t-setup" hidden>
+    <h2>Party lights</h2>
+    <div class="card">
+      <div id="s-lights"></div>
+      <div class="opt" style="margin-top:6px"><div class="grow">Put lights back when the party ends</div><label class="sw2"><input type="checkbox" id="s-restore"><span></span></label></div>
+      <label class="l">Fastest change (seconds). Raise it for slow bulbs</label><input type="number" inputmode="decimal" id="s-limit" min="0.2" max="5" step="0.1">
+    </div>
+    <h2>Announcements</h2>
+    <div class="card">
+      <label class="l">Voice</label><select id="s-tts"></select>
+      <label class="l">Speakers</label><div id="s-speakers"></div>
+      <label class="l">Language (optional)</label><input id="s-lang" placeholder="en-US" autocapitalize="off">
+      <div class="row" style="margin-top:14px"><button class="pri grow" id="s-save">Save</button><button class="ghost" id="s-test">🔊 Test</button></div>
+    </div>
+    <h2>Control it from a dashboard</h2>
+    <div class="card">
+      <div class="small">The easiest way: one dropdown with every light mode. Put it on a dashboard or use it in automations. <b>Off</b> ends the party.</div>
+      <div id="h-info" class="small" style="margin-top:10px"></div>
+      <button class="pri" id="h-create" style="width:100%;margin-top:12px">➕ Make the dropdown for me</button>
+      <label class="l">…or use a dropdown you already have</label><select id="h-ent"></select>
+    </div>
+    <h2>Home Assistant entities</h2>
+    <div class="card ents" id="ents"></div>
+    <h2>From automations</h2>
+    <div class="card small">Send a command with <code>hassio.addon_stdin</code>: <code>off</code>, a mode (<code>disco</code>, <code>rainbow wave</code>), <code>party on</code>, or <code>game trivia on</code>.
+      <pre id="stdin-ex"></pre></div>
+    <h2>Activity</h2>
+    <div class="card"><div id="log" class="tiny dim" style="max-height:260px;overflow:auto"></div></div>
+  </section>
+</main>
+
+<nav><div class="in">
+  <button data-t="party" class="on"><span class="ic">🪩</span>Party</button>
   <button data-t="games"><span class="ic">🎲</span>Games</button>
   <button data-t="music"><span class="ic">🎵</span>Music</button>
   <button data-t="setup"><span class="ic">⚙️</span>Setup</button>
 </div></nav>
-<div class="wrap">
-  <div class="top"><div class="row">
-    <span style="font-size:24px">🪩</span><h1 class="grow">Party Lights</h1>
-    <div class="dots"><span class="dot" id="d-ha">HA</span><span class="dot" id="d-mq">MQTT</span></div>
-    <button class="pbtn pri" id="partybtn">Start 🎉</button>
-  </div></div>
 
-  <div class="card hero" id="hero">
-    <div class="art" id="artbox">🪩</div>
-    <div class="grow">
-      <div class="dim small" id="np">Nothing playing</div>
-      <div class="mode" id="modename">Off</div>
-      <div class="sw" id="herosw"></div>
-      <div class="chips" id="runchips" style="margin-top:8px"></div>
-    </div>
-  </div>
-  <div id="warn"></div>
-
-  <!-- LIGHTS -->
-  <section id="t-lights">
-    <div class="card controls">
-      <div class="sl"><span class="small">Speed</span><input type="range" id="speed" min="1" max="10"><b id="spv"></b></div>
-      <div class="sl"><span class="small">Brightness</span><input type="range" id="bright" min="5" max="100" step="5"><b id="brv"></b></div>
-      <div class="sl" id="bpmrow"><span class="small">Beat (BPM)</span><input type="range" id="bpm" min="60" max="180"><b id="bpmv"></b></div>
-      <div class="sl" id="shufrow"><span class="small">Shuffle every</span><input type="range" id="shuf" min="1" max="15"><b id="shufv"></b></div>
-    </div>
-    <div class="cols">
-      <div class="card"><h2>Light mode</h2><div class="effects" id="effects"></div></div>
-      <div>
-        <div class="card"><h2>Colors</h2>
-          <div class="themes" id="themes"></div>
-          <div id="customrow" hidden><label class="l">My colors</label><div class="row" id="custom"></div></div>
-          <div id="teamrow" hidden><label class="l">Team colors from (a Team Tracker sensor)</label><select id="teamsensor"></select></div>
-        </div>
-        <div class="card"><h2>✨ AI color theme</h2>
-          <div class="dim small">Describe a vibe and the AI picks the colors.</div>
-          <div class="row" style="margin-top:8px"><input id="vibe" class="grow" placeholder="80s neon roller rink, beach bonfire…"><button class="pri" id="aitheme">Make it</button></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- GAMES -->
-  <section id="t-games" hidden>
-    <div class="seg" id="gfilter">
-      <button data-f="all" class="on">All</button><button data-f="loop">Games that run</button><button data-f="once">Quick hits</button><button data-f="running">Running now</button>
-    </div>
-    <div class="games" id="games"></div>
-    <div class="card" style="margin-top:12px"><h2>Who's here</h2><div id="who" class="dim small"></div>
-      <label class="l">Leave out (pets, people who don't drink…)</label><div id="exclude"></div></div>
-  </section>
-
-  <!-- MUSIC -->
-  <section id="t-music" hidden>
-    <div class="cols">
-      <div class="card"><h2>🎵 Music sync</h2>
-        <div class="dim small">Pick <b>Music sync</b> as the light mode and these lights take colors from the album art.</div>
-        <label class="l">Music players to follow</label><div id="m-players"></div>
-        <label class="l">Lights (each gets a color from the art, in this order)</label><div id="m-lights"></div>
-        <div class="g2"><div><label class="l">Brightness (0 = leave)</label><input type="number" id="m-bri" min="0" max="100"></div>
-          <div><label class="l">Fade (seconds)</label><input type="number" id="m-tr" min="0" max="10" step="0.5"></div></div>
-        <label class="check"><input type="checkbox" id="m-sat"> Boost dull colors</label>
-        <label class="check"><input type="checkbox" id="m-same"> All lights the same color</label>
-        <label class="check"><input type="checkbox" id="m-always"> Always sync, even when the party is off</label>
-        <label class="l">Only sync when…</label>
-        <div class="g2"><select id="m-cent"></select><input id="m-cstate" placeholder="…is in this state"></div>
-        <div class="row" style="margin-top:12px"><button class="pri grow" id="m-save">Save</button><button id="m-now">Sync now</button></div>
-      </div>
-      <div class="card"><h2>🖼️ Album art sensor</h2>
-        <div class="dim small">A sensor with the art's brightness, main color and best text color, for dashboards.</div>
-        <label class="check"><input type="checkbox" id="a-on"> Make the sensor</label>
-        <label class="l">Music player</label><select id="a-player"></select>
-        <label class="l">Entity ID</label><input id="a-eid">
-        <div id="a-now" class="dim small" style="margin-top:8px"></div>
-        <button class="pri" id="a-save" style="margin-top:10px;width:100%">Save</button>
-      </div>
-    </div>
-  </section>
-
-  <!-- SETUP -->
-  <section id="t-setup" hidden>
-    <div class="cols">
-      <div>
-        <div class="card"><h2>🎛️ Pick the mode without this page</h2>
-          <div class="dim small">Link a dropdown helper. Pick an option on a dashboard, in an automation or by voice and the lights follow. <b>Off</b> ends the party. It also updates when you change the mode here.</div>
-          <label class="l">Mode dropdown (input_select or select)</label><select id="h-ent"></select>
-          <div id="h-info" class="dim small" style="margin-top:6px"></div>
-          <button id="h-create" style="margin-top:10px;width:100%">➕ Make one for me</button>
-          <details style="margin-top:12px"><summary class="small dim">Other ways: MQTT and automations</summary>
-            <div class="small" style="margin-top:8px">With MQTT, you get <code>select.party_effect</code> (has Off), <code>switch.party_mode</code>, a switch for every game and a button for every quick hit.</div>
-            <div class="small" style="margin-top:8px">In any automation or script:</div>
-            <pre id="stdin-ex"></pre>
-            <div class="small dim">Send <code>off</code>, any mode name (<code>disco</code>, <code>Rainbow wave</code>), <code>party on</code>, or <code>game trivia on</code>.</div>
-          </details>
-        </div>
-        <div class="card"><h2>💡 Party lights</h2>
-          <div id="s-lights"></div>
-          <label class="check"><input type="checkbox" id="s-restore"> Put lights back when the party ends</label>
-          <label class="l">Fastest time between light commands (seconds, raise for slow bulbs)</label>
-          <input type="number" id="s-limit" min="0.2" max="5" step="0.1">
-        </div>
-        <div class="card"><h2>🔊 Speakers</h2>
-          <div class="g2"><div><label class="l">Voice (TTS)</label><select id="s-tts"></select></div><div><label class="l">Language</label><input id="s-lang" placeholder="en-US"></div></div>
-          <label class="l">Speakers</label><div id="s-speakers"></div>
-          <div class="row" style="margin-top:12px"><button class="pri grow" id="s-save">Save</button><button id="s-test">Test</button></div>
-        </div>
-      </div>
-      <div>
-        <div class="card"><h2>Home Assistant</h2><div class="dim small" id="hainfo"></div></div>
-        <div class="card"><details><summary>Activity</summary><div class="log" id="log"></div></details></div>
-      </div>
-    </div>
-  </section>
-</div>
+<div class="shade" id="shade"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div id="sheetbody"></div></div>
 <div class="toast" id="toast"></div>
+
 <script>
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
-let S = null, ENTS = {}, tab = "lights", gf = "all", built = false;
-function toast(t) { const el = $("#toast"); el.textContent = t; el.classList.add("show"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 2600); }
+let S = null, ENTS = {}, tab = "party", built = false, formsBuilt = false;
+const focused = el => el === document.activeElement;
+const setv = (el, v) => { if (!el || focused(el)) return; if (el.type === "checkbox") el.checked = !!v; else el.value = v == null ? "" : v; };
+function toast(t) { const e = $("#toast"); e.textContent = t; e.classList.add("show"); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove("show"), 2400); }
+function buzz() { try { navigator.vibrate && navigator.vibrate(8); } catch (e) {} }
 async function post(path, body) {
   try { const r = await fetch("api/" + path, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)}); return await r.json(); }
   catch (e) { return {ok: false, error: e.message}; }
 }
 const act = (action, extra) => post("action", Object.assign({action}, extra || {})).then(r => { if (r.state) { S = r.state; draw(); } if (r.ok === false && r.error) toast("⚠️ " + r.error); return r; });
 const save = patch => post("settings", patch).then(r => { if (r && r.settings) { S = r; draw(); } return r; });
-const opts = (doms, cur, blank) => (blank != null ? '<option value="">' + esc(blank) + "</option>" : "") + [].concat(doms).flatMap(d => ENTS[d] || []).map(e => '<option value="' + esc(e.id) + '"' + (e.id === cur ? " selected" : "") + ">" + esc(e.name) + "</option>").join("");
+const name = id => { for (const d in ENTS) { const e = ENTS[d].find(x => x.id === id); if (e) return e.name; } return id; };
+const opts = (doms, cur, blank) => (blank != null ? '<option value="">' + esc(blank) + "</option>" : "") +
+  [].concat(doms).flatMap(d => ENTS[d] || []).map(e => '<option value="' + esc(e.id) + '"' + (e.id === cur ? " selected" : "") + ">" + esc(e.name) + "</option>").join("");
 const sw = cols => (cols || []).map(c => '<i style="background:' + esc(c) + '"></i>').join("");
-const focused = el => el === document.activeElement;
-const setv = (el, v) => { if (!el || focused(el)) return; if (el.type === "checkbox") el.checked = !!v; else el.value = v == null ? "" : v; };
+const rangeFill = el => el.style.setProperty("--p", ((el.value - el.min) / (el.max - el.min) * 100) + "%");
 
 function picker(el, domains, list, onChange, hint) {
   const draw = () => {
     const pool = domains.flatMap(d => ENTS[d] || []);
-    const name = id => (pool.find(e => e.id === id) || {name: id}).name;
     el.innerHTML = '<div class="chips">' + list.map((id, i) => '<span class="chip">' + esc(name(id)) + '<button data-i="' + i + '" aria-label="Remove">×</button></span>').join("") + "</div>" +
-      '<select style="margin-top:6px"><option value="">+ Add ' + esc(hint || "") + "…</option>" + pool.filter(e => !list.includes(e.id)).map(e => '<option value="' + esc(e.id) + '">' + esc(e.name) + "</option>").join("") + "</select>";
+      '<select style="margin-top:8px"><option value="">+ Add ' + esc(hint || "") + "</option>" + pool.filter(e => !list.includes(e.id)).map(e => '<option value="' + esc(e.id) + '">' + esc(e.name) + "</option>").join("") + "</select>";
     el.querySelectorAll("button[data-i]").forEach(b => b.onclick = () => { list.splice(+b.dataset.i, 1); draw(); onChange(list); });
     el.querySelector("select").onchange = e => { if (e.target.value) { list.push(e.target.value); draw(); onChange(list); } };
   };
   draw();
 }
 
-/* settings for each game: [section.field, label, type] */
+function openSheet(html, bind) {
+  $("#sheetbody").innerHTML = html; if (bind) bind($("#sheetbody"));
+  $("#shade").classList.add("open"); $("#sheet").classList.add("open"); document.body.style.overflow = "hidden";
+}
+function closeSheet() { $("#shade").classList.remove("open"); $("#sheet").classList.remove("open"); document.body.style.overflow = ""; }
+$("#shade").onclick = closeSheet;
+(() => { let y0 = null; const s = $("#sheet");
+  s.addEventListener("touchstart", e => { y0 = s.scrollTop <= 0 ? e.touches[0].clientY : null; }, {passive: true});
+  s.addEventListener("touchmove", e => { if (y0 != null && e.touches[0].clientY - y0 > 70) { y0 = null; closeSheet(); } }, {passive: true}); })();
+
 const N = "num", T = "text", C = "check", MP = "mp", TH = "theme", TM = "time", LS = "lines";
 const GF = {
-  power_hour: ["Chime every minute, lights flash, everyone sips.", [["power_hour.minutes", "Minutes", N], ["power_hour.phrase", "What it says", T], ["power_hour.announce", "Say it out loud", C], ["power_hour.next_track", "Skip songs each minute on", MP]]],
-  shots: ["Randomly calls out someone who's home to take a shot.", [["shots.min_minutes", "At least (min)", N], ["shots.max_minutes", "At most (min)", N], ["shots.phrases", "Lines, one per line ({name} = who)", LS]]],
-  countdown: ["Counts down to a time, then goes nuts.", [["countdown.time", "Time", TM], ["countdown.theme", "Colors after", TH], ["countdown.message", "What it says at zero", T], ["countdown.announce_minute", "Announce the last minutes", C]]],
-  hype: ["The AI talks over the speakers like a DJ.", [["hype.every_minutes", "Every (min)", N], ["hype.style", "Style", T]]],
-  freeze: ["Lights go ice blue and it yells Freeze! Anyone who moves is out.", [["freeze.min_seconds", "Dance at least (s)", N], ["freeze.max_seconds", "Dance at most (s)", N], ["freeze.freeze_seconds", "Freeze for (s)", N], ["freeze.pause_music", "Pause this player on freeze", MP]]],
-  red_green: ["Green = move, red = stop. Classic.", [["red_green.min_seconds", "Green at least (s)", N], ["red_green.max_seconds", "Green at most (s)", N]]],
+  power_hour: ["Every minute the lights flash and it calls out \"Drink!\".", [["power_hour.minutes", "Minutes", N], ["power_hour.phrase", "What it says", T], ["power_hour.announce", "Say it out loud", C], ["power_hour.next_track", "Skip to the next song each minute on", MP]]],
+  shots: ["Every few minutes it picks someone who's home to take a shot.", [["shots.min_minutes", "At least (min)", N], ["shots.max_minutes", "At most (min)", N], ["shots.phrases", "Lines, one per line ({name} = who)", LS]]],
+  countdown: ["Counts down to a time, then goes wild.", [["countdown.time", "Time", TM], ["countdown.theme", "Colors after", TH], ["countdown.message", "What it says at zero", T], ["countdown.announce_minute", "Announce the last minute", C]]],
+  hype: ["Your AI talks over the speakers like a DJ.", [["hype.every_minutes", "Every (min)", N], ["hype.style", "Style", T]]],
+  freeze: ["Lights go ice blue and it yells Freeze! Anyone who moves is out.", [["freeze.min_seconds", "Dance at least (sec)", N], ["freeze.max_seconds", "Dance at most (sec)", N], ["freeze.freeze_seconds", "Freeze for (sec)", N], ["freeze.pause_music", "Pause this player on freeze", MP]]],
+  red_green: ["Green means move, red means stop.", [["red_green.min_seconds", "Green at least (sec)", N], ["red_green.max_seconds", "Green at most (sec)", N]]],
   never: ["Reads a Never have I ever every few minutes.", [["prompts.every_minutes", "Every (min)", N], ["prompts.use_ai", "Let the AI write new ones", C]]],
   truth_dare: ["Picks someone who's home: truth or dare.", [["prompts.every_minutes", "Every (min)", N], ["prompts.use_ai", "Let the AI write new ones", C]]],
-  trivia: ["Asks a question, waits, then reads the answer.", [["trivia.every_minutes", "Every (min)", N], ["trivia.answer_after", "Answer after (s)", N], ["trivia.topic", "Topic (optional)", T], ["trivia.use_ai", "AI questions", C]]],
-  name_tune: ["First to shout the artist of the song playing wins.", [["name_tune.every_minutes", "Every (min)", N], ["name_tune.seconds", "Guessing time (s)", N], ["name_tune.player", "Player", MP]]],
+  trivia: ["Asks a question, waits, then reads the answer.", [["trivia.every_minutes", "Every (min)", N], ["trivia.answer_after", "Answer after (sec)", N], ["trivia.topic", "Topic (optional)", T], ["trivia.use_ai", "AI questions", C]]],
+  name_tune: ["First to shout the artist of the song that's playing wins.", [["name_tune.every_minutes", "Every (min)", N], ["name_tune.seconds", "Guessing time (sec)", N], ["name_tune.player", "Player", MP]]],
   rules: ["Adds a new house rule every so often.", [["rules.every_minutes", "Every (min)", N], ["rules.use_ai", "AI rules", C]]],
-  welcome: ["Flashes and greets people as they get home.", [["welcome.message", "Greeting ({name} = who)", T], ["welcome.use_ai", "AI greeting", C]]],
-  last_call: ["Warns before closing time, dims, then ends the party.", [["last_call.time", "Closing time", TM], ["last_call.minutes_warning", "Warn (min before)", N], ["last_call.end_party", "End the party at closing", C]]],
-  hot_potato: ["Lights tick faster and faster… boom.", [["hot_potato.min_seconds", "At least (s)", N], ["hot_potato.max_seconds", "At most (s)", N]]],
+  welcome: ["Flashes and says hi when someone gets home.", [["welcome.message", "Greeting ({name} = who)", T], ["welcome.use_ai", "AI greeting", C]]],
+  last_call: ["Warns before closing time, dims, then ends the party.", [["last_call.time", "Closing time", TM], ["last_call.minutes_warning", "Warn this many minutes before", N], ["last_call.end_party", "End the party at closing", C]]],
+  hot_potato: ["Lights tick faster and faster… boom.", [["hot_potato.min_seconds", "At least (sec)", N], ["hot_potato.max_seconds", "At most (sec)", N]]],
   roulette: ["Spins across the lights and lands on one.", []],
   cheers: ["Gold flash and a toast.", [["cheers.message", "What it says", T]]],
-  dance_battle: ["Two people home face off, each gets their own color.", [["dance_battle.seconds", "Seconds each", N]]],
+  dance_battle: ["Two people face off, each gets their own color.", [["dance_battle.seconds", "Seconds each", N]]],
   birthday: ["Party colors and a birthday shout-out.", [["birthday.name", "Name", T], ["birthday.message", "Message ({name})", T]]],
-  flash: ["Quick flash of the party colors.", []], drop: ["Dim, build up, then the drop.", []], blackout: ["Everything dark for a moment.", []],
+  flash: ["A quick flash of the party colors.", []], drop: ["Dim, build up, then the drop.", []], blackout: ["Everything dark for a moment.", []],
 };
 const getp = p => p.split(".").reduce((o, k) => (o || {})[k], S.settings);
 const patchOf = (p, v) => { const [a, b] = p.split("."); return {[a]: {[b]: v}}; };
 
-function buildGames() {
-  $("#games").innerHTML = Object.entries(S.games).map(([k, g]) => {
-    const [desc, fields] = GF[k] || ["", []];
-    const f = fields.map(([p, lab, ty]) => {
-      const id = "gf-" + k + "-" + p.replace(".", "-");
-      if (ty === C) return '<label class="check"><input type="checkbox" id="' + id + '" data-p="' + p + '" data-ty="' + ty + '"> ' + esc(lab) + "</label>";
-      let input;
-      if (ty === MP) input = '<select id="' + id + '" data-p="' + p + '" data-ty="' + ty + '">' + opts("media_player", "", "(none)") + "</select>";
-      else if (ty === TH) input = '<select id="' + id + '" data-p="' + p + '" data-ty="' + ty + '">' + Object.entries(S.themes).map(([t, n]) => '<option value="' + t + '">' + esc(n) + "</option>").join("") + "</select>";
-      else if (ty === LS) input = '<textarea rows="3" id="' + id + '" data-p="' + p + '" data-ty="' + ty + '"></textarea>';
-      else input = '<input id="' + id + '" data-p="' + p + '" data-ty="' + ty + '" type="' + (ty === N ? "number" : ty === TM ? "time" : "text") + '"' + (ty === N ? ' min="1"' : "") + ">";
-      return '<label class="l" for="' + id + '">' + esc(lab) + "</label>" + input;
-    }).join("");
-    return '<div class="card game" data-g="' + k + '" data-kind="' + g.kind + '"><div class="hd"><div class="ic">' + g.icon + '</div><div class="grow"><b>' + esc(g.name) + '</b><div class="st" id="gs-' + k + '"></div></div>' +
-      '<button class="go ' + (g.kind === "once" ? "" : "pri") + '" data-go="' + k + '">' + (g.kind === "once" ? "Go!" : "Start") + "</button></div>" +
-      '<div class="dim small">' + esc(desc) + "</div>" +
-      (f ? "<details><summary>⚙️ Settings</summary>" + f + "</details>" : "") + "</div>";
+function gameSheet(k) {
+  const g = S.games[k], [desc, fields] = GF[k] || ["", []], run = S.running.includes(k);
+  const f = fields.map(([p, lab, ty]) => {
+    const v = getp(p);
+    if (ty === C) return '<div class="opt"><div class="grow">' + esc(lab) + '</div><label class="sw2"><input type="checkbox" data-p="' + p + '" data-ty="' + ty + '"' + (v ? " checked" : "") + "><span></span></label></div>";
+    let input;
+    if (ty === MP) input = '<select data-p="' + p + '" data-ty="' + ty + '">' + opts("media_player", v, "(none)") + "</select>";
+    else if (ty === TH) input = '<select data-p="' + p + '" data-ty="' + ty + '">' + Object.entries(S.themes).map(([t, n]) => '<option value="' + t + '"' + (t === v ? " selected" : "") + ">" + esc(n) + "</option>").join("") + "</select>";
+    else if (ty === LS) input = '<textarea data-p="' + p + '" data-ty="' + ty + '">' + esc((v || []).join("\n")) + "</textarea>";
+    else input = '<input data-p="' + p + '" data-ty="' + ty + '" value="' + esc(v) + '" ' + (ty === N ? 'type="number" inputmode="numeric" min="0"' : ty === TM ? 'type="time"' : 'type="text"') + ">";
+    return '<label class="l">' + esc(lab) + "</label>" + input;
   }).join("");
-  $$("#games [data-p]").forEach(el => el.onchange = () => {
-    let v = el.type === "checkbox" ? el.checked : el.value;
-    if (el.dataset.ty === N) v = +v || 0;
-    if (el.dataset.ty === LS) v = v.split("\n").map(x => x.trim()).filter(Boolean);
-    save(patchOf(el.dataset.p, v)).then(() => toast("Saved"));
-  });
-  $$("#games [data-go]").forEach(b => b.onclick = () => {
-    const k = b.dataset.go, g = S.games[k], run = S.running.includes(k);
-    act("game", {game: k, on: g.kind === "once" ? true : !run}).then(r => r.ok !== false && toast(g.icon + " " + g.name + (g.kind === "once" ? "!" : run ? " stopped" : " started")));
-  });
-}
-function drawGames() {
-  $$("#games .game").forEach(c => {
-    const k = c.dataset.g, run = S.running.includes(k);
-    c.classList.toggle("run", run);
-    c.hidden = !(gf === "all" || (gf === "running" ? run : c.dataset.kind === gf));
-    const b = c.querySelector("[data-go]");
-    if (c.dataset.kind === "loop") { b.textContent = run ? "Stop" : "Start"; b.className = "go " + (run ? "danger" : "pri"); }
-    $("#gs-" + k).textContent = run ? "● " + (S.extras[k] || "Running") : (c.dataset.kind === "once" ? "Quick hit" : "");
-    c.querySelectorAll("[data-p]").forEach(el => { const v = getp(el.dataset.p); setv(el, el.dataset.ty === LS ? (v || []).join("\n") : v); });
-  });
-  const ppl = S.people_home || [];
-  $("#who").textContent = ppl.length ? ppl.join(", ") : "Nobody home yet (games that call names use person entities that are home).";
+  const btn = g.kind === "once" ? '<button class="pri" id="sh-go" style="width:100%;margin-top:16px">' + g.icon + " Go!</button>"
+    : '<button class="' + (run ? "ghost" : "pri") + '" id="sh-go" style="width:100%;margin-top:16px">' + (run ? "Stop" : "▶ Start") + "</button>";
+  openSheet('<div class="row"><div style="font-size:40px">' + g.icon + '</div><div class="grow"><div class="title">' + esc(g.name) + '</div><div class="small dim">' + esc(desc) + "</div></div></div>" +
+    (f ? '<div style="margin-top:6px">' + f + "</div>" : "") + btn + (f ? '<div class="tiny dim" style="text-align:center;margin-top:10px">Settings save as you change them.</div>' : ""),
+    root => {
+      root.querySelectorAll("[data-p]").forEach(el => el.onchange = () => {
+        let v = el.type === "checkbox" ? el.checked : el.value;
+        if (el.dataset.ty === N) v = +v || 0;
+        if (el.dataset.ty === LS) v = v.split("\n").map(x => x.trim()).filter(Boolean);
+        save(patchOf(el.dataset.p, v)).then(() => toast("Saved"));
+      });
+      root.querySelector("#sh-go").onclick = () => { buzz(); closeSheet(); act("game", {game: k, on: g.kind === "once" ? true : !run}).then(r => r.ok !== false && toast(g.icon + " " + g.name + (g.kind === "once" ? "!" : run ? " stopped" : " started"))); };
+    });
 }
 
-function drawHero() {
+function buildStatic() {
+  $("#modes").innerHTML = Object.entries(S.effects).map(([k, v]) => '<button class="m' + (k === "off" ? " off" : "") + '" data-e="' + k + '"><span class="ic">' + (S.effect_icons[k] || "💡") + "</span>" + esc(v) + "</button>").join("");
+  $$("#modes button").forEach(b => b.onclick = () => { buzz(); act("effect", {effect: b.dataset.e}).then(() => toast((S.effect_icons[b.dataset.e] || "") + " " + S.effects[b.dataset.e])); });
+  const games = Object.entries(S.games);
+  $("#quick").innerHTML = games.filter(([, g]) => g.kind === "once").map(([k, g]) => '<button data-q="' + k + '"><span class="ic">' + g.icon + "</span>" + esc(g.name) + "</button>").join("");
+  $$("#quick button").forEach(b => {
+    let t, held = false;
+    b.onclick = () => { if (held) { held = false; return; } buzz(); act("game", {game: b.dataset.q}).then(r => r.ok !== false && toast(S.games[b.dataset.q].icon + " " + S.games[b.dataset.q].name + "!")); };
+    b.oncontextmenu = e => { e.preventDefault(); held = true; gameSheet(b.dataset.q); };
+    b.addEventListener("touchstart", () => { held = false; t = setTimeout(() => { held = true; gameSheet(b.dataset.q); }, 550); }, {passive: true});
+    ["touchend", "touchmove", "touchcancel"].forEach(ev => b.addEventListener(ev, () => clearTimeout(t), {passive: true}));
+  });
+  $("#games").innerHTML = games.filter(([, g]) => g.kind === "loop").map(([k, g]) => '<div class="li" data-g="' + k + '"><div class="ic" data-open="' + k + '">' + g.icon + '</div><div class="grow" data-open="' + k + '"><div>' + esc(g.name) +
+    ' <span class="dim">›</span></div><div class="st trunc" id="gs-' + k + '"></div></div><label class="sw2"><input type="checkbox" data-sw="' + k + '" aria-label="' + esc(g.name) + '"><span></span></label></div>').join("");
+  $$("#games [data-open]").forEach(el => el.onclick = () => gameSheet(el.dataset.open));
+  $$("#games [data-sw]").forEach(el => el.onchange = () => { buzz(); const k = el.dataset.sw; act("game", {game: k, on: el.checked}).then(r => r.ok !== false && toast(S.games[k].icon + " " + S.games[k].name + (el.checked ? " started" : " stopped"))); });
+}
+
+function drawTop() {
   const s = S.settings.show, a = S.art || {}, eff = S.on ? s.effect : "off";
-  $("#partybtn").textContent = S.on ? "End party" : "Start 🎉";
-  $("#partybtn").className = "pbtn " + (S.on ? "danger" : "pri");
-  $("#hero").classList.toggle("on", S.on);
+  $("#power").classList.toggle("on", S.on);
+  $("#hsub").textContent = !S.ha_ok ? "Can't reach Home Assistant" : S.on ? "Party's on · " + S.effects[eff] : "Party's off · tap ⏻ to start";
   $("#np").textContent = a.title ? "♪ " + a.title : (S.on ? "Party's on" : "Party's off");
   $("#modename").textContent = (S.effect_icons[eff] || "") + " " + (S.effects[eff] || eff) + (eff === "shuffle" && S.extras.shuffle ? " · " + S.extras.shuffle : "");
-  $("#herosw").innerHTML = sw(eff === "music" ? a.palette : S.palettes[s.theme]);
-  const box = $("#artbox");
-  if (a.url) { if (box.dataset.u !== a.url) { box.innerHTML = '<img class="art" alt="" src="' + esc(a.url) + '">'; box.dataset.u = a.url; } }
-  else if (box.dataset.u !== "") { box.innerHTML = "🪩"; box.dataset.u = ""; }
-  $("#runchips").innerHTML = S.running.filter(k => S.games[k]).map(k => '<span class="chip run">' + S.games[k].icon + " " + esc(S.games[k].name) + "</span>").join("");
-  $("#d-ha").className = "dot " + (S.ha_ok ? "ok" : "bad"); $("#d-mq").className = "dot " + (S.mqtt ? "ok" : "");
+  $("#nowsw").innerHTML = sw(eff === "music" ? a.palette : S.palettes[s.theme]);
+  const art = $("#art");
+  if (a.url) { if (art.dataset.u !== a.url) { art.innerHTML = '<img class="art" alt="" src="' + esc(a.url) + '" onerror="this.parentNode.textContent=\'🎵\'">'; art.dataset.u = a.url; } }
+  else if (art.dataset.u !== "") { art.innerHTML = "🪩"; art.dataset.u = ""; }
+  $("#running").innerHTML = S.running.filter(k => S.games[k]).map(k => '<span class="chip run">' + S.games[k].icon + " " + esc(S.games[k].name) + "</span>").join("");
   let w = "";
-  if (!S.ha_ok) w = '<div class="card" style="border-color:var(--bad)">Can\'t reach Home Assistant yet…</div>';
-  else if (!S.settings.lights.length && !S.settings.music.lights.length) w = '<div class="card">👋 First pick your party lights on the <b>Setup</b> tab.</div>';
+  if (S.ha_ok && !S.settings.lights.length && !S.settings.music.lights.length) w = '<div class="banner">👋 First pick your party lights in <b>Setup</b>.</div>';
+  else if (S.on && eff === "music" && !S.music_status.ok) w = '<div class="banner">🎵 Music sync isn\'t running: ' + esc(S.music_status.summary) + ". Check the <b>Music</b> tab.</div>";
   $("#warn").innerHTML = w;
 }
-function drawLights() {
+function drawParty() {
   const s = S.settings.show, cur = S.on ? s.effect : "off";
-  const ek = Object.keys(S.effects).join();
-  if ($("#effects").dataset.k !== ek) {
-    $("#effects").dataset.k = ek;
-    $("#effects").innerHTML = Object.entries(S.effects).map(([k, v]) => '<button class="eff' + (k === "off" ? " off" : "") + '" data-e="' + k + '"><span class="ic">' + (S.effect_icons[k] || "💡") + "</span>" + esc(v) + "</button>").join("");
-    $$("#effects button").forEach(b => b.onclick = () => act("effect", {effect: b.dataset.e}).then(() => toast((S.effect_icons[b.dataset.e] || "") + " " + S.effects[b.dataset.e])));
-  }
-  $$("#effects button").forEach(b => b.classList.toggle("on", b.dataset.e === cur));
-  [["speed", "spv", s.speed, ""], ["bright", "brv", s.brightness, "%"], ["bpm", "bpmv", s.bpm, ""], ["shuf", "shufv", S.settings.shuffle_minutes, "m"]].forEach(([id, lab, v, u]) => { setv($("#" + id), v); $("#" + lab).textContent = v + u; });
+  $$("#modes button").forEach(b => b.classList.toggle("on", b.dataset.e === cur));
+  [["bright", "brv", s.brightness, "%"], ["speed", "spv", s.speed, ""], ["bpm", "bpmv", s.bpm, ""], ["shuf", "shufv", S.settings.shuffle_minutes, " min"]].forEach(([id, lab, v, u]) => {
+    const el = $("#" + id); setv(el, v); rangeFill(el); $("#" + lab).textContent = el.value + u; });
   $("#bpmrow").hidden = !["pulse", "heartbeat"].includes(s.effect);
   $("#shufrow").hidden = s.effect !== "shuffle";
   const tk = JSON.stringify([s.theme, S.palettes, S.settings.ai_theme.name]);
   if ($("#themes").dataset.k !== tk) {
     $("#themes").dataset.k = tk;
-    $("#themes").innerHTML = Object.entries(S.themes).map(([k, v]) => '<button data-th="' + k + '" class="' + (s.theme === k ? "on" : "") + '">' + esc(v) + (k === "ai" && S.settings.ai_theme.name ? ": " + esc(S.settings.ai_theme.name) : "") + '<div class="sw">' + sw(S.palettes[k]) + "</div></button>").join("");
-    $$("#themes button").forEach(b => b.onclick = () => save({show: {theme: b.dataset.th}}));
+    $("#themes").innerHTML = Object.entries(S.themes).map(([k, v]) => '<button class="th' + (s.theme === k ? " on" : "") + '" data-th="' + k + '">' + esc(k === "ai" && S.settings.ai_theme.name ? "✨ " + S.settings.ai_theme.name : v) + '<div class="sw">' + sw(S.palettes[k]) + "</div></button>").join("");
+    $$("#themes button").forEach(b => b.onclick = () => { buzz(); save({show: {theme: b.dataset.th}}); });
   }
   $("#customrow").hidden = s.theme !== "custom"; $("#teamrow").hidden = s.theme !== "team";
   if ($("#custom").dataset.v !== JSON.stringify(s.custom)) {
     $("#custom").dataset.v = JSON.stringify(s.custom);
-    $("#custom").innerHTML = s.custom.map((c, i) => '<input type="color" value="' + esc(c) + '" data-i="' + i + '">').join("") + '<button id="cadd">+</button><button id="crem">−</button>';
+    $("#custom").innerHTML = s.custom.map((c, i) => '<input type="color" value="' + esc(c) + '" data-i="' + i + '">').join("") + '<button class="small" id="cadd">＋</button><button class="small" id="crem">－</button>';
     $$("#custom input").forEach(x => x.onchange = () => { const c = [...s.custom]; c[+x.dataset.i] = x.value; save({show: {custom: c}}); });
     $("#cadd").onclick = () => save({show: {custom: [...s.custom, "#ffffff"]}});
     $("#crem").onclick = () => s.custom.length > 1 && save({show: {custom: s.custom.slice(0, -1)}});
   }
-  if (!focused($("#teamsensor"))) $("#teamsensor").innerHTML = '<option value="">(pick one)</option>' + (ENTS.sensor || []).filter(e => /team|score|game/i.test(e.id)).map(e => '<option value="' + esc(e.id) + '"' + (e.id === s.team_sensor ? " selected" : "") + ">" + esc(e.name) + "</option>").join("");
+  if (!focused($("#teamsensor"))) $("#teamsensor").innerHTML = '<option value="">Pick a Team Tracker sensor</option>' + (ENTS.sensor || []).filter(e => /team|score|game/i.test(e.id)).map(e => '<option value="' + esc(e.id) + '"' + (e.id === s.team_sensor ? " selected" : "") + ">" + esc(e.name) + "</option>").join("");
 }
-let formsBuilt = false;
-function drawForms() {
-  const st = S.settings, m = st.music, a = st.art;
-  if (!formsBuilt) {
-    formsBuilt = true;
-    picker($("#m-players"), ["media_player"], [...m.media_players], v => { S.settings.music.media_players = v; }, "a player");
-    picker($("#m-lights"), ["light"], [...m.lights], v => { S.settings.music.lights = v; }, "a light");
-    picker($("#s-lights"), ["light"], [...st.lights], v => save({lights: v}).then(() => toast("Saved")), "a light");
-    picker($("#s-speakers"), ["media_player"], [...st.announce.speakers], v => { S.settings.announce.speakers = v; }, "a speaker");
-    picker($("#exclude"), ["person"], [...st.people.exclude], v => save({people: {exclude: v}}), "someone");
-    $("#m-cent").innerHTML = opts(["input_select", "select", "input_boolean", "switch", "media_player", "sensor"], m.condition_entity, "(no condition)");
-    $("#a-player").innerHTML = opts("media_player", a.media_player, "(first music player)");
-    $("#s-tts").innerHTML = opts("tts", st.announce.tts, "(no announcements)");
+function drawGames() {
+  $$("#games .li").forEach(row => {
+    const k = row.dataset.g, run = S.running.includes(k);
+    row.classList.toggle("run", run);
+    const swi = row.querySelector("[data-sw]"); if (!focused(swi)) swi.checked = run;
+    $("#gs-" + k).textContent = run ? "● " + (S.extras[k] || "Running") : (GF[k] || [""])[0];
+  });
+  const ppl = S.people_home || [];
+  $("#who").textContent = ppl.length ? "Home now: " + ppl.join(", ") : "Nobody's home yet. Games that call out names use people who are home.";
+}
+function drawMusic() {
+  const ms = S.music_status;
+  $("#ms-sum").textContent = ms.ok ? "🎵 Syncing" : "⚠️ Not syncing";
+  $("#ms-checks").innerHTML = ms.checks.map(c => '<div class="chk"><span class="d ' + (c.ok ? "ok" : "bad") + '">' + (c.ok ? "✓" : "✕") + "</span><span>" + esc(c.text) + "</span></div>").join("");
+  const l = ms.last || {};
+  $("#ms-last").innerHTML = l.time ? "Last synced " + esc(new Date(l.time * 1000).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"})) + (l.title ? " · " + esc(l.title) : "") +
+    ' <span class="sw" style="display:inline-flex;width:80px;vertical-align:middle;margin:0 0 0 6px">' + sw(l.colors) + "</span>" : "Not synced yet since the add-on started.";
+  const m = S.settings.music, a = S.settings.art;
+  setv($("#m-bri"), m.brightness); setv($("#m-tr"), m.transition); setv($("#m-sat"), m.saturate); setv($("#m-same"), m.same_color); setv($("#m-always"), m.always);
+  if (!focused($("#m-cstate")) && !focused($("#m-cent"))) {
+    const st = (ENTS.input_select || []).concat(ENTS.select || []).find(e => e.id === $("#m-cent").value);
+    const options = (st && st.options) || ["on", "off", "playing"];
+    const cur = m.condition_entity === $("#m-cent").value ? (m.condition_state || "") : "";
+    $("#m-cstate").innerHTML = (options.includes(cur) || !cur ? "" : '<option value="' + esc(cur) + '">' + esc(cur) + "</option>") + options.map(o => '<option value="' + esc(o) + '"' + (o === cur ? " selected" : "") + ">" + esc(o) + "</option>").join("");
   }
-  setv($("#m-bri"), m.brightness); setv($("#m-tr"), m.transition); setv($("#m-sat"), m.saturate); setv($("#m-same"), m.same_color);
-  setv($("#m-always"), m.always); setv($("#m-cstate"), m.condition_state);
   setv($("#a-on"), a.enabled); setv($("#a-eid"), a.entity_id);
-  $("#a-now").textContent = S.art && S.art.title ? "Now: " + S.art.title + (S.art.brightness != null ? " · brightness " + S.art.brightness : "") : "";
+  $("#a-now").textContent = S.art && S.art.brightness != null ? "Now: brightness " + S.art.brightness + " of 255 · main color " + S.art.color : "";
+}
+function drawSetup() {
+  const st = S.settings;
   setv($("#s-restore"), st.restore); setv($("#s-limit"), st.speed_limit); setv($("#s-lang"), st.announce.language);
-  if (!focused($("#h-ent"))) $("#h-ent").innerHTML = opts(["input_select", "select"], st.mode_entity, "(none, page and MQTT only)");
-  const he = st.mode_entity, ent = he && [].concat(ENTS.input_select || [], ENTS.select || []).find(e => e.id === he);
-  $("#h-info").innerHTML = he ? "Linked: <code>" + esc(he) + "</code>" + (ent ? " · now <b>" + esc(ent.state) + "</b>" : "") + "<br>Its options should match the mode names (Off, Disco, Rainbow wave…)." : "";
+  if (!focused($("#h-ent"))) $("#h-ent").innerHTML = opts(["input_select", "select"], st.mode_entity, "(none)");
+  const he = st.mode_entity;
+  $("#h-info").innerHTML = he ? '<span class="pill ok">✓ Linked</span> <code>' + esc(he) + "</code> follows the mode both ways." : "";
   $("#h-create").hidden = !!he;
-  $("#stdin-ex").textContent = "action: hassio.addon_stdin\ndata:\n  addon: " + (S.slug || "<this add-on's slug>") + "\n  input: disco";
-  $("#hainfo").innerHTML = (S.ha_ok ? "✅ Connected" : "❌ Not connected") + " · MQTT " + (S.mqtt ? "✅ entities published" : "off (optional)");
-  $("#log").innerHTML = (S.events || []).map(e => "<div>" + esc(new Date(e.t * 1000).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"})) + " · " + esc(e.text) + "</div>").join("");
+  $("#ents").innerHTML = (S.mqtt ? "" : '<div class="dim">MQTT isn\'t connected, so these aren\'t made. Install the Mosquitto broker add-on, or use the dropdown above.</div>') +
+    [["switch.party_mode", "Party on or off"], ["select.party_effect", "Light mode (Off ends the party)"], ["select.party_theme", "Colors"],
+     ["number.party_brightness", "Brightness"], ["number.party_speed", "Speed"], ["select.party_game", "Start a game (None stops them)"],
+     ["select.party_quick_hit", "Run a quick hit"], ["sensor.party_status", "What's happening now"], [st.art.entity_id || "sensor.music_art_brightness", "Album-art brightness and colors"]]
+      .map(([e, d]) => "<div><code>" + esc(e) + '</code><span class="dim">' + esc(d) + "</span></div>").join("");
+  $("#stdin-ex").textContent = "action: hassio.addon_stdin\ndata:\n  addon: " + (S.slug || "e15fb2fe_party_lights") + "\n  input: disco";
+  $("#log").innerHTML = (S.events || []).map(e => "<div>" + esc(new Date(e.t * 1000).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"})) + " · " + esc(e.text) + "</div>").join("") || "Nothing yet.";
+}
+function buildForms() {
+  const st = S.settings, m = st.music;
+  picker($("#m-players"), ["media_player"], [...m.media_players], v => save({music: {media_players: v}}).then(() => { toast("Saved"); act("music_now"); }), "a player");
+  picker($("#m-lights"), ["light"], [...m.lights], v => save({music: {lights: v}}).then(() => toast("Saved")), "a light");
+  picker($("#s-lights"), ["light"], [...st.lights], v => save({lights: v}).then(() => toast("Saved")), "a light");
+  picker($("#s-speakers"), ["media_player"], [...st.announce.speakers], v => save({announce: {speakers: v}}).then(() => toast("Saved")), "a speaker");
+  picker($("#exclude"), ["person"], [...st.people.exclude], v => save({people: {exclude: v}}), "someone");
+  $("#m-cent").innerHTML = opts(["input_select", "select", "input_boolean", "switch", "media_player"], m.condition_entity, "(no condition)");
+  $("#a-player").innerHTML = opts("media_player", st.art.media_player, "(first player that plays)");
+  $("#s-tts").innerHTML = opts("tts", st.announce.tts, "(no announcements)");
 }
 function draw() {
   if (!S) return;
-  if (!built) { built = true; buildGames(); }
-  drawHero(); drawLights(); drawGames(); drawForms();
+  if (!built) { built = true; buildStatic(); }
+  if (!formsBuilt && Object.keys(ENTS).length) { formsBuilt = true; buildForms(); }
+  drawTop(); drawParty(); drawGames(); drawMusic(); drawSetup();
 }
 
-$$("#nav button").forEach(b => b.onclick = () => {
-  tab = b.dataset.t;
-  $$("#nav button").forEach(x => x.classList.toggle("on", x === b));
-  $$("section").forEach(s => s.hidden = s.id !== "t-" + tab);
-  window.scrollTo({top: 0, behavior: "smooth"});
+$$("nav button").forEach(b => b.onclick = () => {
+  tab = b.dataset.t; buzz();
+  $$("nav button").forEach(x => x.classList.toggle("on", x === b));
+  $$("main section").forEach(s => s.hidden = s.id !== "t-" + tab);
+  window.scrollTo({top: 0});
 });
-$$("#gfilter button").forEach(b => b.onclick = () => { gf = b.dataset.f; $$("#gfilter button").forEach(x => x.classList.toggle("on", x === b)); drawGames(); });
-$("#partybtn").onclick = () => act("party", {on: !S.on}).then(() => toast(S.on ? "🎉 Party on!" : "Party over, lights put back"));
+$("#power").onclick = () => { buzz(); act("party", {on: !S.on}).then(() => toast(S.on ? "🎉 Party on!" : "Party over, lights put back")); };
 let rT;
-[["speed", {show: "speed"}], ["bright", {show: "brightness"}], ["bpm", {show: "bpm"}], ["shuf", {"": "shuffle_minutes"}]].forEach(([id, map]) => $("#" + id).oninput = e => {
-  const v = +e.target.value, [sec, key] = Object.entries(map)[0];
-  $("#" + {speed: "spv", bright: "brv", bpm: "bpmv", shuf: "shufv"}[id]).textContent = v + (id === "bright" ? "%" : id === "shuf" ? "m" : "");
-  clearTimeout(rT); rT = setTimeout(() => save(sec ? {[sec]: {[key]: v}} : {[key]: v}), 350);
-});
+[["bright", "brv", v => ({show: {brightness: v}}), "%"], ["speed", "spv", v => ({show: {speed: v}}), ""], ["bpm", "bpmv", v => ({show: {bpm: v}}), ""], ["shuf", "shufv", v => ({shuffle_minutes: v}), " min"]]
+  .forEach(([id, lab, mk, u]) => $("#" + id).oninput = e => { rangeFill(e.target); $("#" + lab).textContent = e.target.value + u; clearTimeout(rT); rT = setTimeout(() => save(mk(+e.target.value)), 300); });
 $("#teamsensor").onchange = e => save({show: {team_sensor: e.target.value}});
-$("#aitheme").onclick = async () => {
-  toast("✨ The AI is picking colors…");
-  const r = await act("ai_theme", {vibe: $("#vibe").value});
-  if (r.ok) toast("🎨 " + ((r.theme && r.theme.name) || "New colors") + " loaded");
-};
+$("#aitheme").onclick = async () => { $("#vibe").blur(); toast("✨ Picking colors…"); const r = await act("ai_theme", {vibe: $("#vibe").value}); if (r.ok) toast("🎨 " + ((r.theme && r.theme.name) || "New colors") + " on"); };
+$("#vibe").onkeydown = e => { if (e.key === "Enter") $("#aitheme").click(); };
+$("#m-cent").onchange = () => { $("#m-cent").blur(); drawMusic(); };
 $("#m-save").onclick = async () => {
   const m = S.settings.music;
-  await save({music: {media_players: m.media_players, lights: m.lights, brightness: +$("#m-bri").value, transition: +$("#m-tr").value, saturate: $("#m-sat").checked,
-    same_color: $("#m-same").checked, always: $("#m-always").checked, condition_entity: $("#m-cent").value, condition_state: $("#m-cstate").value.trim()}});
-  toast("Music sync saved");
+  await save({music: {media_players: m.media_players, lights: m.lights, brightness: +$("#m-bri").value || 0, transition: +$("#m-tr").value || 0, saturate: $("#m-sat").checked,
+    same_color: $("#m-same").checked, always: $("#m-always").checked, condition_entity: $("#m-cent").value, condition_state: $("#m-cent").value ? $("#m-cstate").value : ""}});
+  toast("🎵 Music sync saved"); act("music_now");
 };
-$("#m-now").onclick = () => act("music_now").then(() => toast("🎵 Synced"));
+$("#m-now").onclick = () => { buzz(); act("music_now").then(r => toast(r.ok ? "🎵 Synced to the current song" : "⚠️ " + (r.error || "Couldn't sync"))); };
 $("#a-save").onclick = () => save({art: {enabled: $("#a-on").checked, media_player: $("#a-player").value, entity_id: $("#a-eid").value.trim() || "sensor.music_art_brightness"}}).then(() => toast("Saved"));
 $("#s-restore").onchange = e => save({restore: e.target.checked});
 $("#s-limit").onchange = e => save({speed_limit: Math.max(0.2, +e.target.value || 0.5)});
-$("#s-save").onclick = async () => { await save({announce: {tts: $("#s-tts").value, language: $("#s-lang").value.trim(), speakers: S.settings.announce.speakers}}); toast("Speakers saved"); };
+$("#s-save").onclick = async () => { await save({announce: {tts: $("#s-tts").value, language: $("#s-lang").value.trim(), speakers: S.settings.announce.speakers}}); toast("Saved"); };
 $("#s-test").onclick = async () => { await $("#s-save").onclick(); const r = await act("say", {text: "Let's get this party started!"}); toast(r.ok ? "🔊 Sent to the speakers" : "⚠️ " + (r.error || "Didn't work")); };
-$("#h-ent").onchange = e => save({mode_entity: e.target.value}).then(() => toast(e.target.value ? "Linked " + e.target.value : "Unlinked"));
-$("#h-create").onclick = async () => {
-  toast("Making the helper…");
-  const r = await act("create_helper");
-  if (r.ok) { await loadEnts(); formsBuilt = false; draw(); toast("✅ Made " + r.entity); }
-};
+$("#h-ent").onchange = e => save({mode_entity: e.target.value}).then(() => toast(e.target.value ? "Linked" : "Unlinked"));
+$("#h-create").onclick = async () => { toast("Making the dropdown…"); const r = await act("create_helper"); if (r.ok) { await loadEnts(); toast("✅ Made " + r.entity); } };
 
-async function loadEnts() { try { ENTS = await (await fetch("api/entities")).json(); } catch (e) { ENTS = {}; } }
-async function tick() { try { const r = await fetch("api/state"); if (r.ok) { S = await r.json(); draw(); } } catch (e) { /* retry */ } }
-(async () => { await loadEnts(); await tick(); setInterval(tick, 3000); setInterval(loadEnts, 60000); })();
+async function loadEnts() { try { ENTS = await (await fetch("api/entities")).json(); } catch (e) { ENTS = {}; } formsBuilt = false; draw(); }
+async function tick() { try { const r = await fetch("api/state"); if (r.ok) { S = await r.json(); draw(); } } catch (e) { /* try again */ } }
+document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
+(async () => { await tick(); await loadEnts(); setInterval(() => { if (!document.hidden) tick(); }, 3000); setInterval(loadEnts, 60000); })();
 </script>
 </body>
 </html>
