@@ -101,7 +101,7 @@ On the add-on page under **Score lights**. Replaces the `sports_score_lights` Ap
 - **Group 1 / Group 2**: color lights (or light groups). Group 1 shows a team's main color, group 2 its second color; every *Swap teams every* seconds they switch to the other team.
 - **Scores flash** the scoring team's colors (*Flashes per score*). *Big plays*: field goals and touchdowns in football (not a lone extra point), threes in basketball, any score in other sports. *Every score*: any change.
 - **Celebrate a win**: a longer flash in your team's colors when the game ends in a win.
-- **Only when this entity is in this state**: for a mode helper, for example `select.sync_lights_mode` = `Sports`. **Only on game day** leaves the lights alone when there's no game today.
+- **Only when this entity is in this state**: for a mode helper, for example `select.sync_lights_mode` = `Sports`. With Party Lights, use its dropdown (`input_select.party_lights_mode`) = `Sports`: it has a Sports option next to every party mode, so one dropdown does both. **Only on game day** leaves the lights alone when there's no game today.
 - White and black team colors are swapped for bulb-friendly stand-ins (soft ice blue, deep amber) so both colors still show.
 
 Moving from AppDaemon: remove `sports_score_lights` from `apps.yaml` (or stop AppDaemon), then turn on Score lights here with the same light groups and condition.

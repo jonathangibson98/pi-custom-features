@@ -78,7 +78,7 @@ THEME_NAMES = {"party": "Party", "rainbow": "Rainbow", "neon": "Neon", "chill": 
                "team": "Team colors", "custom": "My colors", "ai": "AI theme", "aurora": "Aurora", "candy": "Candy cane",
                "tropical": "Tropical"}
 EFFECTS = {
-    "off": "Off", "music": "Music sync", "static": "Static colors", "color_loop": "Color loop", "rainbow_wave": "Rainbow wave",
+    "off": "Off", "sports": "Sports", "music": "Music sync", "static": "Static colors", "color_loop": "Color loop", "rainbow_wave": "Rainbow wave",
     "disco": "Disco", "chase": "Chase", "pulse": "Pulse to the beat", "breathe": "Breathe", "strobe": "Strobe",
     "sparkle": "Sparkle", "fire": "Fire", "police": "Police", "lightning": "Lightning storm",
     "twinkle": "Twinkle", "comet": "Comet", "ping_pong": "Ping pong", "heartbeat": "Heartbeat", "aurora": "Aurora",
@@ -86,7 +86,7 @@ EFFECTS = {
     "lava": "Lava lamp", "shuffle": "Shuffle shows",
 }
 EFFECT_ICONS = {
-    "off": "⏻", "music": "🎵", "static": "🎨", "color_loop": "🔄", "rainbow_wave": "🌈", "disco": "🪩", "chase": "🏃", "pulse": "💓",
+    "off": "⏻", "sports": "🏟️", "music": "🎵", "static": "🎨", "color_loop": "🔄", "rainbow_wave": "🌈", "disco": "🪩", "chase": "🏃", "pulse": "💓",
     "breathe": "🌬️", "strobe": "⚡", "sparkle": "✨", "fire": "🔥", "police": "🚨", "lightning": "🌩️", "twinkle": "⭐", "comet": "☄️",
     "ping_pong": "🏓", "heartbeat": "❤️", "aurora": "🌌", "ocean": "🌊", "alternate": "🍬", "fireworks": "🎆", "spotlight": "🔦",
     "glitch": "👾", "lava": "🫧", "shuffle": "🔀",
@@ -149,6 +149,7 @@ DEFAULTS = {
     "speed_limit": 0.5,              # fastest seconds between light commands (protects slow bulbs)
     "shuffle_minutes": 3,
     "mode_entity": "",               # a select / input_select whose option picks the mode (Off = party over)
+    "sports_active": False,          # "Sports" is picked: the party is stopped and Team Tracker's score lights own the lights
     "freeze": {"min_seconds": 20, "max_seconds": 60, "freeze_seconds": 8, "pause_music": ""},
     "red_green": {"min_seconds": 4, "max_seconds": 12},
     "prompts": {"every_minutes": 5, "use_ai": True},
@@ -395,12 +396,18 @@ class Party:
 
     # ---- party mode on / off
     async def set_on(self, on):
+        if not on and not self.on and self.s.get("sports_active"):
+            await self.end_sports()   # "Party off" while Sports is picked puts the lights back too
+            return
         if on == self.on:
             return
         self.on = on
         lights = sorted(set(self.lights() + self.s["music"]["lights"]))
         if on:
-            if self.s["restore"] and lights:
+            was_sports = bool(self.s.get("sports_active"))
+            self.s["sports_active"] = False
+            save_settings(self.s)
+            if self.s["restore"] and lights and not was_sports:   # coming from Sports, the saved "before" scene is still good
                 await ha.call("scene", "create", {"scene_id": "party_lights_before", "snapshot_entities": lights})
             self.note("Party mode on 🎉")
             if self.s["show"]["effect"] == "off":
@@ -854,14 +861,14 @@ class Party:
         out = await asyncio.get_running_loop().run_in_executor(None, ha_ai.ask_json,
             "Design party lighting for this vibe: %s. Reply ONLY with JSON {\"name\": \"short name\", \"colors\": [\"#rrggbb\", ...4 to 6 "
             "saturated colors that look good on RGB smart bulbs, no near-white or near-black], \"effect\": one of %s, \"speed\": 1-10, "
-            "\"note\": \"one short sentence\"}." % (vibe, ", ".join(k for k in EFFECTS if k not in ("off", "music", "strobe"))),
+            "\"note\": \"one short sentence\"}." % (vibe, ", ".join(k for k in EFFECTS if k not in ("off", "sports", "music", "strobe"))),
             OPTS.get("ai_task_entity") or "", "Party theme")
         cols = [c for c in out.get("colors", []) if re.fullmatch(r"#[0-9a-fA-F]{6}", str(c))][:8]
         if not cols:
             raise RuntimeError("The AI didn't send colors back. Try again.")
         self.s["ai_theme"] = {"name": str(out.get("name") or vibe)[:40], "colors": cols, "note": str(out.get("note") or "")[:200]}
         self.s["show"]["theme"] = "ai"
-        if out.get("effect") in EFFECTS and out["effect"] not in ("off", "music", "strobe"):
+        if out.get("effect") in EFFECTS and out["effect"] not in ("off", "sports", "music", "strobe"):
             self.s["show"]["effect"] = out["effect"]
         try:
             self.s["show"]["speed"] = max(1, min(10, int(out.get("speed") or self.s["show"]["speed"])))
@@ -1097,25 +1104,77 @@ class Party:
     # ---- modes from outside the page: a helper entity, MQTT, or hassio.addon_stdin
     async def set_mode(self, key):
         """One way in for every 'pick a mode' control. 'off' ends the party."""
-        if key == "off":
+        if key == "sports":
+            await self.start_sports()
+        elif key == "off":
             self.s["show"]["effect"] = "off"
             save_settings(self.s)
-            await self.set_on(False)
+            await self.set_on(False)   # also ends Sports, if that was the mode
         elif key in EFFECTS:
+            was_sports = bool(self.s.get("sports_active"))
+            self.s["sports_active"] = False
             self.s["show"]["effect"] = key
             save_settings(self.s)
             if self.on:
+                await self.start_show()
+            elif was_sports:
+                self.on = True   # the "before" scene saved when Sports started is still there, so don't snapshot again
+                self.note("Party mode on 🎉")
                 await self.start_show()
             else:
                 await self.set_on(True)
         self.sync_helper()
         self.publish()
 
+    async def start_sports(self):
+        """Sports mode: stop the party and leave the lights to Team Tracker's score lights (they run when this mode is picked)."""
+        if self.s.get("sports_active"):
+            return
+        lights = sorted(set(self.lights() + self.s["music"]["lights"]))
+        if not self.on and self.s["restore"] and lights:
+            await ha.call("scene", "create", {"scene_id": "party_lights_before", "snapshot_entities": lights})
+        for name in list(self.extras):
+            self.stop_extra(name)
+        await self.stop_show()
+        self.on = False
+        self.s["sports_active"] = True
+        save_settings(self.s)
+        self.note("Sports mode: the lights follow your team (Team Tracker score lights)")
+
+    async def end_sports(self):
+        self.s["sports_active"] = False
+        save_settings(self.s)
+        lights = sorted(set(self.lights() + self.s["music"]["lights"]))
+        if self.s["restore"] and lights:
+            await ha.call("scene", "turn_on", {"entity_id": "scene.party_lights_before", "transition": 2})
+        self.note("Sports mode off, lights put back")
+        self.sync_helper()
+        self.publish()
+
+    async def ensure_helper_options(self):
+        """A linked input_select gets every mode (Sports included) added, so one dropdown holds them all. Nothing is removed."""
+        ent = self.s.get("mode_entity") or ""
+        if not ent.startswith("input_select."):
+            return
+        for _ in range(30):   # at startup, wait for Home Assistant's states to arrive
+            if ha.attr(ent, "options"):
+                break
+            await asyncio.sleep(2)
+        have = list(ha.attr(ent, "options") or [])
+        seen = {h.lower() for h in have}
+        missing = [v for v in EFFECTS.values() if v.lower() not in seen]
+        if have and missing:
+            try:
+                await ha.call("input_select", "set_options", {"entity_id": ent, "options": have + missing})
+                self.note("Added %d modes to %s (Sports included)" % (len(missing), ent))
+            except Exception as e:  # noqa: BLE001
+                log.warning("Couldn't add modes to %s: %s", ent, e)
+
     def sync_helper(self):
         ent = self.s.get("mode_entity")
         if not ent:
             return
-        want = EFFECTS.get(self.s["show"]["effect"] if self.on else "off", "Off")
+        want = EFFECTS["sports"] if self.s.get("sports_active") else EFFECTS.get(self.s["show"]["effect"] if self.on else "off", "Off")
         if ha.state(ent) == want:
             return
         domain = ent.split(".")[0]
@@ -1129,7 +1188,9 @@ class Party:
         key = next((k for k, v in EFFECTS.items() if v.lower() == label.lower() or k == label.lower()), None)
         if key is None and label.lower() in ("on", "party", "party mode"):
             key = self.s["show"]["effect"] if self.s["show"]["effect"] != "off" else "disco"
-        if key and not (key == "off" and not self.on) and not (self.on and key == self.s["show"]["effect"]):
+        sports = bool(self.s.get("sports_active"))
+        if key and not (key == "off" and not self.on and not sports) and not (key == "sports" and sports) \
+                and not (self.on and key == self.s["show"]["effect"]):
             self.note("Mode from %s: %s" % (eid, label))
             asyncio.ensure_future(self.set_mode(key))
 
@@ -1228,14 +1289,15 @@ class Party:
             return
         s, base, p = self.s["show"], BASE, self.mq.publish
         p(base + "/party/state", "ON" if self.on else "OFF", retain=True)
-        p(base + "/effect/state", EFFECTS.get(s["effect"], "Off"), retain=True)
+        sports = bool(self.s.get("sports_active"))
+        p(base + "/effect/state", EFFECTS["sports"] if sports else EFFECTS.get(s["effect"], "Off"), retain=True)
         p(base + "/theme/state", THEME_NAMES.get(s["theme"], "Party"), retain=True)
         p(base + "/speed/state", str(s["speed"]), retain=True)
         p(base + "/brightness/state", str(s["brightness"]), retain=True)
         running = [GAMES[k][1] for k in GAMES if k in self.extras and GAMES[k][2] == "loop"]
         p(base + "/game/state", running[0] if running else "None", retain=True)
         p(base + "/quick/state", "Pick one…", retain=True)
-        p(base + "/status_text", ("Party: " + EFFECTS.get(s["effect"], "")) if self.on else "Off", retain=True)
+        p(base + "/status_text", "Sports" if sports else ("Party: " + EFFECTS.get(s["effect"], "")) if self.on else "Off", retain=True)
         p(base + "/status_attrs", json.dumps({"extras": self.extra_info, "theme": THEME_NAMES.get(s["theme"]), "games_running": running,
                                               "music_sync": self.music_status()["summary"],
                                               "now_playing": self.art.get("title"), "last": self.events[0]["text"] if self.events else ""}), retain=True)
@@ -1306,6 +1368,7 @@ class Party:
         if "art" in patch:
             self.publish_art_config()
         if "mode_entity" in patch:
+            await self.ensure_helper_options()
             self.sync_helper()
         sh = self.s["show"]
         if (sh["effect"], sh["theme"]) != (old_show["effect"], old_show["theme"]) or "lights" in patch:
@@ -1314,7 +1377,7 @@ class Party:
         self.publish()
 
     def view(self):
-        return {"on": self.on, "settings": self.s, "effects": EFFECTS, "effect_icons": EFFECT_ICONS, "themes": THEME_NAMES,
+        return {"on": self.on, "sports": bool(self.s.get("sports_active")), "settings": self.s, "effects": EFFECTS, "effect_icons": EFFECT_ICONS, "themes": THEME_NAMES,
                 "games": {k: {"icon": v[0], "name": v[1], "kind": v[2]} for k, v in GAMES.items()},
                 "palettes": {k: self.palette(k) for k in THEME_NAMES}, "art": self.art, "extras": self.extra_info,
                 "running": sorted(self.extras), "events": self.events[:15], "ha_ok": ha.ok, "mqtt": bool(self.mq and self.mq.is_connected()),
@@ -1424,6 +1487,7 @@ async def on_startup(app):
     ha.listeners.append(party.helper_changed)
     threading.Thread(target=stdin_listener, args=(asyncio.get_running_loop(),), daemon=True).start()
     party.mqtt_start()
+    asyncio.ensure_future(party.ensure_helper_options())
     try:
         async with ha.http.get(os.environ.get("SUPERVISOR_URL", "http://supervisor") + "/addons/self/info", timeout=aiohttp.ClientTimeout(total=8)) as r:
             party.slug = ((await r.json()).get("data") or {}).get("slug") or ""

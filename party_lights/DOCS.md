@@ -9,7 +9,7 @@
 
 | | |
 |---|---|
-| Version | `1.2.0` |
+| Version | `1.3.0` |
 | Slug | `party_lights` |
 | Architectures | `aarch64`, `amd64` |
 | Opens from | the sidebar (**Party Lights**, ingress) |
@@ -102,6 +102,15 @@ The **Music** tab shows a checklist of what music sync needs (a player, music pl
 **A dropdown helper (easiest).** On **Setup**, under **Pick the mode without this page**, tap **Make one for me**. It creates `input_select.party_lights_mode` with every mode (Off, Music sync, Disco…). Put it on a dashboard, change it in an automation, or ask your voice assistant. Picking a mode starts the party with it; **Off** ends the party. When you change the mode on this page, the helper follows.
 
 You can link a dropdown you already have instead (an `input_select` or `select`). Its options need to match the mode names. "On" or "Party" also works and starts the last mode.
+
+**One dropdown for sports and party lights.** Every mode list has a **Sports** option next to Off and Music sync (the page, the helper, the `Light mode` select and `hassio.addon_stdin` with `input: sports`). Picking **Sports** stops the party, leaves the lights alone and lets Team Tracker Lite's **Score lights** take over: they show your team's colors and flash when someone scores. Picking any other mode (or **Off**) hands the lights back to the party, and **Off** puts the lights back the way they were before.
+
+To set it up:
+1. Make the helper above (or link your own `input_select`). Every mode, Sports included, is added to it for you. Nothing already in it is removed. A plain `select` (like the MQTT one) can't be changed from here, so it needs a **Sports** option of its own.
+2. In **Team Tracker Lite → Score lights**, set *Only when this entity is in this state* to that same dropdown (for example `input_select.party_lights_mode`) and the state to `Sports`.
+3. Turn off any second mode dropdown you had for sports.
+
+Party Lights and Score lights never paint the lights at the same time: Score lights wait until the dropdown says Sports.
 
 **From any automation or script, no MQTT needed**:
 

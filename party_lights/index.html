@@ -1048,10 +1048,10 @@ function buildStatic() {
 }
 
 function drawTop() {
-  const s = S.settings.show, a = S.art || {}, eff = S.on ? s.effect : "off";
+  const s = S.settings.show, a = S.art || {}, eff = S.sports ? "sports" : S.on ? s.effect : "off";
   $("#power").classList.toggle("on", S.on);
-  $("#hsub").textContent = !S.ha_ok ? "Can't reach Home Assistant" : S.on ? "Party's on · " + S.effects[eff] : "Party's off · tap ⏻ to start";
-  $("#np").textContent = a.title ? "♪ " + a.title : (S.on ? "Party's on" : "Party's off");
+  $("#hsub").textContent = !S.ha_ok ? "Can't reach Home Assistant" : S.sports ? "Sports mode · lights follow your team" : S.on ? "Party's on · " + S.effects[eff] : "Party's off · tap ⏻ to start";
+  $("#np").textContent = a.title ? "♪ " + a.title : (S.sports ? "Sports mode" : S.on ? "Party's on" : "Party's off");
   $("#modename").textContent = (S.effect_icons[eff] || "") + " " + (S.effects[eff] || eff) + (eff === "shuffle" && S.extras.shuffle ? " · " + S.extras.shuffle : "");
   $("#nowsw").innerHTML = sw(eff === "music" ? a.palette : S.palettes[s.theme]);
   const art = $("#art");
@@ -1064,7 +1064,7 @@ function drawTop() {
   $("#warn").innerHTML = w;
 }
 function drawParty() {
-  const s = S.settings.show, cur = S.on ? s.effect : "off";
+  const s = S.settings.show, cur = S.sports ? "sports" : S.on ? s.effect : "off";
   $$("#modes button").forEach(b => b.classList.toggle("on", b.dataset.e === cur));
   [["bright", "brv", s.brightness, "%"], ["speed", "spv", s.speed, ""], ["bpm", "bpmv", s.bpm, ""], ["shuf", "shufv", S.settings.shuffle_minutes, " min"]].forEach(([id, lab, v, u]) => {
     const el = $("#" + id); setv(el, v); rangeFill(el); $("#" + lab).textContent = el.value + u; });

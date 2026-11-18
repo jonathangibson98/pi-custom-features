@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.0 - 2026-11-17
+
+- **One dropdown for sports and party lights.** New **Sports** mode in every mode list (page, `input_select.party_lights_mode`, the `Light mode` select and `hassio.addon_stdin`). Picking it stops the party and hands the lights to Team Tracker Lite's Score lights; picking any other mode (or Off) takes them back and Off puts the lights back as they were. Set Score lights' "only when" to the same dropdown with the state `Sports`, and you can drop the second dropdown.
+- A linked `input_select` now gets every mode added to it automatically (nothing is removed), so an existing helper becomes the one dropdown.
+
 ## 1.2.0 - 2026-11-17
 
 - **Fixed: music sync never changed the lights** when no player was picked under *Music players to follow* (only the album-art sensor's player). It now follows the album-art player, or whatever is playing, when that list is empty.
