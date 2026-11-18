@@ -1,5 +1,5 @@
 name: Release Tracker
-version: "1.8.1"
+version: "1.9.0"
 slug: release_tracker
 description: Track anything with a release date, like shows, movies, games, albums, celebrities, tech launches, and merch drops
 arch:

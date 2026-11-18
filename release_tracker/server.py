@@ -258,27 +258,43 @@ def search_games(q):
 
 # ---------- MusicBrainz (albums and artists, free, no key) ----------
 MB = "https://musicbrainz.org/ws/2"
-MB_UA = "ReleaseTrackerHA/1.5 (Home Assistant add-on; https://github.com/jonathangibson98/my-home-assistant-apps)"
+MB_UA = "ReleaseTrackerHA/1.9 ( https://github.com/jonathangibson98/pi-custom-features )"
 CAA = "https://coverartarchive.org/release-group/{}/front-250"
 _mb_gate = threading.Lock()
 _mb_last = [0.0]
 
 
-def mb(path, **params):
-    """One MusicBrainz call. They allow about one request per second, so calls wait their turn."""
+def mb(path, tries=5, **params):
+    """One MusicBrainz call. They allow about one request per second, so calls wait their turn.
+    Their search servers often answer "busy" (503) at random even when you're well under the limit,
+    so busy answers, timeouts and dropped connections are retried with a growing pause."""
     params["fmt"] = "json"
-    with _mb_gate:
-        wait = 1.1 - (time.time() - _mb_last[0])
-        if wait > 0:
-            time.sleep(wait)
-        try:
-            r = requests.get(f"{MB}{path}", params=params, headers={"User-Agent": MB_UA, "Accept": "application/json"}, timeout=20)
-        finally:
-            _mb_last[0] = time.time()
-    if r.status_code in (429, 503):
-        raise RuntimeError("MusicBrainz is busy right now. Try again in a minute.")
-    r.raise_for_status()
-    return r.json()
+    pause, r = 1.5, None
+    for attempt in range(tries):
+        with _mb_gate:
+            wait = 1.1 - (time.time() - _mb_last[0])
+            if wait > 0:
+                time.sleep(wait)
+            try:
+                r = requests.get(f"{MB}{path}", params=params, headers={"User-Agent": MB_UA, "Accept": "application/json"}, timeout=20)
+            except (requests.ConnectionError, requests.Timeout) as e:
+                r = None
+                err = e
+            finally:
+                _mb_last[0] = time.time()
+        if r is not None and r.status_code not in (429, 502, 503, 504):
+            r.raise_for_status()
+            return r.json()
+        if attempt < tries - 1:
+            try:
+                ra = float((r.headers.get("Retry-After") if r is not None else None) or 0)
+            except ValueError:
+                ra = 0
+            time.sleep(min(8, max(pause, ra)))
+            pause *= 1.7
+    if r is None:
+        raise RuntimeError("Couldn't reach MusicBrainz (%s). Check the internet connection." % err)
+    raise RuntimeError("MusicBrainz is busy right now (it said so %d times in a row). Try again in a minute." % tries)
 
 
 def lucene(q, fields):
@@ -372,17 +388,30 @@ def fetch_artist(item):
 
 
 def search_music(q):
-    qa = lucene(q, ["artist"])
-    if not qa:
+    words = re.sub(r"[^\w\s]|_", " ", q.lower()).split()[:8]
+    if not words:
         return []
-    out = []
-    for a in mb("/artist", query=qa, limit=5).get("artists") or []:
+    phrase = '"%s"' % " ".join(words)
+    out, errors = [], []
+    try:
+        # plain words: MusicBrainz's own ranking, light on their servers, and finds "Bullet for My Valentine" from "bullet for my valentine"
+        artists = mb("/artist", query=" ".join(words), limit=5).get("artists") or []
+    except Exception as e:  # noqa: BLE001
+        artists, errors = [], errors + [e]
+    for a in artists:
         bits = [a.get("disambiguation"), a.get("type"), a.get("country")]
         out.append({
             "id": a["id"], "type": "artist", "title": a.get("name"), "kind": "Artist", "year": "",
             "poster": None, "overview": (" - ".join(b for b in bits if b) + ". Follow for new releases.")[:140],
         })
-    for r in mb("/release-group", query=lucene(q, ["releasegroup", "artist"]), limit=10).get("release-groups") or []:
+    try:
+        groups = mb("/release-group", query="releasegroup:%s OR artist:%s" % (phrase, phrase),
+                    limit=10).get("release-groups") or []
+    except Exception as e:  # noqa: BLE001
+        groups, errors = [], errors + [e]
+    if errors and not artists and not groups:
+        raise errors[0]  # nothing at all: say why
+    for r in groups:
         artist = credit_name(r)
         out.append({
             "id": r["id"], "type": "album", "kind": r.get("primary-type") or "Album",
