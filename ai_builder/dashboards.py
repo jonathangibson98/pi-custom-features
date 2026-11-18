@@ -43,6 +43,7 @@ SCREENS = {  # name: (width, height, notes for the AI)
 class Dashboards:
     def __init__(self, data_dir, ws_call, ask_ai, ha, extract_json):
         self.hist = Path(data_dir) / "dash_history"
+        self.my_file = Path(data_dir) / "my_screens.json"
         self.ws_call, self.ask_ai, self.ha, self.extract_json = ws_call, ask_ai, ha, extract_json
 
     # ---------------------------------------------------------------- helpers
@@ -202,11 +203,126 @@ class Dashboards:
               "CURRENT CONFIG (JSON):", json.dumps(config, ensure_ascii=False)]
         return "\n".join(p)
 
+    # ---------------------------------------------------------------- my screens
+    KINDS = {
+        "tv": "a TV seen from across the room. No scrolling, no touch: big text, high contrast, nothing interactive needed.",
+        "touch": "a touch screen on a wall or counter. No scrolling, big touch targets.",
+        "scroll": "a screen where scrolling is fine, touch friendly.",
+    }
+
+    def my_load(self):
+        try:
+            data = json.loads(self.my_file.read_text())
+            return [x for x in data if isinstance(x, dict) and x.get("id")]
+        except Exception:  # noqa: BLE001
+            return []
+
+    @staticmethod
+    def _num(v):
+        try:
+            n = float(str(v).strip().lower().replace("px", ""))
+            return int(round(n)) if n > 0 else None
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def size_of(cls, st):
+        """Width and height from one entity: a 'WxH' state, or width/height attributes."""
+        if not st:
+            return None, None
+        m = re.search(r"(\d{3,5})\s*[x×*]\s*(\d{3,5})", str(st.get("state") or ""))
+        if m:
+            return int(m.group(1)), int(m.group(2))
+        a = st.get("attributes") or {}
+        for wk, hk in (("width", "height"), ("browser_width", "browser_height"), ("screen_width", "screen_height"),
+                       ("viewport_width", "viewport_height"), ("resolution_width", "resolution_height")):
+            if cls._num(a.get(wk)) and cls._num(a.get(hk)):
+                return cls._num(a.get(wk)), cls._num(a.get(hk))
+        m = re.search(r"(\d{3,5})\s*[x×*]\s*(\d{3,5})", str(a.get("resolution") or a.get("screen_resolution") or ""))
+        if m:
+            return int(m.group(1)), int(m.group(2))
+        return None, None
+
+    def resolve(self, scr, by_id):
+        """A saved screen with its live size from its entities (falls back to the typed size)."""
+        out = dict(scr)
+        w = h = None
+        if scr.get("source") == "entities":
+            if scr.get("res_entity"):
+                w, h = self.size_of(by_id.get(scr["res_entity"]))
+            if scr.get("w_entity"):
+                w = self._num((by_id.get(scr["w_entity"]) or {}).get("state")) or w
+            if scr.get("h_entity"):
+                h = self._num((by_id.get(scr["h_entity"]) or {}).get("state")) or h
+            out["live"] = bool(w and h)
+        out["w"] = int(w or scr.get("w") or 1280)
+        out["h"] = int(h or scr.get("h") or 720)
+        out["notes"] = "%s (%s, %dx%d)" % (self.KINDS.get(scr.get("kind"), self.KINDS["tv"]), scr.get("name") or "my screen", out["w"], out["h"])
+        return out
+
+    async def mine(self, app):
+        my = self.my_load()
+        if not my:
+            return []
+        by_id = {}
+        if any(x.get("source") == "entities" for x in my):
+            st, states = await self.ha(app, "GET", "/states")
+            by_id = {x["entity_id"]: x for x in states} if st == 200 and isinstance(states, list) else {}
+        return [self.resolve(x, by_id) for x in my]
+
+    async def r_screens(self, request):
+        """Save the list of my screens."""
+        b = await request.json()
+        keep = []
+        for x in (b.get("screens") or [])[:30]:
+            if not isinstance(x, dict) or not str(x.get("name") or "").strip():
+                continue
+            keep.append({
+                "id": re.sub(r"[^a-z0-9_]", "", str(x.get("id") or "")) or "my_%d" % (len(keep) + 1),
+                "name": str(x["name"]).strip()[:60], "kind": x.get("kind") if x.get("kind") in self.KINDS else "tv",
+                "source": "entities" if x.get("source") == "entities" else "typed",
+                "w": self._num(x.get("w")) or 1280, "h": self._num(x.get("h")) or 720,
+                "w_entity": str(x.get("w_entity") or ""), "h_entity": str(x.get("h_entity") or ""), "res_entity": str(x.get("res_entity") or ""),
+            })
+        self.my_file.write_text(json.dumps(keep, indent=1))
+        return web.json_response({"ok": True, "mine": await self.mine(request.app)})
+
+    async def r_size_entities(self, request):
+        """Entities that could tell a screen's size: width/height sensors (Browser Mod, Fully Kiosk...) and WxH ones, paired up."""
+        st, states = await self.ha(request.app, "GET", "/states")
+        if st != 200 or not isinstance(states, list):
+            return web.json_response({"ok": False, "error": "Couldn't read Home Assistant's entities."})
+        singles, widths, heights = [], {}, {}
+        for x in states:
+            e, a = x["entity_id"], x.get("attributes") or {}
+            if e.split(".")[0] not in ("sensor", "number", "input_number", "media_player", "text", "input_text"):
+                continue
+            name = str(a.get("friendly_name") or e)
+            low = (e + " " + name).lower()
+            w, h = self.size_of(x)
+            if w and h:
+                singles.append({"entity": e, "name": name, "w": w, "h": h})
+                continue
+            n = self._num(x.get("state"))
+            if not n or n > 10000:
+                continue
+            base = re.sub(r"[ _]*(browser|screen|display|viewport|window)?[ _]*(width|height)\b", "", e.split(".", 1)[1])
+            if re.search(r"width\b", low):
+                widths[base] = {"entity": e, "name": name, "v": n}
+            elif re.search(r"height\b", low):
+                heights[base] = {"entity": e, "name": name, "v": n}
+        pairs = [{"name": re.sub(r"(?i)\s*(browser|screen|display|viewport|window)?\s*width$", "", widths[k]["name"]).strip() or k,
+                  "w_entity": widths[k]["entity"], "h_entity": heights[k]["entity"], "w": widths[k]["v"], "h": heights[k]["v"]}
+                 for k in widths if k in heights]
+        loose = [dict(v, dim="width") for k, v in widths.items() if k not in heights] + [dict(v, dim="height") for k, v in heights.items() if k not in widths]
+        return web.json_response({"ok": True, "pairs": pairs, "singles": singles, "loose": loose})
+
     # ---------------------------------------------------------------- routes
     async def r_list(self, request):
         try:
             return web.json_response({"ok": True, "dashboards": await self.list_all(request.app),
-                                      "screens": {k: {"w": v[0], "h": v[1], "notes": v[2]} for k, v in SCREENS.items()}})
+                                      "screens": {k: {"w": v[0], "h": v[1], "notes": v[2]} for k, v in SCREENS.items()},
+                                      "mine": await self.mine(request.app)})
         except Exception as e:  # noqa: BLE001
             return web.json_response({"ok": False, "error": str(e)})
 
@@ -391,4 +507,6 @@ class Dashboards:
             web.post("/api/dash/preview", self.r_preview),
             web.post("/api/dash/save", self.r_save),
             web.post("/api/dash/create", self.r_create),
+            web.post("/api/dash/screens", self.r_screens),
+            web.get("/api/dash/size_entities", self.r_size_entities),
         ]

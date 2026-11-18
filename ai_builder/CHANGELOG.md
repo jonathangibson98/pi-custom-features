@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.1.0 - 2026-11-17
+
+- **My screens** (Dashboards): save your real screens and pick them under **Shown on**. The preview, **Does it fit?** and the AI then use their exact size.
+  - **Type the size in**, with quick picks for common sizes, or **💾 Save as my screen** from Custom size.
+  - **Or link entities that report the size**: a width and a height sensor (Browser Mod's browser width/height, Fully Kiosk…), or one entity with both (a `1280x720` state or width/height attributes).
+  - **🔎 Find screens that report their size** pairs them up for you.
+  - Linked screens follow the live size, and use a fallback size while the screen is off.
+  - Each screen says what it is (TV, touch screen, or scrolling is fine), so the AI builds for it.
+
 ## 3.0.3 - 2026-11-17
 
 - **Fixed: the Dashboards preview didn't match the real screen** for layout-card views. `custom:vertical-layout`, `masonry-layout`, `horizontal-layout` and `grid-layout` are now laid out like layout-card does it: `width`, `max_cols`, `min_cols`, `max_width`, `margin`, `padding` and `card_margin`, cards pinned with `view_layout: column`, and `layout-break`. A cast view with `max_cols: 2` now shows 2 columns with every card in its own column, not 3.

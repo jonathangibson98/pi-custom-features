@@ -376,6 +376,11 @@ Moving to a new Home Assistant: install the add-on, set the same `backup_path` (
 **Build → Dashboards.** Open any dashboard, ask the AI for changes, see the result at the real screen size, then save.
 
 1. Pick the **Dashboard** and what it's **Shown on**: TV 1080p (cast), TV / Chromecast 720p, Nest Hub, Nest Hub Max, wall tablet, phone, desktop, or a custom size. A dashboard with "cast" or "TV" in its name starts on the TV size.
+   - **My screens**: choose **➕ Add my screen** under **Shown on** to save your real screens.
+     - Type the size in, or link entities that report it. For a cast TV, install Browser Mod and open the dashboard on the TV once. It makes `sensor.<browser>_browser_width` and `_browser_height`, which give the size the dashboard really gets, after the TV's zoom.
+     - **🔎 Find screens that report their size** pairs them up.
+     - A linked screen follows the live size. While the screen is off it uses the fallback size you set.
+     - Most cast TVs draw dashboards at 1280×720, even 4K ones.
 2. Pick **Work on**: the whole dashboard or one view (faster and safer on big dashboards).
 3. Type what you want, or tap a quick idea: *Fit the screen*, *TV friendly*, *Tidy up*, *Group by room*, *Sections layout*, *Fix broken*, *Clock & weather header*, *Mobile friendly*, *Dark glass look*.
 4. **Preview** shows the draft live, scaled to the screen. Tick **No top bar** to see it like a cast screen. **Does it fit?** measures the real page; if it's too tall, **Make it fit** sends the exact overflow to the AI.

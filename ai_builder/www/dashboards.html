@@ -670,11 +670,41 @@ window.__hbAddon = "ai_builder";
     <div class="row">
       <div class="grow" style="min-width:200px"><label class="l" for="board">Dashboard</label><select id="board"></select></div>
       <div style="min-width:200px"><label class="l" for="screen">Shown on</label><select id="screen"></select></div>
-      <div id="customwh" class="row" hidden style="align-self:flex-end"><input id="cw" type="number" value="1280" style="width:90px"> × <input id="ch" type="number" value="720" style="width:90px"></div>
+      <div id="customwh" class="row" hidden style="align-self:flex-end"><input id="cw" type="number" value="1280" style="width:90px"> × <input id="ch" type="number" value="720" style="width:90px"><button class="btn sm" id="cwsave" title="Keep this size in My screens">💾 Save as my screen</button></div>
       <div style="min-width:180px"><label class="l" for="scope">Work on</label><select id="scope"><option value="">Whole dashboard</option></select></div>
       <button class="btn" id="newb" style="align-self:flex-end">+ New dashboard</button>
     </div>
     <div class="msg" id="topmsg"></div>
+    <div id="myscr" hidden style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
+      <div class="row"><h3 class="grow" style="margin:0">📺 My screens</h3><button class="btn sm" id="ms-close">Done</button></div>
+      <p class="dim small" style="margin:6px 0 10px">Save your real screens so the preview, <b>Does it fit?</b> and the AI use their exact size. Type the size in, or link entities that report it. Browser Mod on the TV's browser makes <code>sensor.…_browser_width</code> and <code>…_browser_height</code>, which give the size the dashboard really gets, after the TV's zoom. Fully Kiosk and similar apps work too.</p>
+      <div id="ms-list"></div>
+      <div id="ms-form" style="margin-top:10px">
+        <div class="row">
+          <div class="grow" style="min-width:180px"><label class="l" for="ms-name">Name</label><input id="ms-name" placeholder="Living room TV"></div>
+          <div style="min-width:180px"><label class="l" for="ms-kind">What it is</label><select id="ms-kind"><option value="tv">TV (no touch, no scrolling)</option><option value="touch">Touch screen (no scrolling)</option><option value="scroll">Scrolling is fine</option></select></div>
+        </div>
+        <label class="l">Size comes from</label>
+        <div class="seg" id="ms-src"><button data-s="typed" class="on">I'll type it</button><button data-s="entities">Entities</button></div>
+        <div id="ms-typed" style="margin-top:10px">
+          <div class="row"><input id="ms-w" type="number" min="200" value="1280" style="width:110px"> × <input id="ms-h" type="number" min="200" value="720" style="width:110px"> <span class="dim small">px</span></div>
+          <div class="row" style="margin-top:8px;gap:6px" id="ms-quick"></div>
+          <div class="dim small" style="margin-top:6px">Not sure? Most cast TVs draw dashboards at 1280×720, even 4K ones. Check it on the TV: Browser Mod's width/height sensors show it.</div>
+        </div>
+        <div id="ms-ents" hidden style="margin-top:10px">
+          <button class="btn sm" id="ms-find">🔎 Find screens that report their size</button>
+          <div id="ms-found" style="margin-top:8px"></div>
+          <div class="row" style="margin-top:8px">
+            <div class="grow" style="min-width:200px"><label class="l" for="ms-we">Width entity</label><select id="ms-we"></select></div>
+            <div class="grow" style="min-width:200px"><label class="l" for="ms-he">Height entity</label><select id="ms-he"></select></div>
+          </div>
+          <label class="l" for="ms-re">…or one entity with both (state like 1280x720, or width/height attributes)</label><select id="ms-re"></select>
+          <label class="l">Size to use while the screen is off</label><div class="row" style="flex-wrap:nowrap"><input id="ms-fw" type="number" value="1280" style="width:100px"> × <input id="ms-fh" type="number" value="720" style="width:100px"></div>
+        </div>
+        <div class="row" style="margin-top:10px"><b id="ms-live" class="grow small"></b><button class="btn" id="ms-new">New</button><button class="btn primary" id="ms-save">Save screen</button></div>
+        <div class="msg" id="ms-msg"></div>
+      </div>
+    </div>
   </section>
 
   <div class="split dsplit" style="margin-top:14px">
@@ -758,10 +788,49 @@ const QUICK = [
 ];
 let boards = [], screens = {}, url = null, saved = null, draft = null, hist = [], fut = [], previewUrl = "", pmode = "draft";
 const msg = (id, t, c) => { const e = $(id); e.textContent = t || ""; e.className = "msg" + (c ? " " + c : ""); };
+let MINE = [], SIZE_ENTS = null, msEdit = null, lastScreen = "tv720";
+function hassNow() { try { return HA && HA.document.querySelector("home-assistant").hass; } catch (e) { return null; } }
+const numOf = v => { const n = parseFloat(String(v == null ? "" : v).replace(/px/i, "")); return n > 0 && n < 20000 ? Math.round(n) : null; };
+function sizeOfEnt(st) {
+  if (!st) return [null, null];
+  const m = /(\d{3,5})\s*[x×*]\s*(\d{3,5})/.exec(String(st.state || "") + " " + String((st.attributes || {}).resolution || ""));
+  if (m) return [+m[1], +m[2]];
+  const a = st.attributes || {};
+  for (const [wk, hk] of [["width", "height"], ["browser_width", "browser_height"], ["screen_width", "screen_height"], ["viewport_width", "viewport_height"]])
+    if (numOf(a[wk]) && numOf(a[hk])) return [numOf(a[wk]), numOf(a[hk])];
+  return [null, null];
+}
+/* a saved screen's size right now: straight from Home Assistant's live states when we can see them */
+function liveMine(m) {
+  const h = hassNow(), S = (h && h.states) || {};
+  if (m.source !== "entities" || !h) return m;
+  let w = null, hh = null;
+  if (m.res_entity) [w, hh] = sizeOfEnt(S[m.res_entity]);
+  if (m.w_entity) w = numOf((S[m.w_entity] || {}).state) || w;
+  if (m.h_entity) hh = numOf((S[m.h_entity] || {}).state) || hh;
+  return w && hh ? Object.assign({}, m, {w, h: hh, live: true}) : m;
+}
 function screen() {
   const id = $("#screen").value;
   if (id === "custom") return {id, w: +$("#cw").value || 1280, h: +$("#ch").value || 720, notes: "a custom " + $("#cw").value + "x" + $("#ch").value + " screen, no scrolling"};
-  return {id, w: screens[id].w, h: screens[id].h};
+  if (id.startsWith("mine:")) {
+    const m = MINE.find(x => "mine:" + x.id === id);
+    if (m) { const l = liveMine(m); return {id: "custom", w: l.w, h: l.h, notes: m.notes || "a screen called " + m.name}; }
+  }
+  const p = screens[id] || screens.tv720 || {w: 1280, h: 720};
+  return {id, w: p.w, h: p.h};
+}
+const SNAMES = {tv1080: "TV 1080p (cast)", tv720: "TV / Chromecast 720p", hub: "Nest Hub", hubmax: "Nest Hub Max", tablet: "Wall tablet", phone: "Phone", desktop: "Desktop"};
+function fillScreens(keep) {
+  const sel = $("#screen"), cur = keep || sel.value;
+  const og = (label, kids) => { const g = el("optgroup", {label}); kids.forEach(k => g.append(k)); return g; };
+  const mine = MINE.map(m => { const l = liveMine(m); return el("option", {value: "mine:" + m.id}, (m.source === "entities" ? "📡 " : "📺 ") + m.name + " · " + l.w + "×" + l.h + (m.source === "entities" && !l.live ? " (last known)" : "")); });
+  sel.replaceChildren(
+    ...(mine.length ? [og("My screens", mine)] : []),
+    og("Common screens", Object.keys(screens).map(k => el("option", {value: k}, (SNAMES[k] || k) + " · " + screens[k].w + "×" + screens[k].h))),
+    og("More", [el("option", {value: "custom"}, "Custom size…"), el("option", {value: "edit"}, mine.length ? "✏️ Add or edit my screens…" : "➕ Add my screen (type it or use entities)…")]));
+  if ([...sel.options].some(o => o.value === cur && cur !== "edit")) sel.value = cur;
+  $("#customwh").hidden = sel.value !== "custom";
 }
 const toYaml = c => { try { return jsyaml.dump(c, {lineWidth: 120, noRefs: true}); } catch (e) { return JSON.stringify(c, null, 2); } };
 function setDraft(c, push) {
@@ -802,18 +871,20 @@ function drawCheck(c) {
 async function loadBoards() {
   const r = await api("dash/list");
   if (!r.ok) { msg("#topmsg", r.error, "bad"); return; }
-  boards = r.dashboards; screens = r.screens;
-  const names = {tv1080: "TV 1080p (cast)", tv720: "TV / Chromecast 720p", hub: "Nest Hub", hubmax: "Nest Hub Max", tablet: "Wall tablet", phone: "Phone", desktop: "Desktop"};
-  $("#screen").replaceChildren(...Object.keys(screens).map(k => el("option", {value: k}, names[k] + " · " + screens[k].w + "×" + screens[k].h)), el("option", {value: "custom"}, "Custom size…"));
+  boards = r.dashboards; screens = r.screens; MINE = r.mine || [];
+  fillScreens();
   $("#board").replaceChildren(...boards.map(b => el("option", {value: b.url_path}, b.title + (b.mode === "yaml" ? " (YAML, read only)" : ""))));
   let last = {}; try { last = JSON.parse(localStorage.getItem("aib_dash") || "{}"); } catch (e) {}
   if (last.url != null && boards.some(b => b.url_path === last.url)) $("#board").value = last.url;
   else { const cast = boards.find(b => /cast|tv/i.test(b.title + b.url_path)); if (cast) $("#board").value = cast.url_path; }
-  if (last.screen && (screens[last.screen] || last.screen === "custom")) $("#screen").value = last.screen;
+  if (last.screen && [...$("#screen").options].some(o => o.value === last.screen && o.value !== "edit")) $("#screen").value = last.screen;
+  else if (MINE.length && /cast|tv/i.test($("#board").selectedOptions[0].textContent)) $("#screen").value = "mine:" + (MINE.find(m => m.kind === "tv") || MINE[0]).id;
   else if (/cast|tv/i.test($("#board").selectedOptions[0].textContent)) $("#screen").value = "tv720";
+  if (last.cw) { $("#cw").value = last.cw; $("#ch").value = last.ch; }
+  $("#customwh").hidden = $("#screen").value !== "custom"; lastScreen = $("#screen").value;
   sizeStage(); openBoard();
 }
-function remember() { try { localStorage.setItem("aib_dash", JSON.stringify({url: $("#board").value, screen: $("#screen").value})); } catch (e) {} }
+function remember() { try { localStorage.setItem("aib_dash", JSON.stringify({url: $("#board").value, screen: $("#screen").value, cw: $("#cw").value, ch: $("#ch").value})); } catch (e) {} }
 async function openBoard() {
   url = $("#board").value; remember();
   msg("#topmsg", "Loading…");
@@ -1059,8 +1130,103 @@ $("#fixfit").onclick = () => { $("#req").value = $("#req").value || QUICK[0][1];
 $("#pv").onclick = ev => { const b = ev.target.closest("[data-p]"); if (!b) return; pmode = b.dataset.p; $$("#pv button").forEach(x => x.classList.toggle("on", x === b)); preview(); };
 $("#pview").onchange = preview;
 $("#board").onchange = () => { if (draft && JSON.stringify(draft) !== JSON.stringify(saved) && !confirm("Throw away the unsaved draft?")) return; openBoard(); };
-$("#screen").onchange = () => { $("#customwh").hidden = $("#screen").value !== "custom"; remember(); sizeStage(); preview(); };
-["#cw", "#ch"].forEach(s => $(s).onchange = () => { sizeStage(); preview(); });
+$("#screen").onchange = () => {
+  if ($("#screen").value === "edit") { $("#screen").value = lastScreen; openMy(); return; }
+  lastScreen = $("#screen").value;
+  $("#customwh").hidden = $("#screen").value !== "custom"; remember(); sizeStage(); preview();
+};
+["#cw", "#ch"].forEach(s => $(s).onchange = () => { remember(); sizeStage(); preview(); });
+
+/* ---- My screens */
+let msSrc = "typed";
+const QUICK_SIZES = [[1280, 720, "720p / most cast TVs"], [1920, 1080, "1080p"], [1024, 600, "Nest Hub"], [1280, 800, "Hub Max / tablet"], [800, 480, "small panel"], [2560, 1440, "1440p"]];
+$("#ms-quick").replaceChildren(...QUICK_SIZES.map(([w, h, n]) => el("button", {class: "btn sm", title: n, onclick: () => { $("#ms-w").value = w; $("#ms-h").value = h; msLive(); }}, w + "×" + h)));
+function msSetSrc(v) { msSrc = v; $$("#ms-src button").forEach(b => b.classList.toggle("on", b.dataset.s === v)); $("#ms-typed").hidden = v !== "typed"; $("#ms-ents").hidden = v !== "entities"; if (v === "entities" && !SIZE_ENTS) msFind(true); msLive(); }
+$("#ms-src").onclick = ev => { const b = ev.target.closest("[data-s]"); if (b) msSetSrc(b.dataset.s); };
+function msForm() {
+  return {id: msEdit || "", name: $("#ms-name").value.trim(), kind: $("#ms-kind").value, source: msSrc,
+    w: +(msSrc === "typed" ? $("#ms-w").value : $("#ms-fw").value) || 1280, h: +(msSrc === "typed" ? $("#ms-h").value : $("#ms-fh").value) || 720,
+    w_entity: msSrc === "entities" ? $("#ms-we").value : "", h_entity: msSrc === "entities" ? $("#ms-he").value : "", res_entity: msSrc === "entities" ? $("#ms-re").value : ""};
+}
+function msLive() {
+  const f = msForm(), l = liveMine(f);
+  if (f.source === "entities" && !(f.w_entity && f.h_entity) && !f.res_entity) { $("#ms-live").textContent = "Pick the width and height entities (or one with both)."; return; }
+  $("#ms-live").textContent = f.source === "entities" ? (l.live ? "Right now: " + l.w + " × " + l.h + " px ✓" : "No size from those right now (screen off?). It'll use " + f.w + " × " + f.h + " until it reports.") : "Size: " + f.w + " × " + f.h + " px";
+}
+["#ms-w", "#ms-h", "#ms-fw", "#ms-fh", "#ms-we", "#ms-he", "#ms-re"].forEach(id => $(id).addEventListener("input", msLive));
+function entOpts(list, cur) {
+  return [el("option", {value: ""}, "(none)"), ...list.map(e => el("option", {value: e.entity, selected: e.entity === cur}, e.name + " · " + e.entity + (e.v ? " = " + e.v : e.w ? " = " + e.w + "×" + e.h : "")))];
+}
+async function msFind(quiet) {
+  if (!quiet) msg("#ms-msg", "Looking…");
+  const r = await api("dash/size_entities");
+  if (!r.ok) { msg("#ms-msg", r.error, "bad"); return; }
+  SIZE_ENTS = r;
+  const nums = [].concat(...r.pairs.map(p => [{entity: p.w_entity, name: p.name + " width", v: p.w}, {entity: p.h_entity, name: p.name + " height", v: p.h}]), r.loose);
+  const f = msForm();
+  $("#ms-we").replaceChildren(...entOpts(nums.filter(e => /width/i.test(e.entity + e.name)).concat(nums.filter(e => !/width|height/i.test(e.entity + e.name))), f.w_entity));
+  $("#ms-he").replaceChildren(...entOpts(nums.filter(e => /height/i.test(e.entity + e.name)).concat(nums.filter(e => !/width|height/i.test(e.entity + e.name))), f.h_entity));
+  $("#ms-re").replaceChildren(...entOpts(r.singles, f.res_entity));
+  const found = [...r.pairs.map(p => ({label: p.name, w: p.w, h: p.h, set: () => { $("#ms-we").value = p.w_entity; $("#ms-he").value = p.h_entity; $("#ms-re").value = ""; }})),
+    ...r.singles.map(p => ({label: p.name, w: p.w, h: p.h, set: () => { $("#ms-re").value = p.entity; $("#ms-we").value = ""; $("#ms-he").value = ""; }}))];
+  $("#ms-found").replaceChildren(...(found.length ? found.map(p => el("div", {class: "row", style: "padding:6px 0;border-bottom:1px solid var(--line)"},
+    el("span", {class: "grow"}, el("b", {}, p.label), el("span", {class: "dim small"}, "  " + p.w + " × " + p.h + " px")),
+    el("button", {class: "btn sm primary", onclick: () => { p.set(); if (!$("#ms-name").value.trim()) $("#ms-name").value = p.label; $("#ms-fw").value = p.w; $("#ms-fh").value = p.h; msLive(); }}, "Use"))) :
+    [el("div", {class: "dim small"}, "Nothing reports a screen size yet. Install Browser Mod and open the dashboard on the TV once; it makes browser width and height sensors. Or pick any entities below.")]));
+  msg("#ms-msg", "");
+  msLive();
+}
+$("#ms-find").onclick = () => msFind(false);
+function msFill(m) {
+  msEdit = m ? m.id : null;
+  $("#ms-name").value = m ? m.name : ""; $("#ms-kind").value = m ? m.kind : "tv";
+  $("#ms-w").value = $("#ms-fw").value = m ? m.w : 1280; $("#ms-h").value = $("#ms-fh").value = m ? m.h : 720;
+  const set = (id, v) => { if (v && ![...$(id).options].some(o => o.value === v)) $(id).append(el("option", {value: v}, v)); $(id).value = v || ""; };
+  if (!$("#ms-we").options.length) ["#ms-we", "#ms-he", "#ms-re"].forEach(id => $(id).replaceChildren(el("option", {value: ""}, "(none)")));
+  set("#ms-we", m && m.w_entity); set("#ms-he", m && m.h_entity); set("#ms-re", m && m.res_entity);
+  msSetSrc(m ? m.source : "typed");
+  $("#ms-save").textContent = m ? "Save changes" : "Save screen";
+}
+function msList() {
+  $("#ms-list").replaceChildren(...(MINE.length ? MINE.map(m => { const l = liveMine(m); return el("div", {class: "row", style: "padding:7px 0;border-bottom:1px solid var(--line)"},
+    el("span", {class: "grow"}, (m.source === "entities" ? "📡 " : "📺 "), el("b", {}, m.name), el("span", {class: "dim small"}, "  " + l.w + "×" + l.h + (m.source === "entities" ? (l.live ? " · live" : " · last known") : ""))),
+    el("button", {class: "btn sm", onclick: () => { $("#screen").value = "mine:" + m.id; $("#screen").onchange(); }}, "Use"),
+    el("button", {class: "btn sm", onclick: () => msFill(m)}, "Edit"),
+    el("button", {class: "btn sm danger", onclick: () => { if (confirm("Delete " + m.name + "?")) msSave(MINE.filter(x => x !== m)); }}, "Delete")); }) :
+    [el("div", {class: "dim small"}, "No screens saved yet.")]));
+}
+async function msSave(list, pick) {
+  const r = await api("dash/screens", {screens: list});
+  if (!r.ok) { msg("#ms-msg", r.error, "bad"); return false; }
+  MINE = r.mine || [];
+  const keep = pick ? "mine:" + pick : $("#screen").value;
+  fillScreens(keep); msList(); sizeStage(); preview(); remember(); lastScreen = $("#screen").value;
+  return true;
+}
+$("#ms-save").onclick = async () => {
+  const f = msForm();
+  if (!f.name) { msg("#ms-msg", "Give it a name.", "bad"); return; }
+  if (f.source === "entities" && !(f.w_entity && f.h_entity) && !f.res_entity) { msg("#ms-msg", "Pick a width and a height entity, or one entity with both.", "bad"); return; }
+  if (!f.id) f.id = (f.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "screen") + "_" + Date.now().toString(36).slice(-4);
+  const list = MINE.filter(x => x.id !== f.id).map(x => Object.assign({}, x)).concat([f]);
+  if (await msSave(list, f.id)) { msg("#ms-msg", "Saved. The preview now uses " + f.name + ".", "ok"); msFill(null); }
+};
+$("#ms-new").onclick = () => msFill(null);
+function openMy() { $("#myscr").hidden = false; msList(); if (!msEdit) msFill(null); $("#myscr").scrollIntoView({behavior: "smooth", block: "start"}); }
+$("#ms-close").onclick = () => { $("#myscr").hidden = true; };
+$("#cwsave").onclick = () => { openMy(); msFill(null); $("#ms-w").value = $("#cw").value; $("#ms-h").value = $("#ch").value; msLive(); $("#ms-name").focus(); };
+/* screens linked to entities follow the live size */
+let msLiveKey = "";
+setInterval(() => {
+  if (!MINE.some(m => m.source === "entities")) return;
+  const now = JSON.stringify(MINE.map(liveMine).map(m => [m.w, m.h, !!m.live]));
+  if (now === msLiveKey) return;
+  msLiveKey = now;
+  const before = JSON.stringify(screen());
+  fillScreens($("#screen").value);
+  if (!$("#myscr").hidden) msList();
+  if (JSON.stringify(screen()) !== before) { sizeStage(); preview(); }
+}, 5000);
 addEventListener("resize", sizeStage);
 loadBoards();
 </script>
