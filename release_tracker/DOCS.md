@@ -229,7 +229,7 @@ Swap `notify.notify` for the notify service of whoever should get it.
 - **No entities show up**: check that MQTT is set up in Home Assistant. On the add-on's Settings tab, it should say "Connected to a broker."
 - **Search says add your key**: paste the TMDB key in Settings and save. This covers TV, movies, and celebrities.
 - **Games search says add your Twitch keys**: paste both the Client ID and Secret in Settings and save.
-- **Music search says MusicBrainz is busy**: it allows about one request per second. Wait a minute and try again.
+- **Music search is slow or says MusicBrainz is busy**: their free search servers turn requests away at busy times. The add-on retries up to 5 times on its own (a search can take up to about 20 seconds). If it still says busy, MusicBrainz itself is overloaded; try again in a few minutes. You can check their status at https://status.metabrainz.org.
 - **A new album or product is missing**: it may not be in the database yet. Add it under **Anything else** with the date.
 - **Wrong or missing date**: hit **Refresh now**. If the source itself is wrong, there is nothing to fix on this end.
 

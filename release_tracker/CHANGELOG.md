@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.0 - 2026-11-17
+
+- **Fixed: music search almost always said "MusicBrainz is busy"**. MusicBrainz's search servers turn away a share of requests at random even when you're well under their limit, and the add-on gave up on the first refusal. Busy answers, timeouts and dropped connections are now retried with a growing pause (up to 5 tries), so searches go through, usually in 2 to 10 seconds.
+- Music search sends lighter queries (plain words for artists, whole-name matching for albums), which MusicBrainz turns away less often and which rank the right artist first.
+- If either the artist or the album half still fails, you get the half that worked instead of an error.
+- Checking tracked artists for new releases uses the same retries.
+
 ## 1.8.1 - 2026-11-17
 
 - With `ai_task_entity` empty, the AI uses your **default AI**, picked at the top of Personalized Info (`select.default_ai_task`), then the first AI Task.

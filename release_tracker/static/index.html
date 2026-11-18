@@ -1378,7 +1378,7 @@ function needsKey(k) {
 async function search() {
   const q = $("#q").value.trim();
   if (!q) return;
-  const box = $("#results"); box.replaceChildren(el("div", "quiet", "Searching..."));
+  const box = $("#results"); box.replaceChildren(el("div", "quiet", kind === "music" ? "Searching MusicBrainz... it can take a few seconds when they're busy." : "Searching..."));
   try {
     const res = await api("search?q=" + encodeURIComponent(q) + (kind === "video" ? "" : "&kind=" + kind));
     box.replaceChildren();
