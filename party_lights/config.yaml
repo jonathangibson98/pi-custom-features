@@ -1,8 +1,8 @@
 name: "Party Lights"
-version: "1.1.0"
+version: "1.1.1"
 slug: party_lights
 image: "ghcr.io/jonathangibson98/{arch}-addon-party_lights"
-description: "Music-synced lights, light shows and party games: album-art colors, disco, chase, pulse, strobe, power hour, shot caller, countdown, birthday blast and an AI hype MC"
+description: "Music-synced lights, 25 light modes and 20+ party games (freeze dance, trivia, truth or dare, power hour, light roulette...) with a phone-friendly page and a dashboard mode picker"
 url: "https://github.com/jonathangibson98/pi-custom-features"
 arch:
   - aarch64

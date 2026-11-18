@@ -1,4 +1,46 @@
+<!-- docs:header (generated, edit .github/docsgen) -->
 # Work Hours Tracker
+
+![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjonathangibson98%2Fpi-custom-features%2Fmain%2Fwork_hours%2Fconfig.yaml&query=%24.version&label=version&color=41BDF5&logo=homeassistant) ![Architectures](https://img.shields.io/badge/arch-aarch64%20%7C%20amd64-informational) ![Sidebar](https://img.shields.io/badge/sidebar-ingress-success) ![Prebuilt image](https://img.shields.io/badge/image-GHCR-2ea44f?logo=docker) ![MQTT](https://img.shields.io/badge/MQTT-optional-660066?logo=mqtt) ![AI Task](https://img.shields.io/badge/AI-ai__task-8A2BE2?logo=googlegemini)
+
+> Logs the time people spend in chosen zones, one file per person, with MQTT sensors and pay periods.
+
+## At a glance
+
+| | |
+|---|---|
+| Version | `1.8.1` |
+| Slug | `work_hours` |
+| Architectures | `aarch64`, `amd64` |
+| Opens from | the sidebar (**Work Hours**, ingress) |
+| Extra ports | none |
+| Folders it can reach | `homeassistant_config`, `share`, `media` |
+| API access | Home Assistant API, Supervisor API |
+| MQTT | optional (used when available) |
+| Takes commands via `hassio.addon_stdin` | yes |
+| Install | prebuilt image from GHCR |
+
+**You'll need:**
+
+- `person` entities with location
+- MQTT (Mosquitto add-on or your own broker)
+
+## Contents
+
+- [Setup](#setup)
+- [Options](#options)
+- [Pay periods](#pay-periods)
+- [MQTT device](#mqtt-device)
+- [Files](#files)
+- [Cleanup](#cleanup)
+- [How it decides someone is "at work"](#how-it-decides-someone-is-at-work)
+- [Tips](#tips)
+- [Troubleshooting](#troubleshooting)
+- [Backups](#backups)
+- [AI help](#ai-help)
+- [Configuration reference](#configuration-reference)
+- [Help and feedback](#help-and-feedback)
+<!-- /docs:header -->
 
 ## Setup
 
@@ -21,14 +63,7 @@ added for them is not logged.
 
 ## Options
 
-| Option | Default | What it does |
-| --- | --- | --- |
-| `save_folder` | `/homeassistant/work_hours` | Where the files are saved. Must start with `/homeassistant/`, `/share/` or `/media/`. Created automatically. |
-| `keep_days` | `365` | CSV rows older than this are deleted. `0` keeps everything forever. |
-| `check_seconds` | `30` | How often locations are checked. |
-| `grace_minutes` | `10` | How long someone can be outside the zone before the shift ends. |
-| `min_minutes` | `5` | Visits shorter than this are ignored. |
-| `mqtt_host`, `mqtt_port`, `mqtt_username`, `mqtt_password` | empty | Only if you do **not** use the Mosquitto add-on. |
+Every option is listed with its default in the [Configuration reference](#configuration-reference) at the end of this page.
 
 Changing options requires restarting the add-on. Everything on the sidebar
 page (people, zones and pay periods) takes effect as soon as you press Save.
@@ -167,3 +202,35 @@ Tap **Backups** at the bottom of the add-on page to back up, download or restore
 **✨ Ask about the hours**: each person's card has a question box ("how much overtime this month?", "when do I usually leave?"). Leave it empty for a quick summary. Answered by your Home Assistant AI Task from the logged hours.
 
 It uses a Home Assistant AI Task entity (`ai_task_entity` on the Configuration tab; empty uses the first one). The data shown is sent to your AI provider when you tap it.
+
+<!-- docs:config (generated from config.yaml) -->
+## Configuration reference
+
+Every option on the add-on's **Configuration** tab, with its default. Change them there, then restart the add-on.
+
+| Option | Default | Type | What it does |
+|---|---|---|---|
+| `ai_task_entity` | *(empty)* | text, optional | **AI Task entity (optional).** The Home Assistant AI Task entity behind the ✨ AI button. Leave empty to use the first one Home Assistant has. |
+| `save_folder` | `/homeassistant/work_hours` | text | **Save folder.** Where the hours files are saved (one CSV per person). Must start with /homeassistant/, /share/ or /media/. The folder is created automatically. |
+| `keep_days` | `365` | whole number (0–36500) | **Keep data for (days).** Rows older than this are deleted automatically. Set to 0 to keep everything forever. |
+| `check_seconds` | `30` | whole number (10–300) | **Check every (seconds).** How often each person's location is checked. |
+| `grace_minutes` | `10` | whole number (0–120) | **Grace period (minutes).** How long someone can be outside the zone before the shift is ended. Stops GPS wobble and quick errands from splitting a shift. |
+| `min_minutes` | `5` | whole number (0–120) | **Ignore visits shorter than (minutes).** Drive-bys and short stops under this length are not logged. |
+| `backup_path` | `/share/addon_backups/work_hours` | text | **Backup folder.** Where backups are saved, inside /share, /media or /homeassistant. A folder keeps several dated backups. A path ending in .zip keeps one file that is replaced each time. Open Backups in the add-on page to back up, download or restore. |
+| `backup_every` | `daily` | one of: `off`, `daily`, `weekly` | **Automatic backups.** How often a backup is made by itself (off, daily or weekly). |
+| `backup_keep` | `10` | whole number (1–100) | **Backups to keep.** The newest this many backups are kept in the folder, older ones are deleted. |
+| `wallpaper` | *(empty)* | text, optional | **Wallpaper.** Background image for this add-on's web UI. Leave empty to use your Home Assistant theme's wallpaper, "none" for no wallpaper, or an image: put it in /config/www and enter its file name (pic.jpg) or /local/pic.jpg, or a full https:// link. |
+| `mqtt_host` | *(empty)* | text, optional | **MQTT host (optional).** Leave empty to use the Mosquitto broker add-on automatically. |
+| `mqtt_port` | *(empty)* | port, optional | **MQTT port (optional).** Only used with a custom MQTT host. Defaults to 1883. |
+| `mqtt_username` | *(empty)* | text, optional | **MQTT username (optional).** Only used with a custom MQTT host. |
+| `mqtt_password` | *(empty)* | secret, optional | **MQTT password (optional).** Only used with a custom MQTT host. |
+<!-- /docs:config -->
+
+<!-- docs:footer (generated) -->
+## Help and feedback
+
+- **Logs:** the add-on's **Log** tab shows what it's doing and most errors in plain words.
+- **Changes:** see the [changelog](CHANGELOG.md) (also on the add-on's **Changelog** tab).
+- **Problems or ideas:** [open an issue](https://github.com/jonathangibson98/pi-custom-features/issues) and include the add-on version and the log.
+- **Pages follow your theme:** every page in this repository picks up your Home Assistant theme and wallpaper automatically.
+<!-- /docs:footer -->

@@ -1,4 +1,43 @@
+<!-- docs:header (generated, edit .github/docsgen) -->
 # Pi Health Monitor
+
+![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjonathangibson98%2Fpi-custom-features%2Fmain%2Fpi_health_monitor%2Fconfig.yaml&query=%24.version&label=version&color=41BDF5&logo=homeassistant) ![Architectures](https://img.shields.io/badge/arch-aarch64%20%7C%20amd64-informational) ![Sidebar](https://img.shields.io/badge/sidebar-ingress-success) ![Prebuilt image](https://img.shields.io/badge/image-GHCR-2ea44f?logo=docker) ![AI Task](https://img.shields.io/badge/AI-ai__task-8A2BE2?logo=googlegemini) ![Docker](https://img.shields.io/badge/also%20runs%20in-Docker-2496ED?logo=docker)
+
+> A lightweight health check for the machine Home Assistant runs on, with plain-English fixes.
+
+## At a glance
+
+| | |
+|---|---|
+| Version | `1.5.1` |
+| Slug | `pi_health_monitor` |
+| Architectures | `aarch64`, `amd64` |
+| Opens from | the sidebar (**Pi Health**, ingress) |
+| Extra ports | none |
+| Folders it can reach | `homeassistant_config` |
+| API access | Home Assistant API, Supervisor API |
+| MQTT | not used |
+| Takes commands via `hassio.addon_stdin` | yes |
+| Install | prebuilt image from GHCR |
+
+**You'll need:**
+
+- Nothing extra
+- An `ai_task` entity (optional, for fix tips)
+
+## Contents
+
+- [What it shows](#what-it-shows)
+- [Health checks](#health-checks)
+- [Database](#database)
+- [Last 24 hours](#last-24-hours)
+- [Use](#use)
+- [Permissions](#permissions)
+- [Running without Home Assistant](#running-without-home-assistant)
+- [Junk cleanup](#junk-cleanup)
+- [Configuration reference](#configuration-reference)
+- [Help and feedback](#help-and-feedback)
+<!-- /docs:header -->
 
 Lightweight dashboard for the health of the machine Home Assistant runs on.
 
@@ -71,3 +110,24 @@ actions:
       input: cleanup
   - action: tts.clear_cache
 ```
+
+<!-- docs:config (generated from config.yaml) -->
+## Configuration reference
+
+Every option on the add-on's **Configuration** tab, with its default. Change them there, then restart the add-on.
+
+| Option | Default | Type | What it does |
+|---|---|---|---|
+| `wallpaper` | *(empty)* | text, optional | **Wallpaper.** Background image for this add-on's web UI. Leave empty to use your Home Assistant theme's wallpaper, "none" for no wallpaper, or an image: put it in /config/www and enter its file name (pic.jpg) or /local/pic.jpg, or a full https:// link. |
+| `database_scan` | `true` | true / false | **Scan the database twice a day.** Looks at which entities fill Home Assistant's recorder database. Read only, and stops after 2 minutes. Turn off on a very slow SD card; Scan now still works. |
+| `ai_task_entity` | *(empty)* | text, optional | **AI for fix tips (optional).** The AI Task entity used by "Ask AI what to fix". Leave empty to use the first one Home Assistant has. |
+<!-- /docs:config -->
+
+<!-- docs:footer (generated) -->
+## Help and feedback
+
+- **Logs:** the add-on's **Log** tab shows what it's doing and most errors in plain words.
+- **Changes:** see the [changelog](CHANGELOG.md) (also on the add-on's **Changelog** tab).
+- **Problems or ideas:** [open an issue](https://github.com/jonathangibson98/pi-custom-features/issues) and include the add-on version and the log.
+- **Pages follow your theme:** every page in this repository picks up your Home Assistant theme and wallpaper automatically.
+<!-- /docs:footer -->

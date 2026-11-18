@@ -1,4 +1,53 @@
+<!-- docs:header (generated, edit .github/docsgen) -->
 # Photo Hub
+
+![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjonathangibson98%2Fpi-custom-features%2Fmain%2Fphoto_shuffle%2Fconfig.yaml&query=%24.version&label=version&color=41BDF5&logo=homeassistant) ![Architectures](https://img.shields.io/badge/arch-aarch64%20%7C%20amd64-informational) ![Sidebar](https://img.shields.io/badge/sidebar-ingress-success) ![Prebuilt image](https://img.shields.io/badge/image-GHCR-2ea44f?logo=docker) ![MQTT](https://img.shields.io/badge/MQTT-optional-660066?logo=mqtt) ![AI Task](https://img.shields.io/badge/AI-ai__task-8A2BE2?logo=googlegemini)
+
+> Everything photos in one place: folder shuffles and Unsplash collections as image entities, one wallpaper for every add-on page, a Photo Editor with AI tools, and SVG Maker.
+
+## At a glance
+
+| | |
+|---|---|
+| Version | `5.0.1` |
+| Slug | `photo_shuffle` |
+| Architectures | `aarch64`, `amd64` |
+| Opens from | the sidebar (**Photo Hub**, ingress) |
+| Extra ports | none |
+| Folders it can reach | `media`, `share`, `homeassistant_config`, `addon_config` (read only) |
+| API access | Home Assistant API, Supervisor API |
+| MQTT | optional (used when available) |
+| Takes commands via `hassio.addon_stdin` | yes |
+| Install | prebuilt image from GHCR |
+
+**You'll need:**
+
+- MQTT (Mosquitto add-on or your own broker)
+- A free Unsplash access key (only for Unsplash)
+- An `ai_task` entity (only for AI edits and logos)
+
+## Contents
+
+- [Setup](#setup)
+- [Options](#options)
+- [Folders](#folders)
+- [Backups](#backups)
+- [Wallpaper](#wallpaper)
+- [Photo Editor](#photo-editor)
+- [SVG Maker](#svg-maker)
+    - [How to use](#how-to-use)
+    - [AI logo](#ai-logo)
+    - [Base it on a photo](#base-it-on-a-photo)
+    - [File access](#file-access)
+    - [SVG options](#svg-options)
+    - [AI logo options](#ai-logo-options)
+    - [SVG tips](#svg-tips)
+    - [Using your icons in Home Assistant](#using-your-icons-in-home-assistant)
+    - [If the AI logo tab fails](#if-the-ai-logo-tab-fails)
+    - [If a conversion fails](#if-a-conversion-fails)
+- [Configuration reference](#configuration-reference)
+- [Help and feedback](#help-and-feedback)
+<!-- /docs:header -->
 
 Everything photos in one add-on (sidebar: Photo Hub):
 
@@ -17,20 +66,7 @@ Pictures move between the tabs with one tap: edit a shuffle's photo, set the res
 
 ## Options
 
-| Option | Description |
-| --- | --- |
-| `photo_paths` | Folders the add-on may read. Must start with `/media`, `/share`, `/homeassistant` or `/addon_configs`. |
-| `formats` | Picture types included in folder shuffles. `jpg` covers `.jpg` and `.jpeg`. |
-| `max_dimension` | Longest side of every published picture, in pixels. Larger photos are scaled down. |
-| `jpeg_quality` | Quality of the published JPEG (30 to 100). |
-| `unsplash_access_key` | Optional. The Unsplash **Access Key** (not the Secret Key). |
-| `unsplash_interval_minutes` | How often each Unsplash collection gets a new photo. The free tier allows 50 requests per hour. |
-| `unsplash_image_size` | `full`, `regular` (about 1080px) or `small`. |
-| `mqtt_host`, `mqtt_port`, `mqtt_username`, `mqtt_password` | Optional. Leave empty to use the Mosquitto add-on automatically. |
-| `edit_output_path` | Where the Photo Editor saves (default `/media/photo_hub/edited`). It's added to your photo paths automatically. |
-| `photo_ai_image_entity` | Optional. The AI Task entity that edits photos (must be able to make images). Empty picks one for you. |
-| `photo_ai_data_entity` | Optional. The AI Task entity used for **AI auto-adjust**. Empty uses `svg_ai_task_entity`. |
-| `svg_*`, `ha_url`, `ha_token` | SVG Maker options, see *SVG Maker* below. |
+Every option is listed with its default in the [Configuration reference](#configuration-reference) at the end of this page.
 
 ## Folders
 
@@ -111,7 +147,7 @@ Under **Base it on a photo**, pick a picture (your dog, your truck, an old logo,
 - **Stay close to the photo**: a cleaner vector redraw that stays as close to the photo as it can, with more detail.
 - **Just inspiration**: borrows the subject, colors and mood. The design can be quite different.
 
-The photo's main colors show as dots. **Use its colors** puts them in **Colors**. The description is optional with a photo: leave it blank for a logo of the subject, or say what you want ("Nova as a mascot, no background, navy circle"). **Update logo** keeps using the same photo. **Remove photo** goes back to text only.
+The photo's main colors show as dots. **Use its colors** puts them in **Colors**. The description is optional with a photo: leave it blank for a logo of the subject, or say what you want ("my dog as a mascot, no background, navy circle"). **Update logo** keeps using the same photo. **Remove photo** goes back to text only.
 
 This needs an AI Task that can read images (Google Gemini, OpenAI and Anthropic can). The photo is shrunk to 1024 px and saved in `/media/svg_maker/ai_photos/` because Home Assistant passes attachments to the AI from its media folder (**Media > My media**). Photos there are deleted after a day.
 
@@ -178,3 +214,64 @@ Install the **Custom Icons** integration (HACS), enable the **Local** collection
 - Only the Home Assistant ingress gateway can reach this add-on's web server.
 
 Restart the add-on after changing options.
+
+<!-- docs:config (generated from config.yaml) -->
+## Configuration reference
+
+Every option on the add-on's **Configuration** tab, with its default. Change them there, then restart the add-on.
+
+| Option | Default | Type | What it does |
+|---|---|---|---|
+| `photo_paths` | `/media` | list | **Allowed photo paths.** Folders the add-on may read for folder shuffles. Must start with /media, /share, /homeassistant or /addon_configs. |
+| `formats` | `jpg`, `png`, `webp` | list | **Picture formats.** Which picture types folder shuffles include. jpg covers .jpg and .jpeg. |
+| `max_dimension` | `1920` | whole number (256–4096) | **Max image size (px).** Longest side of every picture sent to Home Assistant, folder or Unsplash. Larger photos are scaled down. |
+| `jpeg_quality` | `85` | whole number (30–100) | **JPEG quality.** Quality of the published JPEG (30 to 100). |
+| `unsplash_interval_minutes` | `60` | whole number (5–1440) | **Unsplash refresh interval (minutes).** How often every Unsplash collection gets a fresh photo. Each image costs one request, and the free tier allows 50 per hour. |
+| `unsplash_image_size` | `regular` | one of: `full`, `regular`, `small` | **Unsplash download size.** Which Unsplash size to download before it is resized. regular (about 1080px) is plenty for most dashboards. |
+| `backup_path` | `/share/addon_backups/photo_shuffle` | text | **Backup folder.** Where backups are saved, inside /share, /media or /homeassistant. A folder keeps several dated backups. A path ending in .zip keeps one file that is replaced each time. Open Backups in the add-on page to back up, download or restore. |
+| `backup_every` | `daily` | one of: `off`, `daily`, `weekly` | **Automatic backups.** How often a backup is made by itself (off, daily or weekly). |
+| `backup_keep` | `10` | whole number (1–100) | **Backups to keep.** The newest this many backups are kept in the folder, older ones are deleted. |
+| `wallpaper` | *(empty)* | text, optional | **Wallpaper.** Background image for this add-on's web UI. Leave empty to use your Home Assistant theme's wallpaper, "none" for no wallpaper, or an image: put it in /config/www and enter its file name (pic.jpg) or /local/pic.jpg, or a full https:// link. |
+| `edit_output_path` | `/media/photo_hub/edited` | text | **Photo Editor folder.** Where the Photo Editor saves edited pictures. It is added to your photo paths automatically, so edits can be shuffled or used as the wallpaper. |
+| `svg_output_path` | `/homeassistant/custom_icons` | text | **SVG save folder.** Where SVG Maker puts files when you press Save locally or Both. Default /homeassistant/custom_icons is the folder the Custom Icons integration reads. Any folder this add-on can see works (/homeassistant, /share, /media). Created if missing. |
+| `svg_temp_path` | `/homeassistant/www/svg_maker/temp_icons` | text | **SVG temp folder (auto-saves).** Every conversion is auto-saved here until you save it yourself. Default /homeassistant/www/svg_maker/temp_icons, which Home Assistant serves at /local/svg_maker/temp_icons/. |
+| `svg_auto_delete_temp` | `false` | true / false | **SVG auto-delete temp files.** Turn on to automatically delete old files from the SVG temp folder. Never touches your save folder. |
+| `svg_auto_delete_after_days` | `7` | whole number (1–365) | **SVG delete temp files older than (days).** Only used when SVG auto-delete temp files is on. |
+| `svg_filename_style` | `original_timestamp` | one of: `original`, `timestamp`, `original_timestamp` | **SVG temp file naming.** How auto-saved temp files are named. original = photo name, timestamp = unix time, original_timestamp = both. You choose the name for saved files on the page. |
+| `svg_on_name_conflict` | `rename` | one of: `rename`, `overwrite` | **SVG if the file name already exists.** rename adds -1, -2 so nothing gets overwritten. overwrite replaces the old file. |
+| `svg_default_mode` | `color` | one of: `color`, `bw` | **SVG default color mode.** Color keeps colors. bw makes a black and white trace. Changeable per upload on the page. |
+| `svg_default_detail` | `5` | whole number (1–10) | **SVG default detail (1-10).** 1 is simple and smooth, 10 is highly detailed but bigger files. Changeable per upload. |
+| `svg_path_style` | `spline` | one of: `spline`, `polygon`, `none` | **SVG curve style.** spline = smooth curves (best for most). polygon = straight edges. none = raw pixel-ish paths. |
+| `svg_max_image_dimension` | `1600` | whole number (400–4000) | **SVG max image size (px).** Photos are shrunk so the longest side fits this before tracing. Lower is faster on a Pi. |
+| `svg_max_upload_mb` | `25` | whole number (1–100) | **SVG max upload size (MB).** Reject uploads larger than this. |
+| `svg_icon_names` | `true` | true / false | **SVG icon-friendly file names.** Save names as lowercase letters, numbers and hyphens (My Dog becomes my-dog) so they work as Home Assistant icon names. |
+| `svg_bw_follow_theme` | `true` | true / false | **SVG black and white follows HA colors.** For black and white conversions, use currentColor instead of hard black so the icon takes on the color Home Assistant gives it (for example yellow when a light is on). Color conversions keep their colors. |
+| `svg_crop_editor` | `true` | true / false | **SVG show crop editor.** After you pick a photo, show a draggable, zoomable crop window (like the Facebook profile picture screen) so you can approve or adjust the crop before converting. |
+| `svg_auto_crop` | `true` | true / false | **SVG auto-crop suggestion.** Automatically find the main subject and position the crop on it. You can still drag and zoom. With the editor off, the auto crop is applied without asking. |
+| `svg_crop_shape` | `circle` | one of: `circle`, `rounded`, `square`, `none` | **SVG default crop shape.** circle, rounded or square crop the result to that shape (great for icons). none keeps the whole photo. Changeable on the page. |
+| `svg_crop_padding` | `15` | whole number (0–60) | **SVG crop padding (%).** Extra breathing room around the detected subject. Higher zooms out more. |
+| `svg_output_size` | `512` | whole number (128–2048) | **SVG crop output size (px).** The cropped photo is shrunk to this size before upload and tracing. 512 is good for icons and is fast on a Pi. |
+| `svg_auto_enhance` | `true` | true / false | **SVG auto-enhance before tracing.** Boosts contrast, smooths texture noise and simplifies colors so photos trace into clean shapes with smaller files. Changeable on the page. |
+| `svg_ai_task_entity` | `ai_task.google_ai_task` | text | **AI logo - AI Task entity.** The Home Assistant ai_task entity that draws logos in the AI logo tab. Default ai_task.google_ai_task. |
+| `svg_ai_timeout` | `180` | whole number (30–600) | **AI logo - timeout (seconds).** How long to wait for the AI to draw one logo before giving up. Raise it if your AI is slow. |
+| `svg_ai_default_style` | `flat` | one of: `auto`, `flat`, `line`, `gradient`, `badge`, `mascot`, `geometric`, `sketch` | **AI logo - default style.** Starting style in the AI logo tab. Changeable on the page. |
+| `svg_ai_default_count` | `1` | whole number (1–3) | **AI logo - default number of ideas.** How many different designs to draw at once (1 to 3). Each one is a separate AI call. Changeable on the page. |
+| `ha_url` | `http://homeassistant:8123` | text, optional | **Home Assistant URL (optional).** Only used with the token below. Leave the default unless you need to reach Home Assistant a different way. |
+| `unsplash_access_key` | *(empty)* | secret, optional | **Unsplash Access Key (optional).** Needed only for Unsplash collections. Use the Access Key, not the Secret Key, from unsplash.com/developers. |
+| `mqtt_host` | *(empty)* | text, optional | **MQTT host (optional).** Leave empty to use the Mosquitto add-on automatically. |
+| `mqtt_port` | *(empty)* | port, optional | **MQTT port (optional).** Defaults to 1883. |
+| `mqtt_username` | *(empty)* | text, optional | **MQTT username (optional).** Only needed with a manual MQTT broker. |
+| `mqtt_password` | *(empty)* | secret, optional | **MQTT password (optional).** Only needed with a manual MQTT broker. |
+| `photo_ai_image_entity` | *(empty)* | text, optional | **AI for photo edits (optional).** The AI Task entity that edits photos (it must be able to make images, for example Google Gemini or OpenAI). Leave empty to pick one automatically. |
+| `photo_ai_data_entity` | *(empty)* | text, optional | **AI for auto-adjust (optional).** The AI Task entity that looks at a photo and suggests slider values. Leave empty to use the SVG Maker AI entity. |
+| `ha_token` | *(empty)* | secret, optional | **Home Assistant long-lived token (optional).** Leave empty to use the add-on's built-in access. Only fill this in if the AI logo tab says Home Assistant refused the add-on. |
+<!-- /docs:config -->
+
+<!-- docs:footer (generated) -->
+## Help and feedback
+
+- **Logs:** the add-on's **Log** tab shows what it's doing and most errors in plain words.
+- **Changes:** see the [changelog](CHANGELOG.md) (also on the add-on's **Changelog** tab).
+- **Problems or ideas:** [open an issue](https://github.com/jonathangibson98/pi-custom-features/issues) and include the add-on version and the log.
+- **Pages follow your theme:** every page in this repository picks up your Home Assistant theme and wallpaper automatically.
+<!-- /docs:footer -->

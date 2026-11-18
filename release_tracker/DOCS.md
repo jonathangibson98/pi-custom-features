@@ -1,4 +1,53 @@
+<!-- docs:header (generated, edit .github/docsgen) -->
 # Release Tracker
+
+![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjonathangibson98%2Fpi-custom-features%2Fmain%2Frelease_tracker%2Fconfig.yaml&query=%24.version&label=version&color=41BDF5&logo=homeassistant) ![Architectures](https://img.shields.io/badge/arch-aarch64%20%7C%20amd64-informational) ![Sidebar](https://img.shields.io/badge/sidebar-ingress-success) ![Builds locally](https://img.shields.io/badge/image-builds%20on%20device-lightgrey?logo=docker) ![MQTT](https://img.shields.io/badge/MQTT-optional-660066?logo=mqtt) ![AI Task](https://img.shields.io/badge/AI-ai__task-8A2BE2?logo=googlegemini)
+
+> Track anything with a release date and get told when it drops: shows, movies, games and DLC, albums, celebrities, tech, merch and events.
+
+## At a glance
+
+| | |
+|---|---|
+| Version | `1.8.1` |
+| Slug | `release_tracker` |
+| Architectures | `aarch64`, `amd64` |
+| Opens from | the sidebar (**Releases**, ingress) |
+| Extra ports | none |
+| Folders it can reach | `share` |
+| API access | Home Assistant API, Supervisor API |
+| MQTT | optional (used when available) |
+| Takes commands via `hassio.addon_stdin` | yes |
+| Install | built on your device |
+
+**You'll need:**
+
+- Free TMDB key (TV, movies, celebrities)
+- Free Twitch client ID and secret (games)
+- MQTT (optional)
+
+## Contents
+
+- [What you can track](#what-you-can-track)
+- [Setup](#setup)
+- [People](#people)
+- [The Tracking tab](#the-tracking-tab)
+- [Music](#music)
+- [Celebrities](#celebrities)
+- [Anything else (tech, merch, events, sales)](#anything-else-tech-merch-events-sales)
+- [The release sensor](#the-release-sensor)
+- [Games and DLC](#games-and-dlc)
+- [Automations](#automations)
+- [Settings](#settings)
+- [Backup](#backup)
+- [Dashboard card](#dashboard-card)
+- [Notify one person](#notify-one-person)
+- [Things to know](#things-to-know)
+- [Troubleshooting](#troubleshooting)
+- [AI help](#ai-help)
+- [Configuration reference](#configuration-reference)
+- [Help and feedback](#help-and-feedback)
+<!-- /docs:header -->
 
 Track anything with a release date and get told when it drops: TV shows, movies, games and DLC, albums and artists, celebrities, tech launches, merch drops, events, sales, or anything else you type in.
 
@@ -238,3 +287,23 @@ Swap `notify.notify` for the notify service of whoever should get it.
 **✨ Ideas from AI** on the Add tab: suggestions for new things to track based on what you already track (or a request like "horror games"). Tap **Find** and the normal search fills in the real date. Plus **What's coming (AI rundown)** on the Tracking tab: a short, read-out-loud summary of what's next.
 
 It uses a Home Assistant AI Task entity (`ai_task_entity` on the Configuration tab; empty uses the first one). The data shown is sent to your AI provider when you tap it.
+
+<!-- docs:config (generated from config.yaml) -->
+## Configuration reference
+
+Every option on the add-on's **Configuration** tab, with its default. Change them there, then restart the add-on.
+
+| Option | Default | Type | What it does |
+|---|---|---|---|
+| `wallpaper` | *(empty)* | text, optional | **Wallpaper.** Background image for this add-on's web UI. Leave empty to use your Home Assistant theme's wallpaper, "none" for no wallpaper, or an image: put it in /config/www and enter its file name (pic.jpg) or /local/pic.jpg, or a full https:// link. |
+| `ai_task_entity` | *(empty)* | text, optional | **AI Task entity (optional).** The Home Assistant AI Task entity behind the ✨ AI button. Leave empty to use the first one Home Assistant has. |
+<!-- /docs:config -->
+
+<!-- docs:footer (generated) -->
+## Help and feedback
+
+- **Logs:** the add-on's **Log** tab shows what it's doing and most errors in plain words.
+- **Changes:** see the [changelog](CHANGELOG.md) (also on the add-on's **Changelog** tab).
+- **Problems or ideas:** [open an issue](https://github.com/jonathangibson98/pi-custom-features/issues) and include the add-on version and the log.
+- **Pages follow your theme:** every page in this repository picks up your Home Assistant theme and wallpaper automatically.
+<!-- /docs:footer -->

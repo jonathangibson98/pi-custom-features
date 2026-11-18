@@ -1,4 +1,43 @@
+<!-- docs:header (generated, edit .github/docsgen) -->
 # Voice Chat
+
+![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjonathangibson98%2Fpi-custom-features%2Fmain%2Fvoice_chat%2Fconfig.yaml&query=%24.version&label=version&color=41BDF5&logo=homeassistant) ![Architectures](https://img.shields.io/badge/arch-aarch64%20%7C%20amd64-informational) ![Sidebar](https://img.shields.io/badge/sidebar-ingress-success) ![Prebuilt image](https://img.shields.io/badge/image-GHCR-2ea44f?logo=docker) ![Docker](https://img.shields.io/badge/also%20runs%20in-Docker-2496ED?logo=docker)
+
+> Hands-free voice conversation with any Home Assistant conversation agent, answered out loud on the speakers you choose.
+
+## At a glance
+
+| | |
+|---|---|
+| Version | `2.5.2` |
+| Slug | `voice_chat` |
+| Architectures | `aarch64`, `amd64` |
+| Opens from | the sidebar (**Voice Chat**, ingress) |
+| Extra ports | `8443/tcp` |
+| Folders it can reach | `share`, `ssl` (read only) |
+| API access | Home Assistant API, Supervisor API |
+| MQTT | not used |
+| Takes commands via `hassio.addon_stdin` | yes |
+| Install | prebuilt image from GHCR |
+
+**You'll need:**
+
+- A conversation agent, an STT and a TTS engine in Home Assistant
+- HTTPS for the microphone (built-in self-signed port 8443, or Home Assistant's own HTTPS)
+
+## Contents
+
+- [Configuration](#configuration)
+- [Using it](#using-it)
+- [Household info](#household-info)
+- [Which device listens, which device speaks](#which-device-listens-which-device-speaks)
+- [Microphone access](#microphone-access)
+- [Docker Compose (no add-on)](#docker-compose-no-add-on)
+- [Troubleshooting](#troubleshooting)
+- [Backups](#backups)
+- [Configuration reference](#configuration-reference)
+- [Help and feedback](#help-and-feedback)
+<!-- /docs:header -->
 
 Talk to any Home Assistant AI agent hands-free. Your voice is captured in the browser, the agent you pick answers, and the reply is spoken on the speakers you pick, on several at once, or in the browser itself.
 
@@ -108,3 +147,50 @@ Tap **Backups** at the bottom of the add-on page (the Backups button at the top 
 - **Restore from a file** takes a backup `.zip` you downloaded, for example to move to another Home Assistant.
 - A backup from a different add-on is refused. The page only works from the Home Assistant sidebar, never on the add-on's own ports, because backups include its settings.
 - Backups also hold any passwords or API keys from the Configuration tab, so treat the backup folder like your secrets.
+
+<!-- docs:config (generated from config.yaml) -->
+## Configuration reference
+
+Every option on the add-on's **Configuration** tab, with its default. Change them there, then restart the add-on.
+
+| Option | Default | Type | What it does |
+|---|---|---|---|
+| `conversation_agent` | `conversation.home_assistant` | text | **Conversation agent.** The AI entity to talk to, for example conversation.home_assistant or conversation.ollama. |
+| `media_player` | *(empty)* | text, optional | **Default speaker.** The media player that speaks replies by default, for example media_player.kitchen_speaker. Leave empty to default to this device (browser). You can pick several speakers on the page. |
+| `tts_entity` | *(empty)* | text | **Text-to-speech engine.** The TTS entity that turns replies into audio, for example tts.piper. |
+| `stt_entity` | *(empty)* | text, optional | **Speech-to-text engine.** The STT entity that transcribes your voice, for example stt.faster_whisper. Leave empty to use the browser's built-in recognition. |
+| `language` | *(empty)* | text, optional | **Language.** Optional language code such as en-US or de. Leave empty to use Home Assistant's language. |
+| `hands_free` | `true` | true / false | **Hands-free.** Keep listening after every reply. Turn off for one question per tap. |
+| `silence_ms` | `1200` | whole number (400–5000) | **Pause before sending (ms).** How long you must stay quiet before your sentence is sent. Default 1200. |
+| `volume` | `0` | number (0–1) | **Speaker volume.** 0 leaves the speaker's volume alone. 0.1 to 1 sets it before each reply. |
+| `password` | *(empty)* | secret, optional | **Password for direct HTTPS page.** Setting a password turns on the direct HTTPS page on port 8443. Leave empty to keep it off. |
+| `certfile` | `fullchain.pem` | text | **Certificate file.** Certificate name inside /ssl. A self-signed one is generated if it doesn't exist. |
+| `keyfile` | `privkey.pem` | text | **Private key file.** Private key name inside /ssl. |
+| `wake_word` | *(empty)* | text, optional | **Wake word.** Optional. When set, hands-free mode only reacts to sentences that start with this phrase, for example "hey jarvis". After a reply you can keep talking for 20 seconds without repeating it. Needs an stt_entity for reliable results. |
+| `stop_words` | `stop listening,goodbye,never mind,cancel` | text, optional | **Stop phrases.** Comma-separated phrases that end the hands-free session when you say them on their own. |
+| `sensitivity` | `normal` | one of: `low`, `normal`, `high` | **Microphone sensitivity.** High picks up quiet voices but also noise. Low suits noisy rooms. |
+| `chimes` | `true` | true / false | **Sound cues.** Short beeps when listening starts, a message is sent, or something fails. |
+| `idle_timeout_s` | `120` | whole number (0–3600) | **Stop listening after (seconds).** Ends the hands-free session when nobody has spoken for this long. 0 keeps it listening forever. |
+| `browser_playback` | `true` | true / false | **Allow playing replies in the browser.** Adds "This device" to the speaker list so replies play on the phone or PC that has the page open, no media player needed. |
+| `save_history` | `true` | true / false | **Save chat history.** Keeps past chats so you can reopen, export or delete them from the History button. |
+| `history_limit` | `100` | whole number (10–1000) | **Chats to keep.** Oldest chats are deleted beyond this number. |
+| `context_enabled` | `true` | true / false, optional | **Give the AI my household info.** Sends the background from your combined info sensor to the AI with the first message of each conversation, so it knows who everyone is. Not shown in chat or saved in history. |
+| `context_entity` | *(empty)* | text, optional | **Household info sensor.** The sensor that holds your household info, for example sensor.combined_info. |
+| `context_attributes` | `household_text,friends_text,notable_people,places` | text, optional | **Sensor attributes to send.** Comma-separated attributes of that sensor. Default household_text,friends_text,notable_people,places covers everyone. Text and nested data are both fine. |
+| `context_skip_agents` | `conversation.home_assistant` | text, optional | **Agents that should not get it.** Comma-separated agents that only match fixed sentences and would break with extra text. Default conversation.home_assistant. |
+| `context_max_chars` | `40000` | whole number (0–200000), optional | **Maximum characters.** Safety cap on how much household info is sent. 0 means no cap. |
+| `speaker_name` | *(empty)* | text, optional | **Who is talking.** Your name, for example Alex, so the AI knows who "I", "me" and "my" mean. Leave empty if several people use the page. |
+| `backup_path` | `/share/addon_backups/voice_chat` | text | **Backup folder.** Where backups are saved, inside /share, /media or /homeassistant. A folder keeps several dated backups. A path ending in .zip keeps one file that is replaced each time. Open Backups in the add-on page to back up, download or restore. |
+| `backup_every` | `daily` | one of: `off`, `daily`, `weekly` | **Automatic backups.** How often a backup is made by itself (off, daily or weekly). |
+| `backup_keep` | `10` | whole number (1–100) | **Backups to keep.** The newest this many backups are kept in the folder, older ones are deleted. |
+| `wallpaper` | *(empty)* | text, optional | **Wallpaper.** Background image for this add-on's web UI. Leave empty to use your Home Assistant theme's wallpaper, "none" for no wallpaper, or an image: put it in /config/www and enter its file name (pic.jpg) or /local/pic.jpg, or a full https:// link. |
+<!-- /docs:config -->
+
+<!-- docs:footer (generated) -->
+## Help and feedback
+
+- **Logs:** the add-on's **Log** tab shows what it's doing and most errors in plain words.
+- **Changes:** see the [changelog](CHANGELOG.md) (also on the add-on's **Changelog** tab).
+- **Problems or ideas:** [open an issue](https://github.com/jonathangibson98/pi-custom-features/issues) and include the add-on version and the log.
+- **Pages follow your theme:** every page in this repository picks up your Home Assistant theme and wallpaper automatically.
+<!-- /docs:footer -->

@@ -1,17 +1,34 @@
+<img src="icon.png" alt="" width="96" align="right">
+
 # Zone Creator
 
-Create Home Assistant zones by searching an address instead of typing coordinates.
+![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjonathangibson98%2Fpi-custom-features%2Fmain%2Fzone_creator%2Fconfig.yaml&query=%24.version&label=version&color=41BDF5&logo=homeassistant) ![Architectures](https://img.shields.io/badge/arch-aarch64%20%7C%20amd64-informational) ![Sidebar](https://img.shields.io/badge/sidebar-ingress-success) ![Prebuilt image](https://img.shields.io/badge/image-GHCR-2ea44f?logo=docker) ![AI Task](https://img.shields.io/badge/AI-ai__task-8A2BE2?logo=googlegemini)
+
+Search an address, drop a pin and create a Home Assistant zone, with optional AI name and icon suggestions.
 
 ## Features
-- Search by street address or place name
-- Interactive map: tap to place the pin, drag to fine tune, radius circle updates live
-- Optional AI suggestions for the zone name and an mdi icon
-- Matches the naming style of your existing zones
-- Creates a normal zone you can still edit under Settings > Areas, labels & zones > Zones
 
-## Quick start
-1. Install and start the add-on.
-2. Turn on **Show in sidebar**.
-3. Open Zone Creator, search an address, tap a result, adjust, and hit **Create zone**.
+- Searches three free geocoders at once (US Census, OpenStreetMap, Photon)
+- Paste coordinates, drag the pin and set the radius on the map
+- AI name and icon suggestions through your `ai_task` entity
+- Zones appear immediately in Home Assistant
 
-See **Documentation** for the AI setup and troubleshooting.
+## What you need
+
+- Home Assistant OS or Supervised (add-ons need the Supervisor)
+- Nothing extra
+- An `ai_task` entity (optional)
+
+## Install
+
+[![Add this repository to your Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fjonathangibson98%2Fpi-custom-features)
+
+1. Click the button above, or go to **Settings → Add-ons → Add-on Store → ⋮ → Repositories** and add `https://github.com/jonathangibson98/pi-custom-features`.
+2. Find **Zone Creator** in the store and click **Install**.
+3. Check the **Configuration** tab, then **Start**. Turn on **Show in sidebar** to open it from the sidebar.
+
+## Documentation
+
+- [Full documentation](DOCS.md), also on the add-on's **Documentation** tab
+- [Changelog](CHANGELOG.md)
+- [All add-ons in this repository](../README.md)
