@@ -9,7 +9,7 @@
 
 | | |
 |---|---|
-| Version | `1.1.1` |
+| Version | `1.2.0` |
 | Slug | `party_lights` |
 | Architectures | `aarch64`, `amd64` |
 | Opens from | the sidebar (**Party Lights**, ingress) |
@@ -85,6 +85,10 @@ Announcements use `tts.speak` with the voice and speakers from Setup. The AI use
 
 ## Music sync
 
+The **Music** tab shows a checklist of what music sync needs (a player, music playing, lights, and your helper if you set one) with ✓ or ✕, so you can see straight away why it isn't syncing, and when it last synced.
+
+- **Music players to follow**: empty follows the album-art sensor's player, or whatever is playing.
+
 - Each light gets a different color from the art, in the order you list them (or all the same color).
 - **Boost colors** makes dull art look good on bulbs. **Brightness** 0 keeps the lights' current brightness.
 - **Only sync when this entity is in this state**: for a mode helper (for example `select.sync_lights_mode` = `Music`). When set, it syncs whenever the helper says so, party mode or not. **Always sync** syncs whenever music plays.
@@ -112,7 +116,20 @@ data:
 
 ## Home Assistant entities (MQTT)
 
-`switch.party_mode`, `select.party_effect`, `select.party_colors`, `number.party_speed`, `number.party_brightness`, `number.party_bpm`, `sensor.party_status`, a switch for every game (`switch.party_power_hour`, `switch.party_shot_caller`, `switch.party_countdown`, `switch.party_hype_mc`, `switch.party_freeze`, `switch.party_red_green`, `switch.party_never`, `switch.party_truth_dare`, `switch.party_trivia`, `switch.party_name_tune`, `switch.party_rules`, `switch.party_welcome`, `switch.party_last_call`) and a button for every quick hit (`button.party_hot_potato`, `button.party_roulette`, `button.party_cheers`, `button.party_dance_battle`, `button.party_flash`, `button.party_drop`, `button.party_birthday`, `button.party_blackout`). `select.party_effect` includes **Off**, so it also picks the mode or ends the party. Put them on a dashboard or use them in automations (for example: start the party when a playlist starts).
+With the Mosquitto broker add-on, you get one **Party Lights** device with just these:
+
+| Entity | What it does |
+|---|---|
+| `switch.party_mode` | Party on or off |
+| `select.party_effect` | Light mode. **Off** ends the party |
+| `select.party_theme` | Colors |
+| `number.party_brightness` / `number.party_speed` | Brightness and speed |
+| `select.party_game` | Start a game. **None** stops every game |
+| `select.party_quick_hit` | Run a quick hit (it goes back to "Pick one…" after) |
+| `sensor.party_status` | What's happening: mode, colors, running games, music sync status |
+| `sensor.music_art_brightness` | The album-art sensor (if it's on) |
+
+Before 1.2 there was a switch or button for every game; they're removed automatically.
 
 ## Moving from AppDaemon
 
