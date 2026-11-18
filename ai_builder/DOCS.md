@@ -1,4 +1,76 @@
+<!-- docs:header (generated, edit .github/docsgen) -->
 # Creator & AI Builder
+
+![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjonathangibson98%2Fpi-custom-features%2Fmain%2Fai_builder%2Fconfig.yaml&query=%24.version&label=version&color=41BDF5&logo=homeassistant) ![Architectures](https://img.shields.io/badge/arch-aarch64%20%7C%20amd64-informational) ![Sidebar](https://img.shields.io/badge/sidebar-ingress-success) ![Prebuilt image](https://img.shields.io/badge/image-GHCR-2ea44f?logo=docker) ![MQTT](https://img.shields.io/badge/MQTT-optional-660066?logo=mqtt) ![AI Task](https://img.shields.io/badge/AI-ai__task-8A2BE2?logo=googlegemini)
+
+> Describe what you want in plain English and your Home Assistant AI builds it: automations, scripts, scenes, helpers, template sensors, dashboards and cards. Also voice announcements, dashboard facts, text-file sensors and backups.
+
+## At a glance
+
+| | |
+|---|---|
+| Version | `3.1.0` |
+| Slug | `ai_builder` |
+| Architectures | `aarch64`, `amd64` |
+| Opens from | the sidebar (**Creator & AI Builder**, ingress) |
+| Extra ports | `8100/tcp` |
+| Folders it can reach | `homeassistant_config`, `all_addon_configs`, `addons`, `addon_config`, `share`, `media`, `backup`, `ssl` |
+| API access | Home Assistant API, Supervisor API |
+| MQTT | optional (used when available) |
+| Takes commands via `hassio.addon_stdin` | yes |
+| Install | prebuilt image from GHCR |
+
+**You'll need:**
+
+- An `ai_task` entity (any AI integration that offers AI Task)
+- MQTT (optional, for Files sensors)
+
+## Contents
+
+- [Build](#build)
+- [How to use it](#how-to-use-it)
+    - [Example requests](#example-requests)
+    - [What each type does](#what-each-type-does)
+    - [Add-on auto-fixes](#add-on-auto-fixes)
+    - [Safety for files and code](#safety-for-files-and-code)
+    - [Made so far, and how the tabs work together](#made-so-far-and-how-the-tabs-work-together)
+- [Changing something that exists](#changing-something-that-exists)
+- [Configuration (applies to the whole add-on)](#configuration-applies-to-the-whole-add-on)
+- [One-time setup for template sensors](#one-time-setup-for-template-sensors)
+- [Where things go](#where-things-go)
+- [Checks the add-on does for you](#checks-the-add-on-does-for-you)
+- [Troubleshooting](#troubleshooting)
+- [Privacy](#privacy)
+- [Announcements](#announcements)
+- [My announcements](#my-announcements)
+    - [Import your own script or automation](#import-your-own-script-or-automation)
+- [Announcement tabs](#announcement-tabs)
+- [Run an announcement on a schedule](#run-an-announcement-on-a-schedule)
+- [Dashboard card switch](#dashboard-card-switch)
+- [Save to a file and show it on a card](#save-to-a-file-and-show-it-on-a-card)
+- [Renaming](#renaming)
+- [Announcement troubleshooting](#announcement-troubleshooting)
+- [Security](#security)
+- [Facts](#facts)
+- [My facts](#my-facts)
+- [The editor](#the-editor)
+- [Facts settings](#facts-settings)
+- [Facts troubleshooting](#facts-troubleshooting)
+- [Cards](#cards)
+- [Making a card](#making-a-card)
+- [Changing it](#changing-it)
+- [Preview](#preview)
+- [Notes](#notes)
+- [Start from an announcement or fact](#start-from-an-announcement-or-fact)
+- [Backup](#backup)
+- [Choosing where backups go](#choosing-where-backups-go)
+- [Importing](#importing)
+- [Dashboards](#dashboards)
+- [Files](#files)
+    - [Sending updates from automations and scripts](#sending-updates-from-automations-and-scripts)
+- [Configuration reference](#configuration-reference)
+- [Help and feedback](#help-and-feedback)
+<!-- /docs:header -->
 
 Builds Home Assistant things from plain English (automations, scenes, scripts, template sensors, helpers, AppDaemon apps, pyscripts, blueprints, whole add-ons), makes AI voice announcements, makes AI facts and AI-written dashboard cards, and backs up its own data. Use the tab bar at the top of the panel: **Build / Announcements / Facts / Cards / Backup**.
 
@@ -81,18 +153,7 @@ Scripts, scenes and automations written directly in YAML can't be loaded this wa
 
 ## Configuration (applies to the whole add-on)
 
-| Option | Default | Description |
-|---|---|---|
-| `ai_task_entity` | `ai_task.google_ai_task` | The AI task entity used to write configs |
-| `request_timeout` | `180` | Seconds to wait for the AI before giving up (30 to 600) |
-| `appdaemon_apps_dir` | `/addon_configs/a0d7b954_appdaemon/apps` | Your AppDaemon apps folder. Must be under `/addon_configs` or your HA config folder |
-| `ha_token` | blank | Optional long-lived token. Leave blank unless the default Supervisor access fails (Profile -> Security in Home Assistant) |
-| `ha_url` | `http://homeassistant:8123` | Only used when `ha_token` is set |
-| `helper_ai_task_entity` | blank | Optional separate AI task entity for the Announcements helpers. Blank uses the Announcements AI Task |
-| `template_file` | `ai_builder/package.yaml` | Where template sensors are written, relative to your Home Assistant config folder. Must end in `.yaml` |
-| `log_level` | `info` | `debug`, `info`, `warning` or `error`. Applies to the whole add-on |
-| `backup_path` | `/share/ai_builder_backups` | Where Backup saves and imports. A folder, or a single `.json` file. See Backup below |
-| `backup_keep` | `20` | Folder mode: keep the newest this many backups, delete older ones |
+Every option is listed with its default in the [Configuration reference](#configuration-reference) at the end of this page.
 
 Restart the add-on after changing options.
 
@@ -485,3 +546,40 @@ curl -X POST -H "Authorization: Bearer YOUR_TOKEN" \
 
 - Folders are created automatically when you write to `folder/sub/file.txt`.
 - The editor opens files up to 2 MB.
+
+<!-- docs:config (generated from config.yaml) -->
+## Configuration reference
+
+Every option on the add-on's **Configuration** tab, with its default. Change them there, then restart the add-on.
+
+| Option | Default | Type | What it does |
+|---|---|---|---|
+| `log_level` | `info` | one of: `debug`, `info`, `warning`, `error` | **Log level.** How chatty the add-on log is. Use debug when troubleshooting, warning or error to keep it quiet. |
+| `ai_task_entity` | `ai_task.google_ai_task` | text | **AI task entity.** The Home Assistant ai_task entity used to write configs and announcements, for example ai_task.google_ai_task. |
+| `request_timeout` | `180` | whole number (30–600) | **AI request timeout (seconds).** How long to wait for the AI before giving up (30 to 600). |
+| `template_file` | `ai_builder/package.yaml` | text | **Template sensor file.** Where template sensors are written, relative to your Home Assistant config folder. Must end in .yaml. |
+| `appdaemon_apps_dir` | `/addon_configs/a0d7b954_appdaemon/apps` | text | **AppDaemon apps folder.** Your AppDaemon apps folder. Must be under /addon_configs or your Home Assistant config folder. |
+| `ha_token` | *(empty)* | secret, optional | **Long-lived access token (optional).** Leave blank unless the default Supervisor access to Home Assistant fails. |
+| `ha_url` | `http://homeassistant:8123` | text, optional | **Home Assistant URL.** Only used when a long-lived access token is set. |
+| `helper_ai_task_entity` | *(empty)* | text, optional | **Announcement helper AI task (optional).** A separate ai_task entity for the Announcements helper tab. Blank uses the Announcements AI task. |
+| `backup_path` | `/share/ai_builder_backups` | text | **Backup path.** Where Backup saves to and imports from. A folder (each save makes a new dated file, for example /share/ai_builder_backups) or a single .json file (each save overwrites it). Use a folder under /share, /media, /backup or /homeassistant so it survives an uninstall. |
+| `backup_keep` | `20` | whole number (1–200) | **Backups to keep.** When backup_path is a folder, the newest this many ai_builder_backup_*.json files are kept and older ones are deleted. |
+| `facts_file_path` | *(empty)* | text, optional | **Facts file path.** The MQTT topic folder where Facts saves its text files, for example file_reader/overwrite/ (a fact named random_fact.txt is saved as file_reader/overwrite/random_fact.txt). When set here it wins over the Facts settings page. Letters, numbers, underscores, dashes, dots and slashes only. |
+| `wallpaper` | *(empty)* | text, optional | **Wallpaper.** Background image for this add-on's web UI. Leave empty to use your Home Assistant theme's wallpaper, "none" for no wallpaper, or an image: put it in /config/www and enter its file name (pic.jpg) or /local/pic.jpg, or a full https:// link. |
+| `files_path` | `/share/file_reader` | path | **Files folder.** Folder for the Files section (the old File Reader). Every text file in it becomes an MQTT sensor. Must start with /share, /media, /homeassistant, /config, /addon_configs or /data. If you used File Reader with a folder this add-on can see, it is picked up by itself; its private files are copied over from its newest backup. |
+| `files_scan_interval` | `30` | whole number (5–3600) | **Files scan interval (seconds).** How often the Files folder is checked for changes made outside the add-on (Samba, File editor). Default 30. |
+| `files_api_token` | *(empty)* | secret, optional | **Files REST API token.** Password for the Files REST API on port 8100 (rest_command, curl, scripts). Leave empty to keep it off. Also set a host port for 8100 under Network if you call it from outside Home Assistant. MQTT updates don't need it. |
+| `mqtt_host` | *(empty)* | text, optional | **MQTT host (optional).** Leave empty to use the Mosquitto add-on automatically. |
+| `mqtt_port` | *(empty)* | port, optional | **MQTT port (optional).** Usually 1883. |
+| `mqtt_user` | *(empty)* | text, optional | **MQTT username (optional).** Leave empty to use the Mosquitto add-on login from Home Assistant automatically. |
+| `mqtt_password` | *(empty)* | secret, optional | **MQTT password (optional).** Only for your own broker. |
+<!-- /docs:config -->
+
+<!-- docs:footer (generated) -->
+## Help and feedback
+
+- **Logs:** the add-on's **Log** tab shows what it's doing and most errors in plain words.
+- **Changes:** see the [changelog](CHANGELOG.md) (also on the add-on's **Changelog** tab).
+- **Problems or ideas:** [open an issue](https://github.com/jonathangibson98/pi-custom-features/issues) and include the add-on version and the log.
+- **Pages follow your theme:** every page in this repository picks up your Home Assistant theme and wallpaper automatically.
+<!-- /docs:footer -->

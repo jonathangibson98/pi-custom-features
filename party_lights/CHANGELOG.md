@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1 - 2026-11-17
+
+- Store description updated for the new modes and games. Docs and README rewritten.
+
 ## 1.1.0 - 2026-11-17
 
 - **New page**, built for phones first: tabs at the bottom, a now-playing card with the current mode and running games, a grid of light modes with icons, sliders that stay in view, game cards with their own settings, filters and pop-up confirmations. Two columns on a computer.

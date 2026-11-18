@@ -1,4 +1,43 @@
+<!-- docs:header (generated, edit .github/docsgen) -->
 # Team Tracker Lite
+
+![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjonathangibson98%2Fpi-custom-features%2Fmain%2Fteam_tracker_lite%2Fconfig.yaml&query=%24.version&label=version&color=41BDF5&logo=homeassistant) ![Architectures](https://img.shields.io/badge/arch-aarch64%20%7C%20amd64-informational) ![Sidebar](https://img.shields.io/badge/sidebar-ingress-success) ![Prebuilt image](https://img.shields.io/badge/image-GHCR-2ea44f?logo=docker) ![MQTT](https://img.shields.io/badge/MQTT-optional-660066?logo=mqtt) ![AI Task](https://img.shields.io/badge/AI-ai__task-8A2BE2?logo=googlegemini)
+
+> One lightweight sports sensor: pick any team from a menu and switch whenever you like.
+
+## At a glance
+
+| | |
+|---|---|
+| Version | `0.8.0` |
+| Slug | `team_tracker_lite` |
+| Architectures | `aarch64`, `amd64` |
+| Opens from | the sidebar (**Team Tracker**, ingress) |
+| Extra ports | `8100/tcp` |
+| Folders it can reach | `share`, `addon_config` |
+| API access | Home Assistant API, Supervisor API |
+| MQTT | optional (used when available) |
+| Takes commands via `hassio.addon_stdin` | yes |
+| Install | prebuilt image from GHCR |
+
+**You'll need:**
+
+- MQTT (Mosquitto add-on or your own broker)
+
+## Contents
+
+- [Setup](#setup)
+- [Live game](#live-game)
+- [Calendar (one-time setup)](#calendar-one-time-setup)
+- [Your settings](#your-settings)
+- [Options](#options)
+- [Not supported](#not-supported)
+- [Backups](#backups)
+- [AI help](#ai-help)
+- [Score lights](#score-lights)
+- [Configuration reference](#configuration-reference)
+- [Help and feedback](#help-and-feedback)
+<!-- /docs:header -->
 
 One sensor. Any team. Picked from a menu in the sidebar panel.
 
@@ -66,3 +105,32 @@ On the add-on page under **Score lights**. Replaces the `sports_score_lights` Ap
 - White and black team colors are swapped for bulb-friendly stand-ins (soft ice blue, deep amber) so both colors still show.
 
 Moving from AppDaemon: remove `sports_score_lights` from `apps.yaml` (or stop AppDaemon), then turn on Score lights here with the same light groups and condition.
+
+<!-- docs:config (generated from config.yaml) -->
+## Configuration reference
+
+Every option on the add-on's **Configuration** tab, with its default. Change them there, then restart the add-on.
+
+| Option | Default | Type | What it does |
+|---|---|---|---|
+| `ai_task_entity` | *(empty)* | text, optional | **AI Task entity (optional).** The Home Assistant AI Task entity behind the ✨ AI button. Leave empty to use the first one Home Assistant has. |
+| `mqtt_host` | *(empty)* | text, optional | **MQTT host (optional).** Leave empty to use the Mosquitto add-on automatically. |
+| `mqtt_port` | `1883` | port | **MQTT port.** Only used with an MQTT host. Usually 1883. |
+| `mqtt_username` | *(empty)* | text, optional | **MQTT username (optional).** Only used with an MQTT host. |
+| `mqtt_password` | *(empty)* | secret, optional | **MQTT password (optional).** Only used with an MQTT host. |
+| `publish_team_selector` | `false` | true / false | **Publish team selector.** Also create a select entity so dashboards and automations can switch the tracked team (it includes the live game). |
+| `log_level` | `info` | one of: `debug`, `info`, `warning`, `error` | **Log level.** How chatty the add-on log is. Use debug when troubleshooting. |
+| `backup_path` | `/share/addon_backups/team_tracker_lite` | text | **Backup folder.** Where backups are saved, inside /share, /media or /homeassistant. A folder keeps several dated backups. A path ending in .zip keeps one file that is replaced each time. Open Backups in the add-on page to back up, download or restore. |
+| `backup_every` | `daily` | one of: `off`, `daily`, `weekly` | **Automatic backups.** How often a backup is made by itself (off, daily or weekly). |
+| `backup_keep` | `10` | whole number (1–100) | **Backups to keep.** The newest this many backups are kept in the folder, older ones are deleted. |
+| `wallpaper` | *(empty)* | text, optional | **Wallpaper.** Background image for this add-on's web UI. Leave empty to use your Home Assistant theme's wallpaper, "none" for no wallpaper, or an image: put it in /config/www and enter its file name (pic.jpg) or /local/pic.jpg, or a full https:// link. |
+<!-- /docs:config -->
+
+<!-- docs:footer (generated) -->
+## Help and feedback
+
+- **Logs:** the add-on's **Log** tab shows what it's doing and most errors in plain words.
+- **Changes:** see the [changelog](CHANGELOG.md) (also on the add-on's **Changelog** tab).
+- **Problems or ideas:** [open an issue](https://github.com/jonathangibson98/pi-custom-features/issues) and include the add-on version and the log.
+- **Pages follow your theme:** every page in this repository picks up your Home Assistant theme and wallpaper automatically.
+<!-- /docs:footer -->

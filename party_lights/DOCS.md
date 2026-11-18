@@ -1,4 +1,45 @@
+<!-- docs:header (generated, edit .github/docsgen) -->
 # Party Lights
+
+![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjonathangibson98%2Fpi-custom-features%2Fmain%2Fparty_lights%2Fconfig.yaml&query=%24.version&label=version&color=41BDF5&logo=homeassistant) ![Architectures](https://img.shields.io/badge/arch-aarch64%20%7C%20amd64-informational) ![Sidebar](https://img.shields.io/badge/sidebar-ingress-success) ![Prebuilt image](https://img.shields.io/badge/image-GHCR-2ea44f?logo=docker) ![MQTT](https://img.shields.io/badge/MQTT-optional-660066?logo=mqtt) ![AI Task](https://img.shields.io/badge/AI-ai__task-8A2BE2?logo=googlegemini)
+
+> Music-synced lights, 25 light modes, color themes and 20+ party games, run from a phone-friendly page, a dashboard dropdown, an automation or MQTT.
+
+## At a glance
+
+| | |
+|---|---|
+| Version | `1.1.1` |
+| Slug | `party_lights` |
+| Architectures | `aarch64`, `amd64` |
+| Opens from | the sidebar (**Party Lights**, ingress) |
+| Extra ports | none |
+| Folders it can reach | only its own storage |
+| API access | Home Assistant API, Supervisor API |
+| MQTT | optional (used when available) |
+| Takes commands via `hassio.addon_stdin` | yes |
+| Install | prebuilt image from GHCR |
+
+**You'll need:**
+
+- Color lights
+- A TTS engine and speakers (optional, for announcements)
+- MQTT (optional, for the Home Assistant entities)
+- An `ai_task` entity (optional)
+
+## Contents
+
+- [Setup](#setup)
+- [Lights tab](#lights-tab)
+- [Games & extras](#games--extras)
+- [Music sync](#music-sync)
+- [Album art sensor](#album-art-sensor)
+- [Pick the mode without opening the page](#pick-the-mode-without-opening-the-page)
+- [Home Assistant entities (MQTT)](#home-assistant-entities-mqtt)
+- [Moving from AppDaemon](#moving-from-appdaemon)
+- [Configuration reference](#configuration-reference)
+- [Help and feedback](#help-and-feedback)
+<!-- /docs:header -->
 
 Music-synced lights, light shows and party games, set up on the add-on page. No AppDaemon needed: this replaces the `media_lights_sync` and `art_color` apps.
 
@@ -76,3 +117,27 @@ data:
 ## Moving from AppDaemon
 
 Turn off the `media_lights_sync` and `art_color` apps (remove them from `apps.yaml`), restart AppDaemon, restart Home Assistant once so the old `sensor.music_art_brightness` is gone, then start this add-on so its sensor takes the same entity ID.
+
+<!-- docs:config (generated from config.yaml) -->
+## Configuration reference
+
+Every option on the add-on's **Configuration** tab, with its default. Change them there, then restart the add-on.
+
+| Option | Default | Type | What it does |
+|---|---|---|---|
+| `ai_task_entity` | *(empty)* | text, optional | **AI Task entity (optional).** The Home Assistant AI Task behind the AI hype MC and AI colors. Empty uses your default AI (picked in Personalized Info), then the first one. |
+| `mqtt_host` | *(empty)* | text, optional | **MQTT host (optional).** Leave empty to use the Mosquitto add-on automatically. MQTT makes the Home Assistant controls (switch.party_mode, select.party_effect, ...). |
+| `mqtt_port` | `1883` | port, optional | **MQTT port (optional).** Usually 1883. |
+| `mqtt_username` | *(empty)* | text, optional | **MQTT username (optional).** Only for your own broker. |
+| `mqtt_password` | *(empty)* | secret, optional | **MQTT password (optional).** Only for your own broker. |
+| `wallpaper` | *(empty)* | text, optional | **Wallpaper.** Background image for this add-on's web UI. Leave empty to use your Home Assistant theme's wallpaper, "none" for no wallpaper, or an image: put it in /config/www and enter its file name (pic.jpg) or /local/pic.jpg, or a full https:// link. |
+<!-- /docs:config -->
+
+<!-- docs:footer (generated) -->
+## Help and feedback
+
+- **Logs:** the add-on's **Log** tab shows what it's doing and most errors in plain words.
+- **Changes:** see the [changelog](CHANGELOG.md) (also on the add-on's **Changelog** tab).
+- **Problems or ideas:** [open an issue](https://github.com/jonathangibson98/pi-custom-features/issues) and include the add-on version and the log.
+- **Pages follow your theme:** every page in this repository picks up your Home Assistant theme and wallpaper automatically.
+<!-- /docs:footer -->

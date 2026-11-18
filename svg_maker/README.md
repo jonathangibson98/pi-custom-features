@@ -1,29 +1,34 @@
+<img src="icon.png" alt="" width="96" align="right">
+
 # SVG Maker
 
-Turn photos into clean, scalable SVG icons from your Home Assistant sidebar, or describe a logo and let your AI draw it. Photo conversion runs fully local: your photos never leave your Home Assistant.
+![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjonathangibson98%2Fpi-custom-features%2Fmain%2Fsvg_maker%2Fconfig.yaml&query=%24.version&label=version&color=41BDF5&logo=homeassistant) ![Architectures](https://img.shields.io/badge/arch-aarch64%20%7C%20amd64-informational) ![Sidebar](https://img.shields.io/badge/sidebar-ingress-success) ![Prebuilt image](https://img.shields.io/badge/image-GHCR-2ea44f?logo=docker) ![Deprecated](https://img.shields.io/badge/status-moved%20to%20Photo%20Hub-orange)
 
-- **AI logo tab:** say what you want, pick style, colors and shape, and your `ai_task` entity draws it. Make 1 to 3 ideas, pick one, then ask for changes in plain English
-- Facebook-style crop window: auto-suggested crop, drag and pinch to adjust, circle, rounded, square or full photo
-- Auto-enhance for cleaner shapes and smaller files; color or black and white tracing with adjustable detail
-- Name your file, then Save locally, Download, or Both. Icon-friendly names (`my-dog`) and black and white icons that follow Home Assistant colors
-- Default save folder `/homeassistant/custom_icons` (the Custom Icons integration folder); unsaved results auto-keep in a temp folder, with optional auto-delete
+Turn photos into clean, scalable SVG icons. **Moved into Photo Hub**: this stand-alone add-on still works but gets no new features.
+
+## Features
+
+- Auto crop (circle, rounded, square or full) and auto-enhance
+- Color or black-and-white tracing (vtracer)
+- AI logos through your `ai_task` entity
+- Icons saved to `/homeassistant/custom_icons` with icon-friendly names
+
+## What you need
+
+- Home Assistant OS or Supervised (add-ons need the Supervisor)
+- Nothing extra
+- An `ai_task` entity (optional)
 
 ## Install
 
-1. Settings -> Add-ons -> Add-on Store -> menu (three dots) -> **Repositories**, and add `https://github.com/jonathangibson98/pi-custom-features` if you haven't already.
-2. Open **SVG Maker**, then **Install** and **Start**.
-3. Turn on **Show in sidebar**.
+[![Add this repository to your Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fjonathangibson98%2Fpi-custom-features)
 
-Home Assistant downloads a prebuilt image from GitHub's container registry (`ghcr.io/jonathangibson98/{arch}-addon-svg_maker`), so nothing is built on your Pi. If the install says the image can't be found, open your GitHub profile, **Packages**, `aarch64-addon-svg_maker` / `amd64-addon-svg_maker`, **Package settings**, and set it to **Public**.
+1. Click the button above, or go to **Settings → Add-ons → Add-on Store → ⋮ → Repositories** and add `https://github.com/jonathangibson98/pi-custom-features`.
+2. Find **SVG Maker** in the store and click **Install**.
+3. Check the **Configuration** tab, then **Start**. Turn on **Show in sidebar** to open it from the sidebar.
 
-The image build runs a tracer test, so if the tracer can't run the build fails with a clear message instead of failing on your first conversion.
+## Documentation
 
-## Coming from Creator & AI Builder
-
-SVG Maker used to be a tab inside Creator & AI Builder. It is now this separate add-on with the same `svg_*` options and defaults. Copy over any options you changed (see [DOCS.md](DOCS.md)). Files you already saved are untouched.
-
-## Requirements
-
-- Home Assistant OS or Supervised (needs the add-on system), on a 64-bit Pi (aarch64) or an amd64 machine
-- For the AI logo tab: an `ai_task` entity (default `ai_task.google_ai_task`). Photo conversion needs nothing
-- To use saved icons as `local:<name>`, install the Custom Icons integration (HACS)
+- [Full documentation](DOCS.md), also on the add-on's **Documentation** tab
+- [Changelog](CHANGELOG.md)
+- [All add-ons in this repository](../README.md)
