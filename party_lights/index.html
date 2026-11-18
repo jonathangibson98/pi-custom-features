@@ -118,6 +118,45 @@ nav button.on{color:var(--text)}nav button.on .ic{filter:none;opacity:1}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .banner{margin-top:12px;padding:12px 14px;border-radius:16px;font-size:15px;background:rgba(255,190,90,.12);border:1px solid rgba(255,190,90,.35)}
 </style>
+<!-- ha-mobile v1.0.0: copied from .shared/ha-mobile.css, edit it there -->
+<style id="ha-mobile">
+/* HA Mobile v1.0.0
+ * Shared phone fixes for every add-on page, tuned for the Home Assistant iPhone app.
+ * Copied into each page by .shared/sync_mobile.py: edit it here, then run .shared/sync.sh.
+ * Rules use :where() (no specificity), so a page's own styles always win; only the
+ * font-size rule that stops iOS zooming into text fields is forced.
+ */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+:where(body){overflow-wrap:break-word} /* long words and error text wrap instead of widening the page */
+:where(img,video,canvas){max-width:100%}
+:where(img,video){height:auto}
+:where(pre){max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+:where(code,a,td,th,li,p){overflow-wrap:anywhere}
+:where(table){max-width:100%}
+@media (max-width:760px){
+  /* iOS zooms the whole page into any text field under 16px; this stops it */
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]):not([type=button]):not([type=submit]),
+  select,textarea{font-size:16px!important}
+  :where(body){overflow-x:hidden}
+  /* wide tables scroll sideways instead of stretching the page */
+  :where(table){display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  /* rows of tabs scroll sideways instead of getting cut off */
+  :where(.tabs,.subtabs,.seg,[role=tablist]){flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:100%}
+  :where(.tabs,.subtabs,.seg,[role=tablist])::-webkit-scrollbar{display:none}
+  :where(.tabs,.subtabs,.seg,[role=tablist])>*{flex-shrink:0}
+  :where(dialog,.modal,.dialog,.sheet){max-width:calc(100vw - 16px)}
+}
+@media (pointer:coarse){
+  /* finger-sized targets (Apple's guideline is 44pt) */
+  :where(button,.btn,[role=tab],[role=button],select,summary){min-height:40px}
+  :where(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file])){min-height:40px}
+  :where(input[type=checkbox],input[type=radio]){width:20px;height:20px}
+  :where(input[type=range]){min-height:32px}
+  :where(a[href="backups"]){display:inline-block;padding:10px 12px} /* the Backups link at the bottom of each page */
+  :where(a,button,summary,label,[role=button]){-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+}
+</style>
+<!-- /ha-mobile -->
 </head>
 <body>
 <!-- ha-theme v1.3.0: copied from .shared/ha-theme.js, edit it there -->

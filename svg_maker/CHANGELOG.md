@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.1 - 2026-11-17
+
+- **Better on phones** (built around the Home Assistant iPhone app): text fields no longer make iOS zoom in, buttons and switches are finger-sized, rows of tabs swipe sideways instead of getting cut off, and wide content or long error text no longer pushes the page sideways.
+
 ## 1.6.0 - 2026-11-17
 
 - **SVG Maker now lives inside Photo Hub** as its own tab, next to a new Photo Editor and the shared add-on wallpaper. Everything it does is there, and pictures move between them with one tap (edit a photo, then trace it; turn an SVG back into a picture). Install or update Photo Hub 5.0.0 and copy any SVG settings you changed over to its Configuration tab. This stand-alone add-on keeps working but won't get new features.

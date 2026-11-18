@@ -130,6 +130,9 @@ def main():
       "card corners) and follows it live. Over a wallpaper it checks how bright the picture is and tints behind text just enough to keep it readable. "
       "Outside Home Assistant the pages keep their own look.")
     w("")
+    w("**Made for phones.** Every page is checked at iPhone size inside the Home Assistant app: text fields don't make iOS zoom in, buttons are "
+      "finger-sized, tab rows swipe sideways and nothing pushes the page wider than the screen. The shared rules live in `.shared/ha-mobile.css`.")
+    w("")
     w("**One wallpaper for all of them.** Pick it in **Photo Hub → Wallpaper** (upload, choose a photo, or follow a shuffle or Unsplash collection). "
       "Each add-on's own `wallpaper` option wins over that: empty uses your theme's wallpaper, `none` turns it off, or give an image in "
       "`/config/www` (`pic.jpg` or `/local/pic.jpg`) or an `https://` link.")
@@ -247,10 +250,12 @@ def main():
     w("│   └── dependabot.yml")
     w("├── .shared/                    code every add-on carries a copy of")
     w("│   ├── ha-theme.js             theme and wallpaper bridge for the pages")
+    w("│   ├── ha-mobile.css           phone fixes every page carries (iPhone / Home Assistant app)")
     w("│   ├── ha_ai.py                AI Task helper (picks the default AI)")
     w("│   ├── addon_backup.py         the Backups page and scheduled backups")
     w("│   ├── sync.sh                 copies the shared files into every add-on")
-    w("│   └── sync_theme.py           injects ha-theme.js into every page")
+    w("│   ├── sync_theme.py           injects ha-theme.js into every page")
+    w("│   └── sync_mobile.py          injects ha-mobile.css into every page")
     for s in sorted(ORDER):
         extra = " + standalone Docker" if META[s].get("docker") else ""
         w("├── %-27s %s%s" % (s + "/", C[s]["name"], extra))
@@ -265,8 +270,8 @@ def main():
     w("### Shared code")
     w("")
     w("Each add-on builds from its own folder, so each carries its own copy of the shared files. Edit the file in `.shared/`, then run "
-      "`.shared/sync.sh` from the repository root to copy it everywhere. To add the theme bridge to a new page: "
-      "`python3 .shared/sync_theme.py path/to/page.html`.")
+      "`.shared/sync.sh` from the repository root to copy it everywhere (the backup module, the AI helper, the theme bridge and the phone layer). "
+      "To add the theme bridge to a new page: `python3 .shared/sync_theme.py path/to/page.html`; the phone layer is added to every page with a `</head>` automatically.")
     w("")
     w("### Docs")
     w("")

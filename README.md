@@ -217,6 +217,8 @@
 
 **Pages that match your theme.** Every page reads your active Home Assistant theme (colors, light or dark mode, wallpaper, glass blur, card corners) and follows it live. Over a wallpaper it checks how bright the picture is and tints behind text just enough to keep it readable. Outside Home Assistant the pages keep their own look.
 
+**Made for phones.** Every page is checked at iPhone size inside the Home Assistant app: text fields don't make iOS zoom in, buttons are finger-sized, tab rows swipe sideways and nothing pushes the page wider than the screen. The shared rules live in `.shared/ha-mobile.css`.
+
 **One wallpaper for all of them.** Pick it in **Photo Hub → Wallpaper** (upload, choose a photo, or follow a shuffle or Unsplash collection). Each add-on's own `wallpaper` option wins over that: empty uses your theme's wallpaper, `none` turns it off, or give an image in `/config/www` (`pic.jpg` or `/local/pic.jpg`) or an `https://` link.
 
 **Backups built in.** Every add-on that keeps data has a **Backups** page (back up now, download, restore, restore from a file) and `backup_path`, `backup_every` and `backup_keep` options (default `/share/addon_backups/<slug>`, daily, keep 10). Creator & AI Builder and Release Tracker have their own backup pages. Backups include the Configuration tab, so keep the folder private.
@@ -331,10 +333,12 @@ pi-custom-features/
 │   └── dependabot.yml
 ├── .shared/                    code every add-on carries a copy of
 │   ├── ha-theme.js             theme and wallpaper bridge for the pages
+│   ├── ha-mobile.css           phone fixes every page carries (iPhone / Home Assistant app)
 │   ├── ha_ai.py                AI Task helper (picks the default AI)
 │   ├── addon_backup.py         the Backups page and scheduled backups
 │   ├── sync.sh                 copies the shared files into every add-on
-│   └── sync_theme.py           injects ha-theme.js into every page
+│   ├── sync_theme.py           injects ha-theme.js into every page
+│   └── sync_mobile.py          injects ha-mobile.css into every page
 ├── ai_builder/                 Creator & AI Builder
 ├── party_lights/               Party Lights
 ├── personal_ai_speech/         Personal AI Speech
@@ -356,7 +360,7 @@ Every add-on folder has at least `config.yaml`, `Dockerfile`, `DOCS.md`, `README
 
 ### Shared code
 
-Each add-on builds from its own folder, so each carries its own copy of the shared files. Edit the file in `.shared/`, then run `.shared/sync.sh` from the repository root to copy it everywhere. To add the theme bridge to a new page: `python3 .shared/sync_theme.py path/to/page.html`.
+Each add-on builds from its own folder, so each carries its own copy of the shared files. Edit the file in `.shared/`, then run `.shared/sync.sh` from the repository root to copy it everywhere (the backup module, the AI helper, the theme bridge and the phone layer). To add the theme bridge to a new page: `python3 .shared/sync_theme.py path/to/page.html`; the phone layer is added to every page with a `</head>` automatically.
 
 ### Docs
 

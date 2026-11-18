@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.1 - 2026-11-17
+
+- **Better on phones** (built around the Home Assistant iPhone app): text fields no longer make iOS zoom in, buttons and switches are finger-sized, rows of tabs swipe sideways instead of getting cut off, and wide content or long error text no longer pushes the page sideways.
+- Flask updated to 3.1.3 (replaces the Dependabot pull request).
+
 ## 1.9.0 - 2026-11-17
 
 - **Fixed: music search almost always said "MusicBrainz is busy"**. MusicBrainz's search servers turn away a share of requests at random even when you're well under their limit, and the add-on gave up on the first refusal. Busy answers, timeouts and dropped connections are now retried with a growing pause (up to 5 tries), so searches go through, usually in 2 to 10 seconds.

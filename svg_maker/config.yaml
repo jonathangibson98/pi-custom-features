@@ -1,5 +1,5 @@
 name: "SVG Maker"
-version: "1.6.0"
+version: "1.6.1"
 slug: svg_maker
 description: "Moved into Photo Hub (SVG Maker tab). This stand-alone version still works but gets no new features."
 image: "ghcr.io/jonathangibson98/{arch}-addon-svg_maker"

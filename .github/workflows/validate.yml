@@ -226,6 +226,10 @@ jobs:
           pip install --quiet ruff
           ruff check --select E9,F63,F7,F82 --output-format=github .
 
+      - name: Phone layer is in every page
+        run: |
+          python3 .shared/sync_mobile.py --check || echo "::warning::Run .shared/sync.sh to copy .shared/ha-mobile.css into every page"
+
   build:
     name: Build (${{ matrix.name }})
     needs: discover
