@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.2 - 2026-11-17
+
+- **Better on phones** (built around the Home Assistant iPhone app): text fields no longer make iOS zoom in, buttons and switches are finger-sized, rows of tabs swipe sideways instead of getting cut off, and wide content or long error text no longer pushes the page sideways.
+
 ## 1.8.1 - 2026-11-17
 
 - With `ai_task_entity` empty, the AI uses your **default AI**, picked at the top of Personalized Info (`select.default_ai_task`), then the first AI Task.

@@ -1,5 +1,5 @@
 name: Photo Hub
-version: "5.0.1"
+version: "5.0.2"
 slug: photo_shuffle
 image: "ghcr.io/jonathangibson98/{arch}-addon-photo_shuffle"
 description: Photo shuffles, Unsplash collections, the shared add-on wallpaper, a Photo Editor with AI tools, and SVG Maker in one place

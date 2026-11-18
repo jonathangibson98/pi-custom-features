@@ -9,7 +9,7 @@
 
 | | |
 |---|---|
-| Version | `1.3.2` |
+| Version | `1.3.3` |
 | Slug | `personal_ai_speech` |
 | Architectures | `aarch64`, `amd64` |
 | Opens from | the sidebar (**Personal AI Speech**, ingress) |
@@ -142,4 +142,5 @@ Every option on the add-on's **Configuration** tab, with its default. Change the
 - **Changes:** see the [changelog](CHANGELOG.md) (also on the add-on's **Changelog** tab).
 - **Problems or ideas:** [open an issue](https://github.com/jonathangibson98/pi-custom-features/issues) and include the add-on version and the log.
 - **Pages follow your theme:** every page in this repository picks up your Home Assistant theme and wallpaper automatically.
+- **On your phone:** the pages are built for the Home Assistant iPhone and Android apps. Turn on **Show in sidebar** to reach them from the app's menu.
 <!-- /docs:footer -->

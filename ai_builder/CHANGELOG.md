@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.1.1 - 2026-11-17
+
+- **Better on phones** (built around the Home Assistant iPhone app): text fields no longer make iOS zoom in, buttons and switches are finger-sized, rows of tabs swipe sideways instead of getting cut off, and wide content or long error text no longer pushes the page sideways.
+
 ## 3.1.0 - 2026-11-17
 
 - **My screens** (Dashboards): save your real screens and pick them under **Shown on**. The preview, **Does it fit?** and the AI then use their exact size.

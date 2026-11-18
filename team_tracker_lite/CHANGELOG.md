@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.1 - 2026-11-17
+
+- **Better on phones** (built around the Home Assistant iPhone app): text fields no longer make iOS zoom in, buttons and switches are finger-sized, rows of tabs swipe sideways instead of getting cut off, and wide content or long error text no longer pushes the page sideways.
+
 ## 0.8.0 - 2026-11-17
 
 - **Score lights** (replaces the `sports_score_lights` AppDaemon app): two groups of color lights show the teams' colors and swap every 30 seconds (adjustable). When someone scores they flash that team's colors: field goals and touchdowns in football (not the extra point on its own), threes in basketball, any score in other sports, or every score if you prefer. Celebrates when your team wins. Optional "only when" helper (for example a mode select set to Sports), only on game day, brightness, **Test flash**. Remembers the score across restarts so nothing is missed.

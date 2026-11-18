@@ -225,6 +225,7 @@ def write_docs(slug, c, t):
         "- **Changes:** see the [changelog](CHANGELOG.md) (also on the add-on's **Changelog** tab).",
         "- **Problems or ideas:** [open an issue](https://github.com/%s/issues) and include the add-on version and the log." % REPO,
         "- **Pages follow your theme:** every page in this repository picks up your Home Assistant theme and wallpaper automatically.",
+        "- **On your phone:** the pages are built for the Home Assistant iPhone and Android apps. Turn on **Show in sidebar** to reach them from the app's menu.",
         F_END, "",
     ])
     out = header + "\n" + body.rstrip() + "\n" + cfg + "\n" + footer

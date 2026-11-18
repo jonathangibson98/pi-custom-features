@@ -14,3 +14,5 @@ done
 echo "ha_ai.py synced"
 # Then the theme script into every page (each copy gets its own add-on name).
 python3 .shared/sync_theme.py
+# And the phone fixes into every page.
+python3 .shared/sync_mobile.py

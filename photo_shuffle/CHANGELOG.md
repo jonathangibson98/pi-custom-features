@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.0.2 - 2026-11-17
+
+- **Better on phones** (built around the Home Assistant iPhone app): text fields no longer make iOS zoom in, buttons and switches are finger-sized, rows of tabs swipe sideways instead of getting cut off, and wide content or long error text no longer pushes the page sideways.
+- The tab row (Folders, Unsplash, Wallpaper, Photo Editor, SVG Maker) swipes sideways on phones, so SVG Maker isn't cut off.
+
 ## 5.0.1 - 2026-11-17
 
 - SVG Maker and the Photo Editor's AI use your **default AI** (picked in Personalized Info, `select.default_ai_task`) when `svg_ai_task_entity` points at an AI Task you don't have, so the AI works out of the box.

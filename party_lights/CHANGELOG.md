@@ -7,6 +7,7 @@
 - **Music sync checklist**: the Music tab shows ✓/✕ for the player, playback, lights and your helper, plus when it last synced and to what colors.
 - **Far fewer Home Assistant entities**: one switch, light mode, colors, brightness, speed, a **Game** dropdown, a **Quick hit** dropdown and a status sensor, instead of a switch or button per game. The old ones are removed automatically.
 - **New page, built for iPhone**: bottom tab bar clear of the home indicator, big round party button, 3-across light modes, swipeable colors, iOS-style switches for games, game settings in a pull-up sheet (long-press a quick hit for its settings), 16 px inputs so iOS doesn't zoom, haptic taps where supported. Players, lights and speakers save as soon as you pick them.
+- Shared phone fixes like every other add-on: text fields no longer make iOS zoom in, buttons and switches are finger-sized, rows of tabs swipe sideways instead of getting cut off, and wide content or long error text no longer pushes the page sideways.
 
 ## 1.1.1 - 2026-11-17
 

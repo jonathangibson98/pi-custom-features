@@ -1,5 +1,5 @@
 name: "Pi Health Monitor"
-version: "1.5.1"
+version: "1.5.2"
 slug: pi_health_monitor
 image: "ghcr.io/jonathangibson98/{arch}-addon-pi_health_monitor"
 description: "Lightweight health check for your Pi: CPU, memory, temp, power, storage wear, updates, backups, repairs, log errors, unavailable entities and what fills the database, with AI fix tips"
