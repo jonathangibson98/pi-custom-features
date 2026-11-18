@@ -1,5 +1,5 @@
 name: "Creator & AI Builder"
-version: "3.0.2"
+version: "3.0.3"
 slug: ai_builder
 "image": "ghcr.io/jonathangibson98/{arch}-addon-ai_builder"
 description: "Build automations, dashboards, cards, helpers and more from plain English, edit whole dashboards sized for your TV or tablet, make voice announcements and facts, manage text-file sensors, and back it all up."

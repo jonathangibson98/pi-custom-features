@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.3 - 2026-11-17
+
+- **Fixed: the Dashboards preview didn't match the real screen** for layout-card views. `custom:vertical-layout`, `masonry-layout`, `horizontal-layout` and `grid-layout` are now laid out like layout-card does it: `width`, `max_cols`, `min_cols`, `max_width`, `margin`, `padding` and `card_margin`, cards pinned with `view_layout: column`, and `layout-break`. A cast view with `max_cols: 2` now shows 2 columns with every card in its own column, not 3.
+- **Fixed: the view's background** is used in the preview. That includes an image entity picked in the editor (`media-source://image/image.…`), plus its opacity, size and position, instead of the theme's wallpaper.
+- Home Assistant's own masonry view now uses Home Assistant's column breakpoints, so the column count matches it.
+
 ## 3.0.2 - 2026-11-17
 
 - **Fixed: the Dashboards preview was blank** (in the phone app it can't sign in to a dashboard shown inside the page). The preview is now drawn by the Home Assistant page itself, with your real cards, custom cards, card-mod, theme and live states, sized to the screen you picked. It follows the view's layout (sections, masonry or panel) closely but not pixel-perfect; **open the real thing** shows the exact dashboard in a new tab. **Does it fit?** now also says how much room is left.

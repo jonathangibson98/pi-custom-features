@@ -939,6 +939,23 @@ function pvHost() {
   addEventListener("pagehide", gone); addEventListener("unload", gone);
   return PV;
 }
+/* a view's background, the way Home Assistant draws it: a CSS string, or {image, opacity, size, alignment, repeat, attachment} */
+function viewBackground(bg, hass) {
+  const dflt = "var(--lovelace-background,var(--primary-background-color))";
+  if (!bg) return dflt;
+  if (typeof bg === "string") return bg;
+  let img = bg.image, url = "";
+  if (img && typeof img === "object") {
+    const id = String(img.media_content_id || ""), m = /^media-source:\/\/image\/(image\.[\w]+)/.exec(id);
+    if (m && hass && hass.states[m[1]]) url = hass.states[m[1]].attributes.entity_picture || "";
+    if (!url) url = (img.metadata && img.metadata.thumbnail) || "";
+  } else if (typeof img === "string") url = img;
+  if (!url) return dflt;
+  const op = bg.opacity == null ? 100 : Math.max(0, Math.min(100, +bg.opacity)), shade = "color-mix(in srgb, var(--primary-background-color,#111) " + (100 - op) + "%, transparent)";
+  const pos = (bg.alignment || "center").replace(/-/g, " ");
+  return "linear-gradient(" + shade + "," + shade + "), " + pos + " / " + (bg.size || "cover") + " " + (bg.repeat || "no-repeat") +
+    ' url("' + url.replace(/"/g, "%22") + '"), var(--primary-background-color)';
+}
 const SPAN = {tile: 6, button: 3, entity: 6, "sensor": 6, gauge: 6, "light": 6, thermostat: 12, heading: 12};
 async function drawPreview() {
   if (!HA) { msg("#fitmsg", "The preview only works when this page is opened from the Home Assistant sidebar.", "warn"); return; }
@@ -951,13 +968,14 @@ async function drawPreview() {
   const mk = c => { let e; try { e = helpers.createCardElement(c); } catch (x) { e = helpers.createCardElement({type: "error", error: String(x), origConfig: c}); } e.hass = hass; P.cards.push(e); return e; };
   const box = (css, kids) => { const b = d.createElement("div"); b.style.cssText = css; (kids || []).forEach(k => b.append(k)); return b; };
   P.scr.replaceChildren();
-  if (v.background) P.scr.style.background = typeof v.background === "string" ? v.background : "var(--lovelace-background,var(--primary-background-color))";
-  else P.scr.style.background = "var(--lovelace-background,var(--primary-background-color))";
+  P.scr.style.background = viewBackground(v.background, hass);
   const top = $("#nohead").checked ? 0 : 56;
   if (top) P.scr.append(box("height:56px;display:flex;align-items:center;padding:0 16px;font-size:20px;background:var(--app-header-background-color,var(--primary-color));color:var(--app-header-text-color,#fff)", [d.createTextNode(v.title || "Dashboard")]));
-  const body = box("padding:8px;box-sizing:border-box;width:100%");
+  const lay = v.layout || {}, custom = /^custom:(vertical|masonry|horizontal|grid)-layout$/.test(v.type || "");
+  const px = (x, d) => x == null || x === "" ? d : (typeof x === "number" ? x + "px" : String(x));
+  const body = box("padding:" + (custom ? px(lay.padding, "4px 4px 0") : "8px") + ";margin:" + (custom ? px(lay.margin, "0") : "0") + ";box-sizing:border-box;width:100%");
   P.body = body; P.scr.append(body);
-  const W = s.w - 16, type = v.type || (v.sections ? "sections" : "masonry");
+  const W = s.w - (custom ? 0 : 16), type = v.type || (v.sections ? "sections" : "masonry");
   if (type === "panel") {
     body.style.height = (s.h - top) + "px"; body.style.padding = "0";
     if ((v.cards || [])[0]) body.append(box("height:100%", [mk(v.cards[0])]));
@@ -976,14 +994,45 @@ async function drawPreview() {
       grid.append(sg);
     });
     body.append(grid);
+  } else if (type === "custom:grid-layout") {
+    /* layout-card grid: the layout keys are CSS grid properties, view_layout places each card */
+    const g = box("display:grid;gap:" + px(lay["grid-gap"] || lay.gap, "8px"));
+    Object.entries(lay).forEach(([k, val]) => { if (/^grid-/.test(k) && k !== "grid-gap") g.style.setProperty(k, String(val)); });
+    if (lay.place_items || lay["place-items"]) g.style.placeItems = lay.place_items || lay["place-items"];
+    (v.cards || []).forEach(c => {
+      const vl = c.view_layout || {}, cell = box("min-width:0");
+      ["grid-area", "grid-column", "grid-row", "place-self"].forEach(k => { if (vl[k] != null) cell.style.setProperty(k, String(vl[k])); });
+      if (c.type !== "custom:layout-break") { cell.append(mk(c)); g.append(cell); }
+    });
+    body.append(g);
   } else {
-    const n = Math.max(1, Math.min(v.max_columns || 4, Math.floor(W / 340)));
-    const colsEl = [...Array(n)].map(() => box("display:flex;flex-direction:column;gap:8px;min-width:0"));
-    body.append(box("display:grid;grid-template-columns:repeat(" + n + ",minmax(0,1fr));gap:8px;align-items:start", colsEl));
+    /* columns: layout-card's vertical / masonry / horizontal layouts, or Home Assistant's own masonry view */
+    let n, gap = "8px", maxW = "none";
+    if (custom) {
+      const cw = +lay.width || 300;
+      n = Math.max(+lay.min_cols || 1, Math.min(+lay.max_cols || 4, Math.floor(W / cw)));
+      gap = px(lay.card_margin, "4px");
+      maxW = (+lay.max_width || 500) + "px";
+    } else {
+      /* Home Assistant adds a column at 550, 850, 1150 and 1450 px wide */
+      n = Math.max(1, Math.min(v.max_columns || 4, 1 + [550, 850, 1150, 1450].filter(b => W + 16 >= b).length));
+    }
+    const colsEl = [...Array(n)].map(() => box("display:flex;flex-direction:column;gap:" + gap + ";min-width:0;max-width:" + maxW + ";width:100%"));
+    body.append(box("display:grid;grid-template-columns:repeat(" + n + ",minmax(0,1fr));gap:" + gap + ";align-items:start;justify-items:center", colsEl));
+    let cur = 0, i = 0;
+    const pinned = c => { const col = +((c.view_layout || {}).column); return col > 0 ? Math.min(n, col) - 1 : -1; };
     for (const c of v.cards || []) {
-      const shortest = colsEl.reduce((a, b) => (b.offsetHeight < a.offsetHeight ? b : a));
-      shortest.append(mk(c));
-      await new Promise(r => setTimeout(r, 30));  // let it draw so the next card goes in the shortest column
+      if (c.type === "custom:layout-break") { cur = Math.min(n - 1, cur + 1); continue; }
+      if (((c.view_layout || {}).show || {}).mediaquery) { /* shown or hidden by screen size */
+        try { if (!matchMedia(c.view_layout.show.mediaquery).matches) continue; } catch (e) {}
+      }
+      let at = pinned(c);
+      if (type === "custom:vertical-layout") { if (at >= 0) cur = at; at = cur; }
+      else if (type === "custom:horizontal-layout") { if (at < 0) at = i % n; }
+      else if (at < 0) at = colsEl.indexOf(colsEl.reduce((a, b) => (b.offsetHeight < a.offsetHeight ? b : a)));
+      colsEl[at].append(mk(c));
+      i++;
+      if (type !== "custom:vertical-layout" && type !== "custom:horizontal-layout") await new Promise(r => setTimeout(r, 30));  // let it draw so the next card goes in the shortest column
     }
   }
   if (!(v.cards || []).length && !(v.sections || []).length) body.append(box("padding:40px;text-align:center;opacity:.7", [d.createTextNode("This view is empty.")]));
