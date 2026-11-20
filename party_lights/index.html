@@ -52,6 +52,9 @@ header .in{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:12p
 .chip{display:inline-flex;align-items:center;gap:6px;background:var(--card2);border-radius:99px;padding:6px 8px 6px 12px;font-size:14px;max-width:100%}
 .chip.run{background:rgba(255,43,214,.16);color:#ffc2f0;padding-right:12px}
 .chip button{min-height:26px;width:26px;padding:0;border-radius:50%;background:rgba(255,255,255,.08);font-size:15px}
+.dev{display:flex;align-items:center;gap:8px;min-height:60px;border-bottom:1px solid rgba(255,255,255,.06)}.dev:last-child{border-bottom:0}
+.dev.off .dn{opacity:.45}.dev .dn{font-size:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.dev button{min-width:40px;min-height:40px;padding:0 8px;font-size:16px}
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:4px 10px;border-radius:99px;background:var(--card2);color:var(--dim)}
 .pill.ok{color:var(--ok);background:rgba(78,230,155,.12)}.pill.bad{color:var(--bad);background:rgba(255,107,139,.12)}
 .modes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -866,13 +869,16 @@ window.__hbAddon = "party_lights";
       <div id="ms-checks" style="margin-top:8px"></div>
       <div id="ms-last" class="tiny dim" style="margin-top:6px"></div>
     </div>
+    <h2>Devices</h2>
+    <div class="card">
+      <div class="small dim">Tap ✎ to edit a device, ↑↓ to reorder, the switch to turn one off for music sync. Lights take the cover's colors in this order.</div>
+      <label class="l">Lights to color</label><div id="d-lights"></div>
+      <label class="l">Music players to follow</label><div id="d-players"></div>
+      <div class="tiny dim" style="margin-top:6px">No players listed follows the album-art player below, or whatever is playing.</div>
+    </div>
     <h2>Settings</h2>
     <div class="card">
-      <label class="l">Music players to follow</label><div id="m-players"></div>
-      <div class="tiny dim" style="margin-top:6px">Empty follows the album-art player below, or whatever is playing.</div>
-      <label class="l">Lights to color</label><div id="m-lights"></div>
-      <div class="tiny dim" style="margin-top:6px">Empty uses the party lights from Setup.</div>
-      <div style="margin-top:12px">
+      <div>
         <div class="opt"><div class="grow">All lights the same color<div class="tiny dim">The most colorful one from the cover</div></div><label class="sw2"><input type="checkbox" id="m-same"><span></span></label></div>
         <div class="opt"><div class="grow">Boost dull colors</div><label class="sw2"><input type="checkbox" id="m-sat"><span></span></label></div>
         <div class="opt"><div class="grow">Sync even when the party is off</div><label class="sw2"><input type="checkbox" id="m-always"><span></span></label></div>
@@ -882,6 +888,25 @@ window.__hbAddon = "party_lights";
       <label class="l">Only sync when this helper…</label><select id="m-cent"></select>
       <label class="l">…is set to</label><select id="m-cstate"></select>
       <button class="pri" id="m-save" style="width:100%;margin-top:16px">Save</button>
+    </div>
+    <h2>Advanced</h2>
+    <div class="card">
+      <div class="opt"><div class="grow">Put lights back when the music stops<div class="tiny dim">Like reset_lights_after in media_lights_sync</div></div><label class="sw2"><input type="checkbox" id="m-reset"><span></span></label></div>
+      <label class="l">How colors are picked from the cover</label>
+      <select id="m-quant"><option value="">Fast octree (default)</option><option value="MedianCut">Median cut</option><option value="MaxCoverage">Max coverage</option><option value="libimagequant">libimagequant (if available)</option></select>
+      <label class="l">Only sync when this template is true (optional)</label>
+      <textarea id="m-tpl" rows="3" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="{{ is_state('input_boolean.movie_mode', 'off') }}"></textarea>
+      <div class="tiny dim" style="margin-top:6px">Replaces the helper above when filled in.</div>
+      <div class="opt" style="margin-top:6px"><div class="grow">Check HTTPS certificates of cover links<div class="tiny dim">Turn off for self-signed certificates</div></div><label class="sw2"><input type="checkbox" id="m-verify"><span></span></label></div>
+      <label class="l">Home Assistant URL for relative cover links (optional)</label><input id="m-haurl" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="http://homeassistant.local:8123">
+      <button class="pri" id="m-adv-save" style="width:100%;margin-top:16px">Save</button>
+    </div>
+    <h2>Import from AppDaemon</h2>
+    <div class="card">
+      <div class="small dim">Paste your <code>media_lights_sync</code> block from <code>apps.yaml</code> and its lights, players and options fill in above.</div>
+      <textarea id="i-yaml" rows="9" autocapitalize="off" autocorrect="off" spellcheck="false" style="margin-top:10px;font-family:ui-monospace,Menlo,monospace" placeholder="media_lights_sync:&#10;  module: media_lights_sync&#10;  class: MediaLightsSync&#10;  media_player: media_player.living_room&#10;  lights:&#10;    - light.lamp_left&#10;    - light.lamp_right"></textarea>
+      <button class="pri" id="i-go" style="width:100%;margin-top:12px">Import</button>
+      <div id="i-out" class="tiny" style="margin-top:8px"></div>
     </div>
     <h2>Album art sensor</h2>
     <div class="card">
@@ -1029,6 +1054,70 @@ function gameSheet(k) {
     });
 }
 
+let devSig = "";
+function drawDevices() {
+  const m = S.settings.music, ents = [].concat(ENTS.light || [], ENTS.media_player || []);
+  const sig = JSON.stringify([m.lights, m.media_players, m.devices, S.settings.lights, ents.map(e => e.id + e.name + e.state)]);
+  if (sig === devSig || !Object.keys(ENTS).length) return;
+  devSig = sig;
+  const dv = id => Object.assign({enabled: true, slot: 0, brightness: 0, transition: -1}, (m.devices || {})[id]);
+  const row = (kind, id, i, n) => {
+    const d = dv(id), e = ents.find(x => x.id === id), bits = [];
+    if (kind === "light") { bits.push(d.slot ? "Color " + d.slot : "Auto color"); if (d.brightness) bits.push(d.brightness + "%"); if (d.transition >= 0) bits.push(d.transition + "s fade"); }
+    else bits.push(e ? e.state : "not found");
+    return '<div class="dev' + (d.enabled ? "" : " off") + '" data-k="' + kind + '" data-id="' + esc(id) + '" data-i="' + i + '"><div class="grow"><div class="dn">' + esc(name(id)) + '</div><div class="tiny dim">' + esc(bits.join(" · ")) + "</div></div>" +
+      (kind === "light" ? '<button class="ghost" data-a="up" aria-label="Move up"' + (i ? "" : " disabled") + '>↑</button><button class="ghost" data-a="down" aria-label="Move down"' + (i < n - 1 ? "" : " disabled") + ">↓</button>" : "") +
+      '<button class="ghost" data-a="edit" aria-label="Edit">✎</button><label class="sw2"><input type="checkbox" data-a="en"' + (d.enabled ? " checked" : "") + "><span></span></label></div>";
+  };
+  const block = (el, kind, list, dom, hint, empty) => {
+    const pool = (ENTS[dom] || []).filter(e => !list.includes(e.id));
+    el.innerHTML = (list.length ? list.map((id, i) => row(kind, id, i, list.length)).join("") : '<div class="small dim" style="padding:6px 0">' + empty + "</div>") +
+      '<select data-a="add" style="margin-top:10px"><option value="">+ Add ' + hint + "</option>" + pool.map(e => '<option value="' + esc(e.id) + '">' + esc(e.name) + "</option>").join("") + "</select>" +
+      (kind === "light" && !list.length && S.settings.lights.length ? '<button class="ghost" data-a="fromsetup" style="width:100%;margin-top:8px">Use the party lights from Setup</button>' : "");
+    el.onchange = ev => {
+      const t = ev.target, a = t.dataset.a, r = t.closest(".dev");
+      if (a === "add" && t.value) { const nl = [...list, t.value]; save({music: {[kind === "light" ? "lights" : "media_players"]: nl}}).then(() => { toast("Added"); if (kind !== "light") act("music_now"); }); }
+      if (a === "en" && r) save({music: {devices: {[r.dataset.id]: {enabled: t.checked}}}}).then(() => { toast(t.checked ? "On for music sync" : "Off for music sync"); act("music_now"); });
+    };
+    el.onclick = ev => {
+      const b = ev.target.closest("button[data-a]"); if (!b) return;
+      const a = b.dataset.a, r = b.closest(".dev");
+      if (a === "fromsetup") return save({music: {lights: [...S.settings.lights]}}).then(() => toast("Added your party lights"));
+      if (!r) return;
+      const i = +r.dataset.i, nl = [...list];
+      if (a === "edit") devSheet(kind, r.dataset.id);
+      if ((a === "up" && i > 0) || (a === "down" && i < nl.length - 1)) { const j = a === "up" ? i - 1 : i + 1; [nl[i], nl[j]] = [nl[j], nl[i]]; buzz(); save({music: {lights: nl}}).then(() => act("music_now")); }
+    };
+  };
+  const keepFocus = ["d-lights", "d-players"].some(id => $("#" + id).contains(document.activeElement));
+  if (keepFocus) { devSig = ""; return; }
+  block($("#d-lights"), "light", [...m.lights], "light", "a light", "No lights listed. Music sync uses the party lights from Setup.");
+  block($("#d-players"), "player", [...m.media_players], "media_player", "a player", "No players listed.");
+}
+function devSheet(kind, id) {
+  const m = S.settings.music, isL = kind === "light";
+  const d = Object.assign({enabled: true, slot: 0, brightness: 0, transition: -1}, (m.devices || {})[id]);
+  const n = Math.max(3, Math.min(8, m.lights.length));
+  const slots = '<option value="0"' + (d.slot ? "" : " selected") + ">Auto (by order)</option>" + Array.from({length: n}, (_, k) => '<option value="' + (k + 1) + '"' + (d.slot === k + 1 ? " selected" : "") + ">Color " + (k + 1) + "</option>").join("");
+  openSheet('<div class="title">' + (isL ? "💡 " : "🎵 ") + esc(name(id)) + '</div><div class="tiny dim" style="margin-top:2px"><code>' + esc(id) + "</code></div>" +
+    '<div class="opt" style="margin-top:8px"><div class="grow">Use for music sync</div><label class="sw2"><input type="checkbox" id="d-en"' + (d.enabled ? " checked" : "") + "><span></span></label></div>" +
+    (isL ? '<label class="l">Which color from the cover</label><select id="d-slot">' + slots + "</select>" +
+      '<div class="g2"><div><label class="l">Brightness %</label><input type="number" inputmode="numeric" id="d-bri" min="0" max="100" value="' + (d.brightness || "") + '" placeholder="Same as Music"></div>' +
+      '<div><label class="l">Fade (sec)</label><input type="number" inputmode="decimal" id="d-tr" min="0" max="10" step="0.5" value="' + (d.transition >= 0 ? d.transition : "") + '" placeholder="Same as Music"></div></div>' : "") +
+    '<button class="pri" id="d-save" style="width:100%;margin-top:16px">Save</button><button class="ghost" id="d-rm" style="width:100%;margin-top:8px">Remove from music sync</button>',
+    root => {
+      root.querySelector("#d-save").onclick = async () => {
+        const v = {enabled: root.querySelector("#d-en").checked};
+        if (isL) { v.slot = +root.querySelector("#d-slot").value || 0; v.brightness = Math.max(0, Math.min(100, +root.querySelector("#d-bri").value || 0)); const t = root.querySelector("#d-tr").value; v.transition = t === "" ? -1 : Math.max(0, +t || 0); }
+        await save({music: {devices: {[id]: v}}}); closeSheet(); toast("Saved"); act("music_now");
+      };
+      root.querySelector("#d-rm").onclick = async () => {
+        const key = isL ? "lights" : "media_players";
+        await save({music: {[key]: m[key].filter(x => x !== id)}}); closeSheet(); toast("Removed"); act("music_now");
+      };
+    });
+}
+
 function buildStatic() {
   $("#modes").innerHTML = Object.entries(S.effects).map(([k, v]) => '<button class="m' + (k === "off" ? " off" : "") + '" data-e="' + k + '"><span class="ic">' + (S.effect_icons[k] || "💡") + "</span>" + esc(v) + "</button>").join("");
   $$("#modes button").forEach(b => b.onclick = () => { buzz(); act("effect", {effect: b.dataset.e}).then(() => toast((S.effect_icons[b.dataset.e] || "") + " " + S.effects[b.dataset.e])); });
@@ -1111,6 +1200,8 @@ function drawMusic() {
     const cur = m.condition_entity === $("#m-cent").value ? (m.condition_state || "") : "";
     $("#m-cstate").innerHTML = (options.includes(cur) || !cur ? "" : '<option value="' + esc(cur) + '">' + esc(cur) + "</option>") + options.map(o => '<option value="' + esc(o) + '"' + (o === cur ? " selected" : "") + ">" + esc(o) + "</option>").join("");
   }
+  setv($("#m-reset"), m.reset_after); setv($("#m-quant"), m.quantization || ""); setv($("#m-tpl"), m.condition_template); setv($("#m-verify"), m.verify_cert !== false); setv($("#m-haurl"), m.ha_url);
+  drawDevices();
   setv($("#a-on"), a.enabled); setv($("#a-eid"), a.entity_id);
   $("#a-now").textContent = S.art && S.art.brightness != null ? "Now: brightness " + S.art.brightness + " of 255 · main color " + S.art.color : "";
 }
@@ -1131,8 +1222,7 @@ function drawSetup() {
 }
 function buildForms() {
   const st = S.settings, m = st.music;
-  picker($("#m-players"), ["media_player"], [...m.media_players], v => save({music: {media_players: v}}).then(() => { toast("Saved"); act("music_now"); }), "a player");
-  picker($("#m-lights"), ["light"], [...m.lights], v => save({music: {lights: v}}).then(() => toast("Saved")), "a light");
+  devSig = "";
   picker($("#s-lights"), ["light"], [...st.lights], v => save({lights: v}).then(() => toast("Saved")), "a light");
   picker($("#s-speakers"), ["media_player"], [...st.announce.speakers], v => save({announce: {speakers: v}}).then(() => toast("Saved")), "a speaker");
   picker($("#exclude"), ["person"], [...st.people.exclude], v => save({people: {exclude: v}}), "someone");
@@ -1166,6 +1256,16 @@ $("#m-save").onclick = async () => {
   await save({music: {media_players: m.media_players, lights: m.lights, brightness: +$("#m-bri").value || 0, transition: +$("#m-tr").value || 0, saturate: $("#m-sat").checked,
     same_color: $("#m-same").checked, always: $("#m-always").checked, condition_entity: $("#m-cent").value, condition_state: $("#m-cent").value ? $("#m-cstate").value : ""}});
   toast("🎵 Music sync saved"); act("music_now");
+};
+$("#m-adv-save").onclick = async () => {
+  await save({music: {reset_after: $("#m-reset").checked, quantization: $("#m-quant").value, condition_template: $("#m-tpl").value.trim(), verify_cert: $("#m-verify").checked, ha_url: $("#m-haurl").value.trim()}});
+  toast("Saved"); act("music_now");
+};
+$("#i-go").onclick = async () => {
+  const text = $("#i-yaml").value.trim(); if (!text) return toast("Paste the app's block first");
+  const r = await act("import_media_sync", {text});
+  $("#i-out").innerHTML = r.ok ? '<span class="pill ok">✓ Imported</span> ' + esc((r.summary || []).join(" · ")) : "";
+  if (r.ok) { $("#i-yaml").value = ""; formsBuilt = false; devSig = ""; draw(); toast("🎵 Imported"); act("music_now"); }
 };
 $("#m-now").onclick = () => { buzz(); act("music_now").then(r => toast(r.ok ? "🎵 Synced to the current song" : "⚠️ " + (r.error || "Couldn't sync"))); };
 $("#a-save").onclick = () => save({art: {enabled: $("#a-on").checked, media_player: $("#a-player").value, entity_id: $("#a-eid").value.trim() || "sensor.music_art_brightness"}}).then(() => toast("Saved"));

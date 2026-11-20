@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0 - 2026-11-20
+
+- **Devices section on the Music tab.** Every light and music player music sync uses is in one list: tap ✎ to edit it, ↑↓ to change which light gets which color, and a switch to turn a device off for music sync without removing it. Add or remove devices from the same place.
+- **Per-light settings**: pick which cover color a light gets (Auto or Color 1–8), and give it its own brightness and fade instead of the shared ones.
+- **`media_lights_sync` options, now built in**: put the lights back when the music stops (`reset_lights_after`), choose how colors are picked from the cover (Fast octree, Median cut, Max coverage, libimagequant), an "only sync when this template is true" condition (`value_template`), HTTPS certificate checking (`verify_cert`) and a Home Assistant URL for relative cover links (`ha_url`).
+- **Import from AppDaemon**: paste your `media_lights_sync` block from `apps.yaml` on the Music tab and its lights, players, condition and options are filled in for you.
+- The Dockerfile now installs `pyyaml` for the import.
+
 ## 1.3.0 - 2026-11-17
 
 - **One dropdown for sports and party lights.** New **Sports** mode in every mode list (page, `input_select.party_lights_mode`, the `Light mode` select and `hassio.addon_stdin`). Picking it stops the party and hands the lights to Team Tracker Lite's Score lights; picking any other mode (or Off) takes them back and Off puts the lights back as they were. Set Score lights' "only when" to the same dropdown with the state `Sports`, and you can drop the second dropdown.

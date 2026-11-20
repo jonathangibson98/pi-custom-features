@@ -87,11 +87,34 @@ Announcements use `tts.speak` with the voice and speakers from Setup. The AI use
 
 The **Music** tab shows a checklist of what music sync needs (a player, music playing, lights, and your helper if you set one) with ✓ or ✕, so you can see straight away why it isn't syncing, and when it last synced.
 
-- **Music players to follow**: empty follows the album-art sensor's player, or whatever is playing.
+### Devices
 
-- Each light gets a different color from the art, in the order you list them (or all the same color).
+The **Devices** section lists the lights and music players music sync uses. Add one from the dropdown under each list.
+
+- **↑ ↓** change the order of the lights. Each light gets a different color from the art, in that order (or all the same color).
+- The **switch** turns a device off for music sync without removing it.
+- **✎ Edit** opens that device. For a light: **which color** it gets (Auto, or Color 1–8), its own **brightness %** and **fade** (empty uses the shared ones below). **Remove from music sync** takes it out of the list.
+- **Music players**: none listed follows the album-art sensor's player, or whatever is playing.
+- No lights listed? Music sync uses the party lights from Setup; tap **Use the party lights from Setup** to copy them here and edit them.
+
+### Settings
+
 - **Boost colors** makes dull art look good on bulbs. **Brightness** 0 keeps the lights' current brightness.
 - **Only sync when this entity is in this state**: for a mode helper (for example `select.sync_lights_mode` = `Music`). When set, it syncs whenever the helper says so, party mode or not. **Always sync** syncs whenever music plays.
+
+### Advanced (the `media_lights_sync` options)
+
+| Setting | Same as in `apps.yaml` | What it does |
+|---|---|---|
+| Put lights back when the music stops | `reset_lights_after` | Saves the lights before the first sync and restores them when the player turns off or goes idle. |
+| How colors are picked from the cover | `quantization_method` | Fast octree (default), Median cut, Max coverage or libimagequant. libimagequant falls back to Fast octree when it isn't available. |
+| Only sync when this template is true | `condition.value_template` | A Home Assistant template. Replaces the helper condition when filled in. |
+| Check HTTPS certificates of cover links | `verify_cert` | Turn off for self-signed certificates. |
+| Home Assistant URL | `ha_url` | Used for cover links that don't include a host. |
+
+### Import from AppDaemon
+
+Paste the `media_lights_sync` block from `apps.yaml` into **Import from AppDaemon** and tap **Import**. It fills in the lights, players, `transition`, `use_saturated_colors`, `use_current_brightness`, `reset_lights_after`, `quantization_method`, `verify_cert`, `ha_url` and `condition` (an entity and state, or a `value_template`). Like the app, it then syncs whenever the cover changes, even when the party is off, unless you gave it a condition. Per-device edits are made afterwards in **Devices**.
 
 ## Album art sensor
 

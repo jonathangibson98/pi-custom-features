@@ -24,10 +24,12 @@ import re
 import time
 import urllib.request
 from datetime import datetime, timedelta
+from urllib.parse import urljoin
 
 import aiohttp
 from aiohttp import web
-from PIL import Image
+from PIL import Image, features
+import yaml
 
 try:
     import paho.mqtt.client as mqtt
@@ -132,7 +134,11 @@ RULES = ["Anyone who says 'drink' has to drink.", "No pointing. Pointers drink."
 DEFAULTS = {
     "lights": [],                    # every light the party uses (light shows, extras)
     "music": {"media_players": [], "lights": [], "saturate": True, "brightness": 0, "transition": 2,
-              "same_color": False, "condition_entity": "", "condition_state": "", "always": False},
+              "same_color": False, "condition_entity": "", "condition_state": "", "always": False,
+              "devices": {},         # per-device edits: {entity_id: {enabled, slot, brightness, transition}}
+              "reset_after": False,  # put the lights back when the player stops (media_lights_sync's reset_lights_after)
+              "quantization": "",    # "", FastOctree, MedianCut, MaxCoverage, libimagequant
+              "condition_template": "", "verify_cert": True, "ha_url": ""},
     "art": {"enabled": True, "media_player": "", "entity_id": "sensor.music_art_brightness", "name": "Music Art Brightness"},
     "show": {"effect": "off", "theme": "party", "speed": 5, "brightness": 80, "custom": ["#ff2bd6", "#00e5ff", "#ffe600"],
              "bpm": 120, "team_sensor": ""},
@@ -245,12 +251,21 @@ class HA:
         except Exception as e:  # noqa: BLE001
             log.warning("Couldn't read states: %s", e)
 
-    async def get_bytes(self, url):
+    async def get_bytes(self, url, verify=True, base=""):
         if url.startswith("/"):
-            url = API[:-4] + url
-        async with self.http.get(url, timeout=aiohttp.ClientTimeout(total=20)) as r:
+            url = urljoin(base, url) if base else API[:-4] + url
+        async with self.http.get(url, ssl=None if verify else False, timeout=aiohttp.ClientTimeout(total=20)) as r:
             r.raise_for_status()
             return await r.read()
+
+    async def render(self, template):
+        """Render a Home Assistant template; None when it can't be read."""
+        try:
+            async with self.http.post(API + "/template", json={"template": template}, timeout=aiohttp.ClientTimeout(total=10)) as r:
+                return (await r.text()).strip() if r.status == 200 else None
+        except Exception as e:  # noqa: BLE001
+            log.warning("Couldn't render the music sync template: %s", e)
+            return None
 
     async def ws_loop(self):
         while True:
@@ -319,6 +334,8 @@ class Party:
         self.art = {"palette": [], "brightness": None, "color": None, "text_color": None, "url": None, "title": ""}
         self.last_art_url = {}
         self.music_last, self.music_used = {}, []
+        self.music_snap = False      # lights saved before music sync took them (for 'put back when the music stops')
+        self.tpl_ok, self.tpl_at = None, 0.0
         self.status = "Ready"
         self.events = []             # recent things that happened, for the page
         self.slug = ""
@@ -417,6 +434,7 @@ class Party:
             for name in list(self.extras):
                 self.stop_extra(name)
             await self.stop_show()
+            self.music_snap = False
             if self.s["restore"] and lights:
                 await ha.call("scene", "turn_on", {"entity_id": "scene.party_lights_before", "transition": 2})
             self.note("Party mode off, lights put back")
@@ -594,16 +612,58 @@ class Party:
         """Players music sync follows: the ones picked, else the album-art player, else whatever is playing."""
         m = self.s["music"]
         if m["media_players"]:
-            return list(m["media_players"])
+            return [p for p in m["media_players"] if self.dev(p)["enabled"]]
         if self.s["art"].get("media_player"):
             return [self.s["art"]["media_player"]]
         return [e for e, st in ha.states.items() if e.startswith("media_player.") and st.get("state") == "playing"]
 
+    def dev(self, eid):
+        """A music device's edits with defaults filled in: enabled, color slot (0 = auto), brightness % (0 = global), fade (-1 = global)."""
+        d = {"enabled": True, "slot": 0, "brightness": 0, "transition": -1}
+        d.update((self.s["music"].get("devices") or {}).get(eid) or {})
+        try:
+            d["slot"] = max(0, int(d["slot"]))
+            d["brightness"] = max(0, min(100, int(d["brightness"])))
+            d["transition"] = float(d["transition"])
+        except (TypeError, ValueError):
+            d.update(slot=0, brightness=0, transition=-1)
+        d["enabled"] = d["enabled"] is not False
+        return d
+
+    def music_lights(self):
+        """Lights music sync colors, in order: the Music list (else the party lights) minus the ones switched off."""
+        m = self.s["music"]
+        return [e for e in (m["lights"] or self.lights()) if self.dev(e)["enabled"]]
+
+    def quant_method(self):
+        v = self.s["music"].get("quantization") or ""
+        if v == "MedianCut":
+            return Image.Quantize.MEDIANCUT
+        if v == "MaxCoverage":
+            return Image.Quantize.MAXCOVERAGE
+        if v == "libimagequant":
+            if features.check_feature("libimagequant"):
+                return Image.Quantize.LIBIMAGEQUANT
+            log.warning("Quantization method 'libimagequant' isn't available in this add-on; using Fast octree")
+        return Image.Quantize.FASTOCTREE
+
+    async def refresh_template(self, force=False):
+        t = (self.s["music"].get("condition_template") or "").strip()
+        if not t:
+            self.tpl_ok = None
+            return
+        if not force and time.time() - self.tpl_at < 4:
+            return
+        self.tpl_at = time.time()
+        out = await ha.render(t)
+        self.tpl_ok = None if out is None else out.strip().lower() == "true"
+
     def music_status(self):
         """Plain-words answer to 'why aren't my lights following the music?'."""
         m, follow = self.s["music"], self.watched_players()
-        lights = m["lights"] or self.lights()
+        lights = self.music_lights()
         playing = [p for p in follow if ha.state(p) == "playing"]
+        tpl = (m.get("condition_template") or "").strip()
         cond = m.get("condition_entity") and m.get("condition_state")
         checks = [
             {"ok": bool(follow), "text": ("Following " + ", ".join(ha.attr(p, "friendly_name") or p for p in follow)) if follow
@@ -611,7 +671,10 @@ class Party:
             {"ok": bool(playing), "text": "Playing now" if playing else "Nothing is playing on it"},
             {"ok": bool(lights), "text": ("Lights: " + ", ".join(ha.attr(e, "friendly_name") or e for e in lights)) if lights else "No lights picked"},
         ]
-        if cond:
+        if tpl:
+            checks.append({"ok": bool(self.tpl_ok), "text": "Your template is true" if self.tpl_ok else
+                           ("Your template isn't true right now" if self.tpl_ok is False else "Couldn't read your template")})
+        elif cond:
             now = ha.state(m["condition_entity"])
             checks.append({"ok": str(now) == str(m["condition_state"]), "text": "%s is %s (needs %s)" % (
                 ha.attr(m["condition_entity"], "friendly_name") or m["condition_entity"], now, m["condition_state"])})
@@ -634,12 +697,16 @@ class Party:
             if url and url != self.last_art_url.get(eid):
                 self.last_art_url[eid] = url
                 asyncio.ensure_future(self.new_art(eid, url, a))  # listeners run on the event loop
+        if m.get("reset_after") and self.music_snap and eid in follow and (new or {}).get("state") in ("off", "idle", "standby", "unavailable"):
+            asyncio.ensure_future(self.music_reset())
         if eid == m.get("condition_entity") and m.get("condition_state") and old and new and old.get("state") != new.get("state"):
             if self.music_allowed():
                 asyncio.ensure_future(self.music_now())
 
     def music_allowed(self):
         m = self.s["music"]
+        if (m.get("condition_template") or "").strip():
+            return bool(self.tpl_ok)
         if m.get("condition_entity") and m.get("condition_state"):
             if str(ha.state(m["condition_entity"])) != str(m["condition_state"]):
                 return False
@@ -647,15 +714,18 @@ class Party:
         return m.get("always") or (self.on and self.s["show"]["effect"] == "music")
 
     async def new_art(self, player, url, attrs):
+        await self.refresh_template()
+        m = self.s["music"]
         try:
-            raw = await ha.get_bytes(url)
+            raw = await ha.get_bytes(url, m.get("verify_cert", True) is not False, (m.get("ha_url") or "").strip())
             im = Image.open(io.BytesIO(raw)).convert("RGB")
             im.thumbnail((200, 200))
         except Exception as e:  # noqa: BLE001
             log.warning("Couldn't read the album art from %s: %s", player, e)
             return
-        n = max(5, len(self.s["music"]["lights"]))
-        pal = im.quantize(colors=n, method=Image.Quantize.FASTOCTREE).getpalette()[:n * 3]
+        ml = self.music_lights()
+        n = max(5, len(ml), max((self.dev(e)["slot"] for e in ml), default=0))
+        pal = im.quantize(colors=n, method=self.quant_method()).getpalette()[:n * 3]
         colors = [pal[i:i + 3] for i in range(0, len(pal), 3)]
         small = im.resize((32, 32))
         px = list(small.getdata())
@@ -679,24 +749,88 @@ class Party:
 
     async def apply_music(self, colors):
         m = self.s["music"]
-        L = m["lights"] or self.lights()
+        L = self.music_lights()
         if not L:
             return
         usable = [c for c in colors if lum(c) > 18] or colors
         if m["saturate"]:
             usable = [saturate(c) for c in usable]
-        b = self.bri(m["brightness"]) if m.get("brightness") else None
-        tr = float(m.get("transition") or 0)
+        gb = self.bri(m["brightness"]) if m.get("brightness") else None
+        gt = float(m.get("transition") or 0)
+        if m.get("reset_after") and not self.music_snap:
+            self.music_snap = True
+            await ha.call("scene", "create", {"scene_id": "party_lights_music_before", "snapshot_entities": L})
+        devs = [self.dev(e) for e in L]
+        custom = any(d["slot"] or d["brightness"] or d["transition"] >= 0 for d in devs)
         if m.get("same_color"):
             vivid = max(usable, key=lambda c: (max(c) - min(c)) * max(c))  # the most colorful, not the darkest
             self.music_used = [vivid]
-            await self.light(L, vivid, b, transition=tr)
+            if not custom:
+                await self.light(L, vivid, gb, transition=gt)
+                return
+            for e, d in zip(L, devs):
+                await self.light(e, vivid, self.bri(d["brightness"]) if d["brightness"] else gb, transition=d["transition"] if d["transition"] >= 0 else gt)
             return
-        self.music_used = usable[:len(L)]
-        for k, e in enumerate(L):
-            await self.light(e, usable[k % len(usable)], b, transition=tr)
+        used = []
+        for k, (e, d) in enumerate(zip(L, devs)):
+            c = usable[(d["slot"] - 1) % len(usable)] if d["slot"] else usable[k % len(usable)]
+            used.append(c)
+            await self.light(e, c, self.bri(d["brightness"]) if d["brightness"] else gb, transition=d["transition"] if d["transition"] >= 0 else gt)
+        self.music_used = used
+
+    async def music_reset(self):
+        """The player stopped: put the lights back the way they were before music sync took them."""
+        if not self.music_snap:
+            return
+        self.music_snap = False
+        self.last_art_url = {}
+        await ha.call("scene", "turn_on", {"entity_id": "scene.party_lights_music_before", "transition": float(self.s["music"].get("transition") or 0)})
+        self.note("Music stopped, lights put back")
+
+    async def import_media_sync(self, text):
+        """Fill in Music sync from a media_lights_sync block pasted from AppDaemon's apps.yaml."""
+        try:
+            doc = yaml.safe_load(text)
+        except yaml.YAMLError as e:
+            raise ValueError("That isn't valid YAML: " + str(e).splitlines()[0])
+        if not isinstance(doc, dict):
+            raise ValueError("Paste the media_lights_sync block from apps.yaml")
+        cfg = doc if ("lights" in doc or "media_player" in doc) else next(
+            (v for v in doc.values() if isinstance(v, dict) and ("lights" in v or "media_player" in v)), None)
+        if not cfg:
+            raise ValueError("Couldn't find the lights and media_player in that")
+        as_list = lambda v, d: [str(x).strip() for x in (v if isinstance(v, list) else [v]) if str(x).strip().startswith(d + ".")]  # noqa: E731
+        m = {"media_players": as_list(cfg.get("media_player"), "media_player"), "lights": as_list(cfg.get("lights"), "light"),
+             "saturate": bool(cfg.get("use_saturated_colors", False)),
+             "brightness": 0 if cfg.get("use_current_brightness", False) else 100,
+             "reset_after": bool(cfg.get("reset_lights_after", False)),
+             "verify_cert": cfg.get("verify_cert", True) is not False, "ha_url": str(cfg.get("ha_url") or "").strip(),
+             "quantization": cfg.get("quantization_method") if cfg.get("quantization_method") in ("FastOctree", "MedianCut", "MaxCoverage", "libimagequant") else "",
+             "condition_entity": "", "condition_state": "", "condition_template": ""}
+        if cfg.get("transition") is not None:
+            try:
+                m["transition"] = float(cfg["transition"])
+            except (TypeError, ValueError):
+                pass
+        cond = cfg.get("condition")
+        if isinstance(cond, dict):
+            if cond.get("value_template"):
+                m["condition_template"] = str(cond["value_template"]).strip()
+            elif cond.get("entity"):
+                m["condition_entity"], m["condition_state"] = str(cond["entity"]), str(cond.get("state", ""))
+        m["always"] = not (m["condition_template"] or m["condition_entity"])   # the AppDaemon app ran whenever the art changed
+        await self.apply({"music": m})
+        out = ["%d light%s, %d player%s" % (len(m["lights"]), "" if len(m["lights"]) == 1 else "s", len(m["media_players"]), "" if len(m["media_players"]) == 1 else "s")]
+        if m["condition_template"] or m["condition_entity"]:
+            out.append("only syncs when your condition is met")
+        elif m["always"]:
+            out.append("syncs even when the party is off, like the app did")
+        if m["reset_after"]:
+            out.append("lights go back when the music stops")
+        return out
 
     async def music_now(self):
+        await self.refresh_template(True)
         follow = sorted(self.watched_players(), key=lambda p: ha.state(p) != "playing")
         for p in follow:
             a = ha.attr(p, "entity_picture_local") or ha.attr(p, "entity_picture")
@@ -1364,6 +1498,11 @@ class Party:
     async def apply(self, patch):
         old_show = dict(self.s["show"])
         self.s = deep_merge(self.s, patch)
+        if "music" in patch:
+            m = self.s["music"]
+            keep = set(m["lights"]) | set(m["media_players"])
+            m["devices"] = {k: v for k, v in (m.get("devices") or {}).items() if k in keep}
+            await self.refresh_template(True)
         save_settings(self.s)
         if "art" in patch:
             self.publish_art_config()
@@ -1405,6 +1544,7 @@ async def index(request):
 
 
 async def state(request):
+    await party.refresh_template()
     return web.json_response(party.view())
 
 
@@ -1444,6 +1584,9 @@ async def action(request):
             return web.json_response({"ok": True, "entity": eid, "state": party.view()})
         elif a == "music_now":
             await party.music_now()
+        elif a == "import_media_sync":
+            summary = await party.import_media_sync(str(b.get("text") or "")[:20000])
+            return web.json_response({"ok": True, "summary": summary, "state": party.view()})
         elif a == "say":
             await party.say(str(b.get("text") or "Testing, one two three!")[:300])
         elif a == "ai_theme":
