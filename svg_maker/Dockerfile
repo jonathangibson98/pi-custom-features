@@ -4,7 +4,7 @@
 # Pinned to a released Python on purpose: vtracer ships prebuilt wheels only for released
 # Python versions. On a pre-release such as 3.15, pip falls back to compiling vtracer from
 # source with maturin, which needs a Rust toolchain and fails ("Failed building wheel for vtracer").
-FROM python:3.12-slim-bookworm
+FROM python:3.15-slim-bookworm
 
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 
