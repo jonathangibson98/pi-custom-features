@@ -1,5 +1,5 @@
 # Voice Chat as a normal Docker container (no Home Assistant add-on / Supervisor needed).
-FROM python:3.12-alpine
+FROM python:3.15-alpine
 RUN apk add --no-cache openssl && pip install --no-cache-dir "aiohttp>=3.9,<4"
 COPY app /app
 ENV DATA_DIR=/data PYTHONUNBUFFERED=1
