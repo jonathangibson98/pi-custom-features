@@ -12,6 +12,7 @@ Everything is set up on the web page; settings live in /data/settings.json.
 """
 import asyncio
 import colorsys
+import copy
 import io
 import json
 import logging
@@ -121,6 +122,14 @@ NEVER = ["Never have I ever sung karaoke in public.", "Never have I ever fallen 
 TRUTHS = ["What's the most embarrassing song on your playlist?", "Who here would you call to help hide a body?", "What's your worst date story?",
           "What's the dumbest thing you've done for money?", "What's a secret talent nobody here knows about?", "Who was your first crush?",
           "What's the last lie you told?", "What's your guilty pleasure TV show?"]
+BASE_EFFECTS, BASE_ICONS = dict(EFFECTS), dict(EFFECT_ICONS)   # the built-in modes; music sync profiles are added to EFFECTS on top of these
+
+
+def is_music(key):
+    """'music' is the first music sync profile; 'music:<id>' are the ones you added."""
+    return key == "music" or str(key).startswith("music:")
+
+
 DARES = ["Do your best impression of someone here.", "Dance with no music for 20 seconds.", "Let the group pick your next song.",
          "Talk in an accent until your next turn.", "Show the last photo on your phone.", "Do 10 push-ups right now.",
          "Sing the chorus of the song that's playing.", "Speak only in rhymes for the next 2 minutes."]
@@ -133,6 +142,7 @@ RULES = ["Anyone who says 'drink' has to drink.", "No pointing. Pointers drink."
          "No first names. Use nicknames only.", "Every time the song changes, swap seats."]
 DEFAULTS = {
     "lights": [],                    # every light the party uses (light shows, extras)
+    "profiles": {},                  # extra music sync profiles: {id: {name, icon, music: {...same settings as "music"...}}}
     "music": {"media_players": [], "lights": [], "saturate": True, "brightness": 0, "transition": 2,
               "same_color": False, "condition_entity": "", "condition_state": "", "always": False,
               "devices": {},         # per-device edits: {entity_id: {enabled, slot, brightness, transition}}
@@ -334,8 +344,9 @@ class Party:
         self.art = {"palette": [], "brightness": None, "color": None, "text_color": None, "url": None, "title": ""}
         self.last_art_url = {}
         self.music_last, self.music_used = {}, []
-        self.music_snap = False      # lights saved before music sync took them (for 'put back when the music stops')
-        self.tpl_ok, self.tpl_at = None, 0.0
+        self.music_snap = {}         # profile key -> lights were saved before music sync took them (for 'put back when the music stops')
+        self.tpl_ok, self.tpl_at = {}, {}
+        self.rebuild_effects()
         self.status = "Ready"
         self.events = []             # recent things that happened, for the page
         self.slug = ""
@@ -419,7 +430,7 @@ class Party:
         if on == self.on:
             return
         self.on = on
-        lights = sorted(set(self.lights() + self.s["music"]["lights"]))
+        lights = self.music_light_pool()
         if on:
             was_sports = bool(self.s.get("sports_active"))
             self.s["sports_active"] = False
@@ -434,7 +445,7 @@ class Party:
             for name in list(self.extras):
                 self.stop_extra(name)
             await self.stop_show()
-            self.music_snap = False
+            self.music_snap = {}
             if self.s["restore"] and lights:
                 await ha.call("scene", "turn_on", {"entity_id": "scene.party_lights_before", "transition": 2})
             self.note("Party mode off, lights put back")
@@ -450,8 +461,8 @@ class Party:
     async def start_show(self):
         await self.stop_show()
         eff = self.s["show"]["effect"]
-        if not self.on or eff in ("off", "music"):
-            if eff == "music" and self.on:
+        if not self.on or eff == "off" or is_music(eff):
+            if is_music(eff) and self.on:
                 await self.music_now()
             self.publish()
             return
@@ -595,7 +606,7 @@ class Party:
             pass
 
     async def flash(self, theme=None, times=3):
-        L = sorted(set(self.lights() + self.s["music"]["lights"]))
+        L = self.music_light_pool()
         pal = [hex_rgb(c) for c in self.palette(theme)]
         was = self.show_task is not None
         await self.stop_show()
@@ -604,23 +615,41 @@ class Party:
             await asyncio.sleep(0.6)
             await self.light(L, pal[(k + 1) % len(pal)], 40, transition=0)
             await asyncio.sleep(0.6)
-        if was or self.s["show"]["effect"] == "music":
+        if was or is_music(self.s["show"]["effect"]):
             await self.start_show()
 
-    # ---- music sync + album art
-    def watched_players(self):
-        """Players music sync follows: the ones picked, else the album-art player, else whatever is playing."""
-        m = self.s["music"]
+    # ---- music sync profiles (the Music one, plus any you add) + album art
+    def music_keys(self):
+        return ["music"] + ["music:" + p for p in (self.s.get("profiles") or {})]
+
+    def mc(self, key="music"):
+        """The settings of one music sync profile."""
+        if key != "music":
+            p = (self.s.get("profiles") or {}).get(key.split(":", 1)[-1])
+            if p:
+                return p["music"]
+        return self.s["music"]
+
+    def music_light_pool(self):
+        """Every light the party may touch: the party lights plus every music profile's lights."""
+        out = set(self.lights())
+        for k in self.music_keys():
+            out |= {x for x in self.mc(k)["lights"] if x.startswith("light.")}
+        return sorted(out)
+
+    def watched_players(self, key="music"):
+        """Players a profile follows: the ones picked, else the album-art player, else whatever is playing."""
+        m = self.mc(key)
         if m["media_players"]:
-            return [p for p in m["media_players"] if self.dev(p)["enabled"]]
+            return [p for p in m["media_players"] if self.dev(p, key)["enabled"]]
         if self.s["art"].get("media_player"):
             return [self.s["art"]["media_player"]]
         return [e for e, st in ha.states.items() if e.startswith("media_player.") and st.get("state") == "playing"]
 
-    def dev(self, eid):
-        """A music device's edits with defaults filled in: enabled, color slot (0 = auto), brightness % (0 = global), fade (-1 = global)."""
+    def dev(self, eid, key="music"):
+        """A music device's edits with defaults filled in: enabled, color slot (0 = auto), brightness % (0 = profile's), fade (-1 = profile's)."""
         d = {"enabled": True, "slot": 0, "brightness": 0, "transition": -1}
-        d.update((self.s["music"].get("devices") or {}).get(eid) or {})
+        d.update((self.mc(key).get("devices") or {}).get(eid) or {})
         try:
             d["slot"] = max(0, int(d["slot"]))
             d["brightness"] = max(0, min(100, int(d["brightness"])))
@@ -630,13 +659,12 @@ class Party:
         d["enabled"] = d["enabled"] is not False
         return d
 
-    def music_lights(self):
-        """Lights music sync colors, in order: the Music list (else the party lights) minus the ones switched off."""
-        m = self.s["music"]
-        return [e for e in (m["lights"] or self.lights()) if self.dev(e)["enabled"]]
+    def music_lights(self, key="music"):
+        """Lights a profile colors, in order: its list (else the party lights) minus the ones switched off."""
+        return [e for e in (self.mc(key)["lights"] or self.lights()) if self.dev(e, key)["enabled"]]
 
-    def quant_method(self):
-        v = self.s["music"].get("quantization") or ""
+    def quant_method(self, key="music"):
+        v = self.mc(key).get("quantization") or ""
         if v == "MedianCut":
             return Image.Quantize.MEDIANCUT
         if v == "MaxCoverage":
@@ -647,21 +675,25 @@ class Party:
             log.warning("Quantization method 'libimagequant' isn't available in this add-on; using Fast octree")
         return Image.Quantize.FASTOCTREE
 
-    async def refresh_template(self, force=False):
-        t = (self.s["music"].get("condition_template") or "").strip()
-        if not t:
-            self.tpl_ok = None
-            return
-        if not force and time.time() - self.tpl_at < 4:
-            return
-        self.tpl_at = time.time()
-        out = await ha.render(t)
-        self.tpl_ok = None if out is None else out.strip().lower() == "true"
+    def scene_id(self, key):
+        return "party_lights_music_before" + ("" if key == "music" else "_" + key.split(":", 1)[-1])
 
-    def music_status(self):
+    async def refresh_template(self, force=False):
+        for key in self.music_keys():
+            t = (self.mc(key).get("condition_template") or "").strip()
+            if not t:
+                self.tpl_ok[key] = None
+                continue
+            if not force and time.time() - self.tpl_at.get(key, 0) < 4:
+                continue
+            self.tpl_at[key] = time.time()
+            out = await ha.render(t)
+            self.tpl_ok[key] = None if out is None else out.strip().lower() == "true"
+
+    def music_status(self, key="music"):
         """Plain-words answer to 'why aren't my lights following the music?'."""
-        m, follow = self.s["music"], self.watched_players()
-        lights = self.music_lights()
+        m, follow = self.mc(key), self.watched_players(key)
+        lights = self.music_lights(key)
         playing = [p for p in follow if ha.state(p) == "playing"]
         tpl = (m.get("condition_template") or "").strip()
         cond = m.get("condition_entity") and m.get("condition_state")
@@ -672,61 +704,69 @@ class Party:
             {"ok": bool(lights), "text": ("Lights: " + ", ".join(ha.attr(e, "friendly_name") or e for e in lights)) if lights else "No lights picked"},
         ]
         if tpl:
-            checks.append({"ok": bool(self.tpl_ok), "text": "Your template is true" if self.tpl_ok else
-                           ("Your template isn't true right now" if self.tpl_ok is False else "Couldn't read your template")})
+            ok = self.tpl_ok.get(key)
+            checks.append({"ok": bool(ok), "text": "Your template is true" if ok else
+                           ("Your template isn't true right now" if ok is False else "Couldn't read your template")})
         elif cond:
             now = ha.state(m["condition_entity"])
             checks.append({"ok": str(now) == str(m["condition_state"]), "text": "%s is %s (needs %s)" % (
                 ha.attr(m["condition_entity"], "friendly_name") or m["condition_entity"], now, m["condition_state"])})
         else:
-            checks.append({"ok": self.music_allowed(), "text": "Always on" if m.get("always") else
-                           ("Party is on in Music sync" if self.music_allowed() else "Turns on when the party is on in Music sync mode")})
+            on = self.music_allowed(key)
+            checks.append({"ok": on, "text": "Always on" if m.get("always") else
+                           ("Party is on in %s" % EFFECTS.get(key, "Music sync") if on else "Turns on when you pick %s in the light mode list" % EFFECTS.get(key, "Music sync"))})
         ok = all(c["ok"] for c in checks)
-        last = self.music_last
-        return {"ok": ok, "checks": checks, "last": last,
+        return {"ok": ok, "checks": checks, "last": self.music_last.get(key) or {},
                 "summary": "Syncing ✓" if ok else next(c["text"] for c in checks if not c["ok"])}
 
     def on_state(self, eid, old, new):
-        m = self.s["music"]
-        follow = self.watched_players()
+        keys = self.music_keys()
+        follow = set()
+        for k in keys:
+            follow |= set(self.watched_players(k))
         if not follow and eid.startswith("media_player.") and (new or {}).get("state") == "playing":
-            follow = [eid]
+            follow = {eid}
         if eid in follow or eid == self.s["art"]["media_player"]:
             a = (new or {}).get("attributes") or {}
             url = a.get("entity_picture_local") or a.get("entity_picture")
             if url and url != self.last_art_url.get(eid):
                 self.last_art_url[eid] = url
                 asyncio.ensure_future(self.new_art(eid, url, a))  # listeners run on the event loop
-        if m.get("reset_after") and self.music_snap and eid in follow and (new or {}).get("state") in ("off", "idle", "standby", "unavailable"):
-            asyncio.ensure_future(self.music_reset())
-        if eid == m.get("condition_entity") and m.get("condition_state") and old and new and old.get("state") != new.get("state"):
-            if self.music_allowed():
-                asyncio.ensure_future(self.music_now())
+        for k in keys:
+            m = self.mc(k)
+            if m.get("reset_after") and self.music_snap.get(k) and eid in self.watched_players(k) and (new or {}).get("state") in ("off", "idle", "standby", "unavailable"):
+                asyncio.ensure_future(self.music_reset(k))
+            if eid == m.get("condition_entity") and m.get("condition_state") and old and new and old.get("state") != new.get("state"):
+                if self.music_allowed(k):
+                    asyncio.ensure_future(self.music_now())
 
-    def music_allowed(self):
-        m = self.s["music"]
+    def music_allowed(self, key="music"):
+        m = self.mc(key)
         if (m.get("condition_template") or "").strip():
-            return bool(self.tpl_ok)
+            return bool(self.tpl_ok.get(key))
         if m.get("condition_entity") and m.get("condition_state"):
             if str(ha.state(m["condition_entity"])) != str(m["condition_state"]):
                 return False
             return True  # the mode helper says so, even without party mode
-        return m.get("always") or (self.on and self.s["show"]["effect"] == "music")
+        return m.get("always") or (self.on and self.s["show"]["effect"] == key)
+
+    def quantize(self, im, key="music"):
+        ml = self.music_lights(key)
+        n = max(5, len(ml), max((self.dev(e, key)["slot"] for e in ml), default=0))
+        pal = im.quantize(colors=n, method=self.quant_method(key)).getpalette()[:n * 3]
+        return [pal[i:i + 3] for i in range(0, len(pal), 3)]
 
     async def new_art(self, player, url, attrs):
         await self.refresh_template()
-        m = self.s["music"]
+        base = self.s["music"]
         try:
-            raw = await ha.get_bytes(url, m.get("verify_cert", True) is not False, (m.get("ha_url") or "").strip())
+            raw = await ha.get_bytes(url, base.get("verify_cert", True) is not False, (base.get("ha_url") or "").strip())
             im = Image.open(io.BytesIO(raw)).convert("RGB")
             im.thumbnail((200, 200))
         except Exception as e:  # noqa: BLE001
             log.warning("Couldn't read the album art from %s: %s", player, e)
             return
-        ml = self.music_lights()
-        n = max(5, len(ml), max((self.dev(e)["slot"] for e in ml), default=0))
-        pal = im.quantize(colors=n, method=self.quant_method()).getpalette()[:n * 3]
-        colors = [pal[i:i + 3] for i in range(0, len(pal), 3)]
+        colors = self.quantize(im)
         small = im.resize((32, 32))
         px = list(small.getdata())
         bright = round(sum(lum(p) for p in px) / len(px))
@@ -740,104 +780,201 @@ class Party:
                     "text_color": "#000000" if bright > 140 else "#ffffff", "url": url, "player": player,
                     "title": " - ".join(x for x in (attrs.get("media_artist"), attrs.get("media_title")) if x)}
         self.publish_art()
-        if (player in self.watched_players() or not self.watched_players()) and self.music_allowed():
-            await self.apply_music(colors)
-            self.music_last = {"time": time.time(), "player": ha.attr(player, "friendly_name") or player, "title": self.art["title"],
-                               "colors": [rgb_hex(c) for c in self.music_used]}
+        for key in self.music_keys():
+            follow = self.watched_players(key)
+            if (player in follow or not follow) and self.music_allowed(key):
+                used = await self.apply_music(colors if key == "music" else self.quantize(im, key), key)
+                self.music_last[key] = {"time": time.time(), "player": ha.attr(player, "friendly_name") or player, "title": self.art["title"],
+                                        "colors": [rgb_hex(c) for c in used]}
         if self.s["show"]["theme"] == "album" and self.show_task:
             pass  # the running show reads the new palette on its next step
 
-    async def apply_music(self, colors):
-        m = self.s["music"]
-        L = self.music_lights()
+    async def apply_music(self, colors, key="music"):
+        m = self.mc(key)
+        L = self.music_lights(key)
         if not L:
-            return
+            return []
         usable = [c for c in colors if lum(c) > 18] or colors
         if m["saturate"]:
             usable = [saturate(c) for c in usable]
         gb = self.bri(m["brightness"]) if m.get("brightness") else None
         gt = float(m.get("transition") or 0)
-        if m.get("reset_after") and not self.music_snap:
-            self.music_snap = True
-            await ha.call("scene", "create", {"scene_id": "party_lights_music_before", "snapshot_entities": L})
-        devs = [self.dev(e) for e in L]
+        if m.get("reset_after") and not self.music_snap.get(key):
+            self.music_snap[key] = True
+            await ha.call("scene", "create", {"scene_id": self.scene_id(key), "snapshot_entities": L})
+        devs = [self.dev(e, key) for e in L]
         custom = any(d["slot"] or d["brightness"] or d["transition"] >= 0 for d in devs)
         if m.get("same_color"):
             vivid = max(usable, key=lambda c: (max(c) - min(c)) * max(c))  # the most colorful, not the darkest
-            self.music_used = [vivid]
             if not custom:
                 await self.light(L, vivid, gb, transition=gt)
-                return
-            for e, d in zip(L, devs):
-                await self.light(e, vivid, self.bri(d["brightness"]) if d["brightness"] else gb, transition=d["transition"] if d["transition"] >= 0 else gt)
-            return
+            else:
+                for e, d in zip(L, devs):
+                    await self.light(e, vivid, self.bri(d["brightness"]) if d["brightness"] else gb, transition=d["transition"] if d["transition"] >= 0 else gt)
+            return [vivid]
         used = []
         for k, (e, d) in enumerate(zip(L, devs)):
             c = usable[(d["slot"] - 1) % len(usable)] if d["slot"] else usable[k % len(usable)]
             used.append(c)
             await self.light(e, c, self.bri(d["brightness"]) if d["brightness"] else gb, transition=d["transition"] if d["transition"] >= 0 else gt)
-        self.music_used = used
+        return used
 
-    async def music_reset(self):
-        """The player stopped: put the lights back the way they were before music sync took them."""
-        if not self.music_snap:
+    async def music_reset(self, key="music"):
+        """The player stopped: put the lights back the way they were before this profile took them."""
+        if not self.music_snap.get(key):
             return
-        self.music_snap = False
+        self.music_snap[key] = False
         self.last_art_url = {}
-        await ha.call("scene", "turn_on", {"entity_id": "scene.party_lights_music_before", "transition": float(self.s["music"].get("transition") or 0)})
-        self.note("Music stopped, lights put back")
-
-    async def import_media_sync(self, text):
-        """Fill in Music sync from a media_lights_sync block pasted from AppDaemon's apps.yaml."""
-        try:
-            doc = yaml.safe_load(text)
-        except yaml.YAMLError as e:
-            raise ValueError("That isn't valid YAML: " + str(e).splitlines()[0])
-        if not isinstance(doc, dict):
-            raise ValueError("Paste the media_lights_sync block from apps.yaml")
-        cfg = doc if ("lights" in doc or "media_player" in doc) else next(
-            (v for v in doc.values() if isinstance(v, dict) and ("lights" in v or "media_player" in v)), None)
-        if not cfg:
-            raise ValueError("Couldn't find the lights and media_player in that")
-        as_list = lambda v, d: [str(x).strip() for x in (v if isinstance(v, list) else [v]) if str(x).strip().startswith(d + ".")]  # noqa: E731
-        m = {"media_players": as_list(cfg.get("media_player"), "media_player"), "lights": as_list(cfg.get("lights"), "light"),
-             "saturate": bool(cfg.get("use_saturated_colors", False)),
-             "brightness": 0 if cfg.get("use_current_brightness", False) else 100,
-             "reset_after": bool(cfg.get("reset_lights_after", False)),
-             "verify_cert": cfg.get("verify_cert", True) is not False, "ha_url": str(cfg.get("ha_url") or "").strip(),
-             "quantization": cfg.get("quantization_method") if cfg.get("quantization_method") in ("FastOctree", "MedianCut", "MaxCoverage", "libimagequant") else "",
-             "condition_entity": "", "condition_state": "", "condition_template": ""}
-        if cfg.get("transition") is not None:
-            try:
-                m["transition"] = float(cfg["transition"])
-            except (TypeError, ValueError):
-                pass
-        cond = cfg.get("condition")
-        if isinstance(cond, dict):
-            if cond.get("value_template"):
-                m["condition_template"] = str(cond["value_template"]).strip()
-            elif cond.get("entity"):
-                m["condition_entity"], m["condition_state"] = str(cond["entity"]), str(cond.get("state", ""))
-        m["always"] = not (m["condition_template"] or m["condition_entity"])   # the AppDaemon app ran whenever the art changed
-        await self.apply({"music": m})
-        out = ["%d light%s, %d player%s" % (len(m["lights"]), "" if len(m["lights"]) == 1 else "s", len(m["media_players"]), "" if len(m["media_players"]) == 1 else "s")]
-        if m["condition_template"] or m["condition_entity"]:
-            out.append("only syncs when your condition is met")
-        elif m["always"]:
-            out.append("syncs even when the party is off, like the app did")
-        if m["reset_after"]:
-            out.append("lights go back when the music stops")
-        return out
+        await ha.call("scene", "turn_on", {"entity_id": "scene." + self.scene_id(key), "transition": float(self.mc(key).get("transition") or 0)})
+        self.note("Music stopped, lights put back (%s)" % EFFECTS.get(key, "Music sync"))
 
     async def music_now(self):
         await self.refresh_template(True)
-        follow = sorted(self.watched_players(), key=lambda p: ha.state(p) != "playing")
+        follow = []
+        for k in self.music_keys():
+            follow += self.watched_players(k)
+        follow = sorted(dict.fromkeys(follow), key=lambda p: ha.state(p) != "playing")
         for p in follow:
             a = ha.attr(p, "entity_picture_local") or ha.attr(p, "entity_picture")
             if a:
                 self.last_art_url.pop(p, None)
                 await self.new_art(p, a, (ha.states.get(p) or {}).get("attributes") or {})
                 return
+
+    # ---- profiles: add, rename, delete, import
+    def mpatch(self, key, m):
+        return {"music": m} if key == "music" else {"profiles": {key.split(":", 1)[-1]: {"music": m}}}
+
+    def rebuild_effects(self):
+        """The mode list is the built-in modes with every music profile right after Music sync."""
+        EFFECTS.clear()
+        EFFECT_ICONS.clear()
+        EFFECT_ICONS.update(BASE_ICONS)
+        for k, v in BASE_EFFECTS.items():
+            EFFECTS[k] = v
+            if k == "music":
+                for pid, p in (self.s.get("profiles") or {}).items():
+                    EFFECTS["music:" + pid] = p["name"]
+                    EFFECT_ICONS["music:" + pid] = p.get("icon") or "🎵"
+
+    def clean_name(self, name, skip=None):
+        name = " ".join(str(name or "").split())[:40]
+        if not name:
+            raise ValueError("Give it a name")
+        for k, v in EFFECTS.items():
+            if k != skip and v.lower() == name.lower():
+                raise ValueError('There is already a mode called "%s"' % v)
+        return name
+
+    async def profiles_changed(self):
+        self.rebuild_effects()
+        save_settings(self.s)
+        if self.mq and self.mq.is_connected():
+            self.mqtt_connected()      # the Light mode select lists every mode, so send it again
+        await self.ensure_helper_options()
+        self.sync_helper()
+        self.publish()
+
+    async def profile_add(self, name, icon="", copy_from=None, cfg=None):
+        name = self.clean_name(name)
+        profiles = self.s.setdefault("profiles", {})
+        pid = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")[:20] or "mode"
+        base, n = pid, 2
+        while pid in profiles:
+            pid, n = "%s_%d" % (base, n), n + 1
+        if copy_from:
+            cfg = copy.deepcopy(self.mc(copy_from))
+            cfg.update(always=False, condition_entity="", condition_state="", condition_template="")   # two profiles shouldn't both run on their own
+        profiles[pid] = {"name": name, "icon": " ".join(str(icon or "").split())[:8] or "🎵", "music": deep_merge(DEFAULTS["music"], cfg or {})}
+        await self.profiles_changed()
+        return "music:" + pid
+
+    async def profile_rename(self, key, name, icon=""):
+        pid = key.split(":", 1)[-1]
+        p = (self.s.get("profiles") or {}).get(pid)
+        if key == "music" or not p:
+            raise ValueError("That mode can't be renamed")
+        p["name"] = self.clean_name(name, skip=key)
+        p["icon"] = " ".join(str(icon or "").split())[:8] or "🎵"
+        await self.profiles_changed()
+
+    async def profile_delete(self, key):
+        pid = key.split(":", 1)[-1]
+        if key == "music" or pid not in (self.s.get("profiles") or {}):
+            raise ValueError("That mode can't be deleted")
+        was_active = self.s["show"]["effect"] == key
+        if self.music_snap.get(key):
+            await self.music_reset(key)
+        self.s["profiles"].pop(pid)
+        self.music_snap.pop(key, None)
+        self.music_last.pop(key, None)
+        if was_active:
+            self.s["show"]["effect"] = "music"
+        await self.profiles_changed()
+        if was_active and self.on:
+            await self.start_show()
+
+    async def import_media_sync(self, text, key="music"):
+        """Fill in a music profile from a media_lights_sync block pasted from AppDaemon's apps.yaml (several blocks make several modes)."""
+        try:
+            doc = yaml.safe_load(text)
+        except yaml.YAMLError as e:
+            raise ValueError("That isn't valid YAML: " + str(e).splitlines()[0])
+        if not isinstance(doc, dict):
+            raise ValueError("Paste the media_lights_sync block from apps.yaml")
+        has = lambda v: isinstance(v, dict) and ("lights" in v or "media_player" in v)  # noqa: E731
+        blocks = [(None, doc)] if has(doc) else [(k, v) for k, v in doc.items() if has(v)]
+        if not blocks:
+            raise ValueError("Couldn't find the lights and media_player in that")
+        as_list = lambda v, d: [str(x).strip() for x in (v if isinstance(v, list) else [v]) if str(x).strip().startswith(d + ".")]  # noqa: E731
+
+        def parse(cfg):
+            m = {"media_players": as_list(cfg.get("media_player"), "media_player"), "lights": as_list(cfg.get("lights"), "light"),
+                 "saturate": bool(cfg.get("use_saturated_colors", False)),
+                 "brightness": 0 if cfg.get("use_current_brightness", False) else 100,
+                 "reset_after": bool(cfg.get("reset_lights_after", False)),
+                 "verify_cert": cfg.get("verify_cert", True) is not False, "ha_url": str(cfg.get("ha_url") or "").strip(),
+                 "quantization": cfg.get("quantization_method") if cfg.get("quantization_method") in ("FastOctree", "MedianCut", "MaxCoverage", "libimagequant") else "",
+                 "condition_entity": "", "condition_state": "", "condition_template": ""}
+            if cfg.get("transition") is not None:
+                try:
+                    m["transition"] = float(cfg["transition"])
+                except (TypeError, ValueError):
+                    pass
+            cond = cfg.get("condition")
+            if isinstance(cond, dict):
+                if cond.get("value_template"):
+                    m["condition_template"] = str(cond["value_template"]).strip()
+                elif cond.get("entity"):
+                    m["condition_entity"], m["condition_state"] = str(cond["entity"]), str(cond.get("state", ""))
+            m["always"] = not (m["condition_template"] or m["condition_entity"])   # the AppDaemon app ran whenever the art changed
+            return m
+
+        def describe(m):
+            out = ["%d light%s, %d player%s" % (len(m["lights"]), "" if len(m["lights"]) == 1 else "s", len(m["media_players"]), "" if len(m["media_players"]) == 1 else "s")]
+            if m["condition_template"] or m["condition_entity"]:
+                out.append("only syncs when your condition is met")
+            elif m["always"]:
+                out.append("syncs even when the party is off, like the app did")
+            if m["reset_after"]:
+                out.append("lights go back when the music stops")
+            return out
+
+        if len(blocks) == 1:
+            m = parse(blocks[0][1])
+            await self.apply(self.mpatch(key, m))
+            return describe(m), None
+        made, first = [], None
+        for name, cfg in blocks:
+            label = " ".join(str(name).replace("_", " ").split()).capitalize()
+            try:
+                label = self.clean_name(label)
+            except ValueError:
+                label = self.clean_name(label + " sync")
+            k = await self.profile_add(label, cfg=parse(cfg))
+            first = first or k
+            made.append(label)
+        return ["Made %d modes: %s" % (len(made), ", ".join(made)), "pick one in the light mode list to run it"], first
 
     # ---- extras
     def stop_extra(self, name):
@@ -919,7 +1056,7 @@ class Party:
                 self.publish()
             await asyncio.sleep(1)
         await self.stop_show()
-        L = sorted(set(self.lights() + self.s["music"]["lights"]))
+        L = self.music_light_pool()
         for s_left in range(10, 0, -1):
             self.extra_info["countdown"] = str(s_left)
             self.publish()
@@ -956,7 +1093,7 @@ class Party:
         b = self.s["birthday"]
         name = b.get("name") or "the birthday star"
         await self.stop_show()
-        L = sorted(set(self.lights() + self.s["music"]["lights"]))
+        L = self.music_light_pool()
         asyncio.ensure_future(self.say(b["message"].replace("{name}", name)))
         pal = [hex_rgb(c) for c in THEMES["birthday"]]
         end, i = time.time() + 30, 0
@@ -970,7 +1107,7 @@ class Party:
     async def drop(self):
         """Build-up then drop: lights dim and speed up, a beat of darkness, then go wild."""
         await self.stop_show()
-        L = sorted(set(self.lights() + self.s["music"]["lights"]))
+        L = self.music_light_pool()
         pal = [hex_rgb(c) for c in self.palette()]
         delay = 1.2
         for k in range(10):
@@ -988,21 +1125,21 @@ class Party:
 
     async def blackout(self):
         await self.stop_show()
-        await self.light(sorted(set(self.lights() + self.s["music"]["lights"])), off=True, transition=0)
+        await self.light(self.music_light_pool(), off=True, transition=0)
         self.note("Blackout")
 
     async def ai_theme(self, vibe):
         out = await asyncio.get_running_loop().run_in_executor(None, ha_ai.ask_json,
             "Design party lighting for this vibe: %s. Reply ONLY with JSON {\"name\": \"short name\", \"colors\": [\"#rrggbb\", ...4 to 6 "
             "saturated colors that look good on RGB smart bulbs, no near-white or near-black], \"effect\": one of %s, \"speed\": 1-10, "
-            "\"note\": \"one short sentence\"}." % (vibe, ", ".join(k for k in EFFECTS if k not in ("off", "sports", "music", "strobe"))),
+            "\"note\": \"one short sentence\"}." % (vibe, ", ".join(k for k in EFFECTS if k not in ("off", "sports", "strobe") and not is_music(k))),
             OPTS.get("ai_task_entity") or "", "Party theme")
         cols = [c for c in out.get("colors", []) if re.fullmatch(r"#[0-9a-fA-F]{6}", str(c))][:8]
         if not cols:
             raise RuntimeError("The AI didn't send colors back. Try again.")
         self.s["ai_theme"] = {"name": str(out.get("name") or vibe)[:40], "colors": cols, "note": str(out.get("note") or "")[:200]}
         self.s["show"]["theme"] = "ai"
-        if out.get("effect") in EFFECTS and out["effect"] not in ("off", "sports", "music", "strobe"):
+        if out.get("effect") in EFFECTS and out["effect"] not in ("off", "sports", "strobe") and not is_music(out["effect"]):
             self.s["show"]["effect"] = out["effect"]
         try:
             self.s["show"]["speed"] = max(1, min(10, int(out.get("speed") or self.s["show"]["speed"])))
@@ -1016,7 +1153,7 @@ class Party:
 
     # ---- more games
     def all_lights(self):
-        return sorted(set(self.lights() + self.s["music"]["lights"]))
+        return self.music_light_pool()
 
     async def ai_line(self, prompt, fallback, task="Party game"):
         try:
@@ -1264,7 +1401,7 @@ class Party:
         """Sports mode: stop the party and leave the lights to Team Tracker's score lights (they run when this mode is picked)."""
         if self.s.get("sports_active"):
             return
-        lights = sorted(set(self.lights() + self.s["music"]["lights"]))
+        lights = self.music_light_pool()
         if not self.on and self.s["restore"] and lights:
             await ha.call("scene", "create", {"scene_id": "party_lights_before", "snapshot_entities": lights})
         for name in list(self.extras):
@@ -1278,7 +1415,7 @@ class Party:
     async def end_sports(self):
         self.s["sports_active"] = False
         save_settings(self.s)
-        lights = sorted(set(self.lights() + self.s["music"]["lights"]))
+        lights = self.music_light_pool()
         if self.s["restore"] and lights:
             await ha.call("scene", "turn_on", {"entity_id": "scene.party_lights_before", "transition": 2})
         self.note("Sports mode off, lights put back")
@@ -1497,11 +1634,16 @@ class Party:
 
     async def apply(self, patch):
         old_show = dict(self.s["show"])
+        if "profiles" in patch:   # only the settings of profiles that exist; add, rename and delete have their own actions
+            patch = dict(patch)
+            have = self.s.get("profiles") or {}
+            patch["profiles"] = {k: {"music": v["music"]} for k, v in (patch["profiles"] or {}).items() if k in have and isinstance(v, dict) and "music" in v}
         self.s = deep_merge(self.s, patch)
-        if "music" in patch:
-            m = self.s["music"]
-            keep = set(m["lights"]) | set(m["media_players"])
-            m["devices"] = {k: v for k, v in (m.get("devices") or {}).items() if k in keep}
+        if "music" in patch or "profiles" in patch:
+            for key in self.music_keys():
+                m = self.mc(key)
+                keep = set(m["lights"]) | set(m["media_players"])
+                m["devices"] = {k: v for k, v in (m.get("devices") or {}).items() if k in keep}
             await self.refresh_template(True)
         save_settings(self.s)
         if "art" in patch:
@@ -1520,7 +1662,7 @@ class Party:
                 "games": {k: {"icon": v[0], "name": v[1], "kind": v[2]} for k, v in GAMES.items()},
                 "palettes": {k: self.palette(k) for k in THEME_NAMES}, "art": self.art, "extras": self.extra_info,
                 "running": sorted(self.extras), "events": self.events[:15], "ha_ok": ha.ok, "mqtt": bool(self.mq and self.mq.is_connected()),
-                "people_home": self.people_home(), "slug": self.slug, "music_status": self.music_status(),
+                "people_home": self.people_home(), "slug": self.slug, "music_status": self.music_status(), "music_statuses": {k: self.music_status(k) for k in self.music_keys()},
                 "follow": self.watched_players()}
 
 
@@ -1585,8 +1727,15 @@ async def action(request):
         elif a == "music_now":
             await party.music_now()
         elif a == "import_media_sync":
-            summary = await party.import_media_sync(str(b.get("text") or "")[:20000])
-            return web.json_response({"ok": True, "summary": summary, "state": party.view()})
+            summary, made = await party.import_media_sync(str(b.get("text") or "")[:20000], str(b.get("key") or "music"))
+            return web.json_response({"ok": True, "summary": summary, "key": made, "state": party.view()})
+        elif a == "profile_add":
+            key = await party.profile_add(b.get("name"), b.get("icon") or "", b.get("copy_from") or None)
+            return web.json_response({"ok": True, "key": key, "state": party.view()})
+        elif a == "profile_rename":
+            await party.profile_rename(str(b.get("key") or ""), b.get("name"), b.get("icon") or "")
+        elif a == "profile_delete":
+            await party.profile_delete(str(b.get("key") or ""))
         elif a == "say":
             await party.say(str(b.get("text") or "Testing, one two three!")[:300])
         elif a == "ai_theme":

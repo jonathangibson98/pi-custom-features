@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.0 - 2026-11-20
+
+- **Make as many music modes as you want, named whatever you like.** On the Music tab, tap **+ New mode** (Movie night, Dinner, Kitchen only…), pick an icon, and start blank or as a copy of the mode you're on. Each mode has its own lights, players, per-light edits, condition and options. **Music sync** stays as the first one.
+- Every new mode shows up in the light mode list everywhere: the Party tab, the dashboard dropdown (added to a linked `input_select` automatically), the `Light mode` select over MQTT and `hassio.addon_stdin` (`input: movie night`). Pick it to run it.
+- A mode can also run by itself: give it a condition, a template, or **Sync even when the party is off**, like separate `media_lights_sync` apps did. Each mode has its own "put lights back" snapshot.
+- **Rename** and **Delete** a mode from the Music tab. Deleting the running one switches to Music sync.
+- **Import from AppDaemon** makes a mode for every block you paste from `apps.yaml`, named after the block. One block fills the mode you're on.
+
 ## 1.4.0 - 2026-11-20
 
 - **Devices section on the Music tab.** Every light and music player music sync uses is in one list: tap ✎ to edit it, ↑↓ to change which light gets which color, and a switch to turn a device off for music sync without removing it. Add or remove devices from the same place.

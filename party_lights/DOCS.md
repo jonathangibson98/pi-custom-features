@@ -87,9 +87,17 @@ Announcements use `tts.speak` with the voice and speakers from Setup. The AI use
 
 The **Music** tab shows a checklist of what music sync needs (a player, music playing, lights, and your helper if you set one) with ✓ or ✕, so you can see straight away why it isn't syncing, and when it last synced.
 
+### Music modes
+
+**Music sync** is the first mode. Tap **+ New mode** at the top of the Music tab to add more: give it a name (Movie night, Dinner, Kitchen only…) and an emoji, then start blank or as a copy of the mode you're on. Tap a mode's name to edit it; everything below (devices, settings, advanced) belongs to that mode.
+
+- Each mode is a choice in the light mode list: on the Party tab, in the dashboard dropdown, in the `Light mode` select (MQTT) and with `hassio.addon_stdin` (for example `input: movie night`). Pick it to run it, and **Off** ends the party.
+- A mode runs when it's picked. Give it a condition, a template or **Sync even when the party is off** and it also runs by itself, like a separate `media_lights_sync` app. Modes that run by themselves can fight over the same lights, so give them different ones.
+- **Rename** and **Delete** are under the mode picker. Names must be different from every other mode. A linked dropdown helper keeps old names (the add-on never removes options from it), so remove any you no longer want in Home Assistant.
+
 ### Devices
 
-The **Devices** section lists the lights and music players music sync uses. Add one from the dropdown under each list.
+The **Devices** section lists the lights and music players music sync uses. Add one from the dropdown under each list. These are the devices of the mode picked above.
 
 - **↑ ↓** change the order of the lights. Each light gets a different color from the art, in that order (or all the same color).
 - The **switch** turns a device off for music sync without removing it.
@@ -114,7 +122,7 @@ The **Devices** section lists the lights and music players music sync uses. Add 
 
 ### Import from AppDaemon
 
-Paste the `media_lights_sync` block from `apps.yaml` into **Import from AppDaemon** and tap **Import**. It fills in the lights, players, `transition`, `use_saturated_colors`, `use_current_brightness`, `reset_lights_after`, `quantization_method`, `verify_cert`, `ha_url` and `condition` (an entity and state, or a `value_template`). Like the app, it then syncs whenever the cover changes, even when the party is off, unless you gave it a condition. Per-device edits are made afterwards in **Devices**.
+Paste the `media_lights_sync` block from `apps.yaml` into **Import from AppDaemon** and tap **Import**. With one block, it fills in the mode you're on. With several blocks (you ran more than one app), each becomes its own mode named after the block. It fills in the lights, players, `transition`, `use_saturated_colors`, `use_current_brightness`, `reset_lights_after`, `quantization_method`, `verify_cert`, `ha_url` and `condition` (an entity and state, or a `value_template`). Like the app, it then syncs whenever the cover changes, even when the party is off, unless you gave it a condition. Per-device edits are made afterwards in **Devices**.
 
 ## Album art sensor
 
