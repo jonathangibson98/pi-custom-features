@@ -1648,7 +1648,11 @@ async def ann_library_save(request):
     state = clean_ann_state(body.get("state"))
     if state is None:
         return web.json_response({"ok": False, "error": "Nothing to save."})
-    return web.json_response({"ok": True, "item": ann_store(sid, body.get("name"), state)})
+    warn = await push_name_change(request.app, "ann", sid, body.get("name"))
+    out = {"ok": True, "item": ann_store(sid, body.get("name"), state)}
+    if warn:
+        out["name_warning"] = warn
+    return web.json_response(out)
 
 
 async def ann_library_delete(request):
@@ -2170,7 +2174,11 @@ async def fact_library_save(request):
     state = clean_ann_state(body.get("state"))
     if state is None:
         return web.json_response({"ok": False, "error": "Nothing to save."})
-    return web.json_response({"ok": True, "item": fact_store(sid, body.get("name"), state)})
+    warn = await push_name_change(request.app, "facts", sid, body.get("name"))
+    out = {"ok": True, "item": fact_store(sid, body.get("name"), state)}
+    if warn:
+        out["name_warning"] = warn
+    return web.json_response(out)
 
 
 async def fact_library_delete(request):
@@ -2649,6 +2657,7 @@ def sync_lib_names(lib, live, path, kind="ann"):
     """Pick up names changed in Home Assistant. An item renamed in HA (its HA name moved away from the one we last wrote)
     takes the new name. A name changed here but not pushed yet is left alone."""
     changed = []
+    before = json.dumps(lib, sort_keys=True)
     for i, v in lib.items():
         s = live.get(i)
         if not s:
@@ -2670,7 +2679,8 @@ def sync_lib_names(lib, live, path, kind="ann"):
                 lib_rename(v, now, True, kind)
             else:
                 v["ha_name"] = now
-    save_json(path, lib)
+    if json.dumps(lib, sort_keys=True) != before:
+        save_json(path, lib)
     if changed:
         log.info("picked up %d name(s) changed in Home Assistant: %s", len(changed), ", ".join("%s -> %s" % (c["from"], c["to"]) for c in changed))
     return changed
@@ -2711,6 +2721,92 @@ async def ha_rename(app, kind, cid, name, entity=""):
     return True, ""
 
 
+async def rename_lib_item(app, lib_kind, cid, name):
+    """Give a saved announcement or fact its new name in Home Assistant (the script, or the automation for a fact that is
+    one, plus the "<name> (auto)" schedule) and in the library. Returns (ok, error, in_ha)."""
+    if not ANN_ID_RE.match(cid):
+        return False, "Bad id.", False
+    st, states = await ha(app, "GET", "/states")
+    ok_states = st == 200 and isinstance(states, list)
+    reg = await registry_entities(app) if ok_states else []
+    scripts = by_config_id(states if ok_states else [], reg, "script")
+    autos = by_config_id(states if ok_states else [], reg, "automation")
+    path, mark = (ANN_LIB, ANN_MARK) if lib_kind == "ann" else (FACTS_LIB, FACT_MARK)
+    lib = load_json(path, {})
+    v = lib.get(cid) if isinstance(lib, dict) else None
+    if not v:
+        return False, "That is not saved here.", False
+    st_ = v.get("state") or {}
+    one_auto = lib_kind == "facts" and fact_is_auto(st_)
+    kind = "automation" if one_auto else "script"
+    live = (autos if one_auto else scripts).get(cid)
+    in_ha = False
+    if live:
+        ok, err = await ha_rename(app, kind, cid, name, live.get("entity_id", ""))
+        if not ok:
+            return False, err, False
+        in_ha = True
+        if not one_auto:  # its schedule automation, if this tool made it, follows: "<name> (auto)"
+            aid = str(st_.get("autoId") or "") if lib_kind == "facts" else ""
+            aid = aid if ANN_ID_RE.match(aid) else cid + (ANN_AUTO_SUFFIX if lib_kind == "ann" else FACT_AUTO_SUFFIX)
+            code, acfg = await ha(app, "GET", f"/config/automation/config/{aid}", timeout=10)
+            if code == 200 and isinstance(acfg, dict) and acfg.get("description") == mark:
+                await ha_rename(app, "automation", aid, name + " (auto)", (autos.get(aid) or {}).get("entity_id", ""))
+    lib = load_json(path, {})  # re-read: nothing else may have changed it while we talked to Home Assistant
+    v = lib.get(cid)
+    if v:
+        lib_rename(v, name, in_ha, lib_kind)
+        save_json(path, lib)
+    h = load_json(HIST, [])
+    for x in h:
+        if x.get("entity") in ("script." + cid, "automation." + cid):
+            x["name"] = name
+    save_json(HIST, h)
+    return True, "", in_ha
+
+
+async def push_name_change(app, lib_kind, sid, new):
+    """A name edited in the editor and only Saved (not pushed): if the item is already in Home Assistant, rename it there
+    right away so both sides always show the same name. Returns a warning text, or "" when all is fine."""
+    new = re.sub(r"\s+", " ", str(new or "")).strip()[:80]
+    lib = ANN_LIB if lib_kind == "ann" else FACTS_LIB
+    old = (load_json(lib, {}) or {}).get(sid)
+    if not new or not old or new == old.get("name") or not (old.get("pushed_at") or old.get("ha_name")):
+        return ""
+    try:
+        ok, err, _in_ha = await rename_lib_item(app, lib_kind, sid, new)
+    except Exception as e:  # noqa: BLE001 - the save itself must still go through
+        log.warning("couldn't rename %s in Home Assistant: %s", sid, e)
+        return "Saved here, but Home Assistant could not be renamed: %s" % e
+    return "" if ok else "Saved here, but Home Assistant would not rename it: %s" % err
+
+
+async def sync_names_once(app):
+    """Pick up names changed in Home Assistant for every saved announcement and fact."""
+    st, states = await ha(app, "GET", "/states")
+    if not (st == 200 and isinstance(states, list)):
+        return
+    reg = await registry_entities(app)
+    live = by_config_id(states, reg, "script")
+    autos = by_config_id(states, reg, "automation")
+    sync_lib_names(ann_library(), live, ANN_LIB)
+    fl = fact_library()
+    sync_lib_names(fl, {i: (autos if fact_is_auto(v.get("state")) else live).get(i) for i, v in fl.items()}, FACTS_LIB, "facts")
+
+
+async def name_sync_loop(app):
+    """Every half minute, so a rename made in Home Assistant shows up here without opening anything."""
+    await asyncio.sleep(25)
+    while True:
+        try:
+            await sync_names_once(app)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001 - try again next round
+            log.warning("name sync: %s", e)
+        await asyncio.sleep(30)
+
+
 async def rename_route(request):
     """Rename something made here, in Home Assistant and in the add-on at the same time.
     lib=ann / facts / cards: a saved announcement, fact or card (by its id). Otherwise kind + id of a thing in HA."""
@@ -2736,36 +2832,9 @@ async def rename_route(request):
             save_json(CARDS_LIB, lib)
             return web.json_response({"ok": True, "name": name})
         if lib_kind in ("ann", "facts"):
-            if not ANN_ID_RE.match(cid):
-                return web.json_response({"ok": False, "error": "Bad id."})
-            path, mark = (ANN_LIB, ANN_MARK) if lib_kind == "ann" else (FACTS_LIB, FACT_MARK)
-            lib = load_json(path, {})
-            v = lib.get(cid) if isinstance(lib, dict) else None
-            if not v:
-                return web.json_response({"ok": False, "error": "That is not saved here."})
-            st_ = v.get("state") or {}
-            one_auto = lib_kind == "facts" and fact_is_auto(st_)
-            kind = "automation" if one_auto else "script"
-            live = (autos if one_auto else scripts).get(cid)
-            in_ha = False
-            if live:
-                ok, err = await ha_rename(app, kind, cid, name, live.get("entity_id", ""))
-                if not ok:
-                    return web.json_response({"ok": False, "error": err})
-                in_ha = True
-                if not one_auto:  # its schedule automation, if this tool made it, follows: "<name> (auto)"
-                    aid = str(st_.get("autoId") or "") if lib_kind == "facts" else ""
-                    aid = aid if ANN_ID_RE.match(aid) else cid + (ANN_AUTO_SUFFIX if lib_kind == "ann" else FACT_AUTO_SUFFIX)
-                    code, acfg = await ha(app, "GET", f"/config/automation/config/{aid}", timeout=10)
-                    if code == 200 and isinstance(acfg, dict) and acfg.get("description") == mark:
-                        await ha_rename(app, "automation", aid, name + " (auto)", (autos.get(aid) or {}).get("entity_id", ""))
-            lib_rename(v, name, in_ha, lib_kind)
-            save_json(path, lib)
-            h = load_json(HIST, [])
-            for x in h:
-                if x.get("entity") in ("script." + cid, "automation." + cid):
-                    x["name"] = name
-            save_json(HIST, h)
+            ok, err, in_ha = await rename_lib_item(app, lib_kind, cid, name)
+            if not ok:
+                return web.json_response({"ok": False, "error": err})
             return web.json_response({"ok": True, "name": name, "in_ha": in_ha})
         kind = str(b.get("kind") or "")
         if kind == "template":  # a template sensor this add-on manages: its name lives in our own file
@@ -3600,11 +3669,14 @@ async def on_startup(app):
     FILES.start()
     app["files_api"] = await FILES.start_api()
     app["resolver"] = asyncio.create_task(resolve_entity(app))
+    app["name_sync"] = asyncio.create_task(name_sync_loop(app))
     render_package(load_json(STORE, {}))
     log.info("Creator & AI Builder ready - using %s, template file /config/%s, AppDaemon dir %s, backups %s", ENTITY, TEMPLATE_REL, AD_DIR, BACKUP_PATH)
 
 
 async def on_cleanup(app):
+    if app.get("name_sync"):
+        app["name_sync"].cancel()
     if app.get("files_api"):
         await app["files_api"].cleanup()
     await app["http"].close()

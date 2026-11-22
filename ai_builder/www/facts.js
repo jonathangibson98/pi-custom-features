@@ -946,6 +946,7 @@ async function persist(push) {
   cur.saved = true; cur.isNew = false; if (push) cur.pushed = true; dirty = false; paintState(); notifyChanged("facts");
   const am = push ? (isAsAuto(s) ? (s.auto.on ? " It runs " + autoSummary(s.auto) + "." : " It has no schedule, so use Run now.") + (r.cleaned ? " The old script and schedule automation were removed." : "") : ownAuto(s) ? " Your automation is pushed exactly as written." : s.raw == null && s.auto.on ? " The schedule (" + autoSummary(s.auto) + ") is on." : r.auto === "removed" ? " The old schedule was removed." : "") : "";
   say(push ? "Done. " + (viaAuto(s) ? "The automation" : "script." + cur.id) + " is up to date in Home Assistant." + am : "Saved. Home Assistant still has the previous version." + (cur.pushed ? " Push to update it." : ""), "ok");
+  if (r.name_warning) say($("#msg").textContent + " " + r.name_warning, "bad");
 }
 $("#save").onclick = () => persist(false);
 $("#push").onclick = () => persist(true);
@@ -1099,6 +1100,9 @@ $("#setsave").onclick = async () => { if (await saveSettings()) { $("#smsg").cla
 
 /* ---------- start ---------- */
 onChanged(() => { if (view === "lib") loadLib(); });  /* another tab renamed or changed something */
+
+/* a rename made in Home Assistant shows up here on its own (the add-on checks every 30 seconds) */
+setInterval(() => { if (view === "lib" && !document.hidden && !(document.activeElement && document.activeElement.tagName === "INPUT")) loadLib(); }, 20000);
 Promise.all([api("ann/options"), api("facts/options"), api("ann/entities").then(r => Array.isArray(r) ? r : [])]).then(async ([o, f, e]) => {
   if (o.error || f.error) { $("#setupnote").append(el("div", {class: "note bad"}, o.error || f.error)); return; }
   S = o; F = f; ENT = e; if (!Array.isArray(S.sources)) S.sources = migrate(S);

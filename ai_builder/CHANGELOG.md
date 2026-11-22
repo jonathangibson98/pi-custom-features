@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.1.2 - 2026-11-21
+
+- **Names now stay in sync with Home Assistant, both ways.**
+  - **Rename here, it changes in Home Assistant.** Changing the name of an announcement or fact and pressing **Save** (not just Push) now renames its script, or its automation, and its "(auto)" schedule in Home Assistant right away. Before, the new name only reached Home Assistant when you pushed.
+  - **Rename in Home Assistant, it changes here.** The add-on checks every 30 seconds and the Announcements and Facts lists refresh by themselves, so you no longer have to reopen the list to see the new name.
+  - A name you changed here but haven't saved yet is never overwritten. If Home Assistant can't be renamed (a script written in a YAML file, say), Save still works and tells you why.
+
 ## 3.1.1 - 2026-11-17
 
 - **Better on phones** (built around the Home Assistant iPhone app): text fields no longer make iOS zoom in, buttons and switches are finger-sized, rows of tabs swipe sideways instead of getting cut off, and wide content or long error text no longer pushes the page sideways.

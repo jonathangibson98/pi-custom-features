@@ -558,6 +558,7 @@ async function persist(push) {
   if (push && r.replaced) IMPORT.done = true;
   const am = push ? (s.auto.on ? " It runs " + autoSummary(s.auto) + "." : r.auto === "removed" ? " The old schedule was removed." : "") : "";
   say(push ? "Done. script." + cur.id + " is up to date in Home Assistant." + am + (r.replaced ? " Your old automation " + r.replaced + " was turned off so it doesn't run twice." : "") : "Saved. Home Assistant still has the previous version." + (cur.pushed ? " Push to update it." : ""), "ok");
+  if (r.name_warning) say($("#msg").textContent + " " + r.name_warning, "bad");
 }
 $("#save").onclick = () => persist(false);
 $("#push").onclick = () => persist(true);
@@ -900,6 +901,9 @@ $("#setfill").onclick = () => {
 
 /* another tab renamed or changed something: refresh the list (not while editing, so nothing typed is lost) */
 onChanged(() => { if (view === "lib") loadLib(); });
+
+/* a rename made in Home Assistant shows up here on its own (the add-on checks every 30 seconds) */
+setInterval(() => { if (view === "lib" && !document.hidden && !(document.activeElement && document.activeElement.tagName === "INPUT")) loadLib(); }, 20000);
 
 /* ---------- start ---------- */
 Promise.all([api("ann/options"), api("ann/entities").then(r => Array.isArray(r) ? r : []), api("facts/options")]).then(async ([o, e, f]) => {
