@@ -1,6 +1,6 @@
 # Debian (glibc) Python base on purpose: SVG Maker's tracer (vtracer) is a Rust library that crashes on
 # Alpine (musl), and it only ships prebuilt wheels for released Python versions.
-FROM python:3.12-slim-bookworm
+FROM python:3.15-slim-bookworm
 
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 
