@@ -4,6 +4,7 @@ Reads and writes dashboards over Home Assistant's websocket (lovelace/*). Every 
 can be undone. Unsaved drafts are previewed on a hidden "Creator preview" dashboard, so you see the real thing at the
 real screen size (a TV for a cast dashboard, a tablet, a phone) before anything you use changes.
 """
+import copy
 import json
 import logging
 import re
@@ -173,13 +174,22 @@ class Dashboards:
         scored.sort(key=lambda t: (-t[0], t[1]))
         return [self.brief(s) for _, _, s in scored[:limit]]
 
-    def prompt(self, request, config, screen, entities, resources, scope_note, problems):
+    def prompt(self, request, config, screen, entities, resources, scope_note, problems, mode="edit"):
         w, h, notes = SCREENS.get(screen.get("id"), (screen.get("w"), screen.get("h"), screen.get("notes") or ""))
         if screen.get("id") == "custom":
             w, h, notes = screen.get("w") or 1280, screen.get("h") or 720, screen.get("notes") or "a custom screen"
+        if mode == "build":
+            spec = ('You build Home Assistant Lovelace dashboards. Reply with ONLY a JSON object: '
+                    '{"config": <the full new dashboard config as JSON>, "summary": "<one or two sentences>", "changes": ["<short item>", ...]}.')
+        else:
+            spec = ('You edit Home Assistant Lovelace dashboards. Reply with ONLY a JSON object: '
+                    '{"views": [{"index": <number of the view, counting from 0 as in the current config>, "view": <that whole view as JSON>}], '
+                    '"summary": "<one or two sentences>", "changes": ["<short item>", ...]}. '
+                    'Include ONLY the views you actually changed and leave every unchanged view out, so the reply stays short. '
+                    'If the request changes a top-level setting (like the title), add "top": {<only those keys>}. '
+                    "No markdown and no text outside the JSON.")
         p = [
-            "You edit Home Assistant Lovelace dashboards. Reply with ONLY a JSON object: "
-            '{"config": <the full new dashboard config as JSON>, "summary": "<one or two sentences>", "changes": ["<short item>", ...]}.',
+            spec,
             "",
             "SCREEN: %dx%d px, %s" % (w, h, notes),
             "- Everything on each view must fit that screen without scrolling unless the screen notes say scrolling is fine. "
@@ -200,7 +210,7 @@ class Dashboards:
             p += ["", "KNOWN PROBLEMS TO FIX IF RELEVANT: " + problems]
         p += ["", "REQUEST: " + (request or "Tidy it up and make it fit the screen."), "",
               "ENTITIES YOU MAY USE (id = state (name) unit [class]):", "\n".join(entities) or "(none matched)", "",
-              "CURRENT CONFIG (JSON):", json.dumps(config, ensure_ascii=False)]
+              "CURRENT CONFIG (JSON):", json.dumps(config, ensure_ascii=False, separators=(",", ":"))]
         return "\n".join(p)
 
     # ---------------------------------------------------------------- my screens
@@ -361,6 +371,73 @@ class Dashboards:
             return cfg
         raise ValueError("No dashboard sent")
 
+    RETRY_NOTE = ("\n\nYOUR LAST REPLY COULD NOT BE READ (it was cut off or was not plain JSON). Reply again with ONLY the JSON object, "
+                  "no markdown and no other text, and include ONLY the views you changed so the reply is short.")
+
+    def read_reply(self, raw):
+        """(parsed dict, "") or (None, why it couldn't be used)."""
+        raw = raw if isinstance(raw, str) else ""
+        if not raw.strip():
+            return None, "it sent back nothing (the AI Task may have timed out or hit a limit)"
+        try:
+            out = self.extract_json(raw)
+        except (ValueError, TypeError) as e:
+            log.warning("AI reply isn't JSON (%s): %d chars, starts %r, ends %r", e, len(raw), raw[:200], raw[-200:])
+            return None, "the reply wasn't complete JSON (%d characters, ends with %r)" % (len(raw), raw.strip()[-40:])
+        if not isinstance(out, dict):
+            return None, "the reply wasn't a JSON object"
+        return out, ""
+
+    async def ask_json(self, app, prompt):
+        """Ask the AI, and ask once more if the reply can't be read. Returns (dict, "") or (None, why)."""
+        why = ""
+        for attempt in (1, 2):
+            try:
+                raw = await self.ask_ai(app, prompt if attempt == 1 else prompt + self.RETRY_NOTE)
+            except Exception as e:  # noqa: BLE001
+                why = "the AI call failed: %s" % e
+                log.warning("dashboard AI call failed (try %d): %s", attempt, e)
+                continue
+            out, why = self.read_reply(raw)
+            if out is not None:
+                return out, ""
+            log.warning("dashboard AI reply unusable (try %d): %s", attempt, why)
+        return None, why
+
+    @staticmethod
+    def apply_reply(out, cfg, scoped):
+        """Fold the AI's answer into the dashboard. It sends only the views it changed ({"views": [{"index", "view"}]});
+        a whole config ({"config": ...} or {"views": [view, ...]}) is accepted too. scoped = index of the single view
+        the AI was given, or None. Returns the new config or None."""
+        views = cfg.get("views") or []
+        ch = out.get("views") if isinstance(out.get("views"), list) else out.get("changed_views")
+        if isinstance(ch, list) and ch and all(isinstance(x, dict) and isinstance(x.get("view"), dict) for x in ch):
+            new = copy.deepcopy(cfg)
+            nv = new.setdefault("views", [])
+            for x in (ch[:1] if scoped is not None else ch):
+                try:
+                    i = scoped if scoped is not None else int(x.get("index", 0))
+                except (TypeError, ValueError):
+                    continue
+                if 0 <= i < len(nv):
+                    nv[i] = x["view"]
+            if isinstance(out.get("top"), dict):
+                for k, v in out["top"].items():
+                    if k != "views":
+                        new[k] = v
+            return new
+        new = out.get("config") if isinstance(out.get("config"), dict) else (
+            {"views": out["views"]} if isinstance(out.get("views"), list) else None)
+        if isinstance(new, dict) and "views" not in new and "cards" in new:
+            new = {"views": [new]}
+        if not isinstance(new, dict) or not isinstance(new.get("views"), list):
+            return None
+        if scoped is not None:
+            merged = copy.deepcopy(cfg)
+            merged["views"][scoped] = (new["views"] or [views[scoped]])[0]
+            return merged
+        return new
+
     async def r_ai(self, request):
         """AI edit: the whole dashboard or one view, for a chosen screen."""
         b = await request.json()
@@ -377,7 +454,7 @@ class Dashboards:
         views = cfg.get("views") or []
         if isinstance(view, int) and 0 <= view < len(views):
             target = {"views": [views[view]]}
-            scope = "SCOPE: you are given ONE view of a bigger dashboard. Return config with exactly one view in views."
+            scope = "SCOPE: you are given ONE view of a bigger dashboard (it is index 0 here). Return just that one view, as index 0."
         problems = []
         chk = self.check(target, states, res)
         if chk["missing_entities"]:
@@ -388,20 +465,14 @@ class Dashboards:
             problems.append("in the live preview the content overflowed the screen by %s px; shrink or rearrange so it fits" % b["overflow"])
         prompt = self.prompt(b.get("request") or "", target, b.get("screen") or {"id": "desktop"},
                              self.pick_entities(states, target, b.get("request")), res, scope, "; ".join(problems))
-        try:
-            raw = await self.ask_ai(app, prompt)
-            out = self.extract_json(raw)
-        except Exception as e:  # noqa: BLE001
-            return web.json_response({"ok": False, "error": "The AI didn't send back a dashboard: %s" % e})
-        new = out.get("config") if isinstance(out, dict) else None
-        if isinstance(new, dict) and "views" not in new and "cards" in new:
-            new = {"views": [new]}
-        if not isinstance(new, dict) or not isinstance(new.get("views"), list):
+        out, why = await self.ask_json(app, prompt)
+        if out is None:
+            return web.json_response({"ok": False, "error": "The AI didn't send back a dashboard: %s. I tried twice." % why
+                                      + ("" if target is not cfg or len(views) < 2 else " Tip: pick one view instead of the whole dashboard.")})
+        new = self.apply_reply(out, cfg, view if target is not cfg else None)
+        if new is None:
+            log.warning("dashboard AI answer wasn't a dashboard: keys %s", list(out)[:10])
             return web.json_response({"ok": False, "error": "The AI's answer wasn't a dashboard. Try again or reword it."})
-        if target is not cfg:
-            merged = json.loads(json.dumps(cfg))
-            merged["views"][view] = (new["views"] or [views[view]])[0]
-            new = merged
         return web.json_response({"ok": True, "config": new, "summary": out.get("summary") or "",
                                   "changes": out.get("changes") or [],
                                   "yaml": yaml.safe_dump(new, sort_keys=False, allow_unicode=True, width=120),
@@ -418,11 +489,10 @@ class Dashboards:
         if not req:
             return web.json_response({"ok": False, "error": "Describe the dashboard first."})
         prompt = self.prompt("Build a NEW dashboard from scratch: " + req, {"views": []}, b.get("screen") or {"id": "desktop"},
-                             self.pick_entities(states, {}, req, 300), res, "", "")
-        try:
-            out = self.extract_json(await self.ask_ai(app, prompt))
-        except Exception as e:  # noqa: BLE001
-            return web.json_response({"ok": False, "error": "The AI didn't send back a dashboard: %s" % e})
+                             self.pick_entities(states, {}, req, 300), res, "", "", mode="build")
+        out, why = await self.ask_json(app, prompt)
+        if out is None:
+            return web.json_response({"ok": False, "error": "The AI didn't send back a dashboard: %s. I tried twice." % why})
         new = out.get("config") if isinstance(out, dict) else None
         if not isinstance(new, dict) or not isinstance(new.get("views"), list):
             return web.json_response({"ok": False, "error": "The AI's answer wasn't a dashboard. Try again."})

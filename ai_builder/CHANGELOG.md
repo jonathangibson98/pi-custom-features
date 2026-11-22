@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.1.3 - 2026-11-21
+
+- **Fixed: Dashboards AI often failed to send back a dashboard.** It used to ask the AI to retype your whole dashboard, which on a big one gets cut off or runs out of time.
+  - The AI now sends back **only the views it changed**, and they are merged into your dashboard. Much shorter replies, much less to go wrong.
+  - If the reply is cut off or isn't readable, it **asks once more automatically** before giving up.
+  - When it still fails, the message now says **why** (nothing came back, cut off, or the AI call itself failed) and suggests picking one view. The start and end of the bad reply are written to the add-on log.
+
 ## 3.1.2 - 2026-11-21
 
 - **Names now stay in sync with Home Assistant, both ways.**
