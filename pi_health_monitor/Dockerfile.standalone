@@ -1,6 +1,6 @@
 # Standalone image for plain Docker / docker compose (no Home Assistant Supervisor).
 # The Home Assistant add-on keeps using ./Dockerfile.
-FROM python:3.13-alpine
+FROM python:3.15-alpine
 
 ENV PYTHONUNBUFFERED=1
 WORKDIR /app
