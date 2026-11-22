@@ -1603,7 +1603,8 @@ async def ann_push(request):
             state["replacedDone"] = True
     if state is not None or sid in ann_library():
         ann_store(sid, name, state, pushed=True)
-    return web.json_response({"ok": True, "entity": f"script.{sid}", "auto": auto, "replaced": replaced})
+    id_note = await match_ids_after_push(app, name, sid, aid if auto == "pushed" else None) if body.get("match_id") else ""
+    return web.json_response({"ok": True, "entity": f"script.{sid}", "auto": auto, "replaced": replaced, "id_note": id_note})
 
 
 async def ann_found(app, skip):
@@ -1648,8 +1649,8 @@ async def ann_library_save(request):
     state = clean_ann_state(body.get("state"))
     if state is None:
         return web.json_response({"ok": False, "error": "Nothing to save."})
-    warn = await push_name_change(request.app, "ann", sid, body.get("name"))
-    out = {"ok": True, "item": ann_store(sid, body.get("name"), state)}
+    warn, note = await push_name_change(request.app, "ann", sid, body.get("name"), body.get("match_id"))
+    out = {"ok": True, "item": ann_store(sid, body.get("name"), state), "id_note": note}
     if warn:
         out["name_warning"] = warn
     return web.json_response(out)
@@ -2044,7 +2045,11 @@ async def fact_push(request):
     state = clean_ann_state(body.get("state"))
     if state is not None or sid in fact_library():
         fact_store(sid, name, state, pushed=True)
-    return web.json_response({"ok": True, "entity": f"script.{sid}", "auto": auto})
+    id_note = ""
+    if body.get("match_id"):
+        own = str(body.get("auto_id") or "")
+        id_note = await match_ids_after_push(app, name, sid, (own if ANN_ID_RE.match(own) else sid + FACT_AUTO_SUFFIX) if auto == "pushed" else None)
+    return web.json_response({"ok": True, "entity": f"script.{sid}", "auto": auto, "id_note": id_note})
 
 
 async def fact_push_auto(app, body, aid):
@@ -2085,7 +2090,8 @@ async def fact_push_auto(app, body, aid):
     state = clean_ann_state(body.get("state"))
     if state is not None or aid in fact_library():
         fact_store(aid, name, state, pushed=True)
-    return web.json_response({"ok": True, "entity": "automation." + aid, "auto": "pushed", "cleaned": cleaned})
+    id_note = await match_ids_after_push(app, name, None, aid) if body.get("match_id") else ""
+    return web.json_response({"ok": True, "entity": "automation." + aid, "auto": "pushed", "cleaned": cleaned, "id_note": id_note})
 
 
 async def fact_import_auto(request):
@@ -2174,8 +2180,8 @@ async def fact_library_save(request):
     state = clean_ann_state(body.get("state"))
     if state is None:
         return web.json_response({"ok": False, "error": "Nothing to save."})
-    warn = await push_name_change(request.app, "facts", sid, body.get("name"))
-    out = {"ok": True, "item": fact_store(sid, body.get("name"), state)}
+    warn, note = await push_name_change(request.app, "facts", sid, body.get("name"), body.get("match_id"))
+    out = {"ok": True, "item": fact_store(sid, body.get("name"), state), "id_note": note}
     if warn:
         out["name_warning"] = warn
     return web.json_response(out)
@@ -2749,7 +2755,7 @@ async def match_entity_id(app, entity, name):
     return new, "Entity id is now %s (was %s). Update anything that still uses the old one." % (new, entity)
 
 
-async def rename_lib_item(app, lib_kind, cid, name, match_id=None):
+async def rename_lib_item(app, lib_kind, cid, name, match_id=None, only_ids=False):
     """Give a saved announcement or fact its new name in Home Assistant (the script, or the automation for a fact that is
     one, plus the "<name> (auto)" schedule) and in the library. match_id: also change the entity id to match the name
     (None follows the match_entity_id option). Returns (ok, error, in_ha, note)."""
@@ -2773,9 +2779,10 @@ async def rename_lib_item(app, lib_kind, cid, name, match_id=None):
     live = (autos if one_auto else scripts).get(cid)
     in_ha = False
     if live:
-        ok, err = await ha_rename(app, kind, cid, name, live.get("entity_id", ""))
-        if not ok:
-            return False, err, False, ""
+        if not only_ids:  # only_ids: the name is already right in Home Assistant, just make the entity ids follow it
+            ok, err = await ha_rename(app, kind, cid, name, live.get("entity_id", ""))
+            if not ok:
+                return False, err, False, ""
         in_ha = True
         if match_id:
             _new, note = await match_entity_id(app, live.get("entity_id", ""), name)
@@ -2784,7 +2791,8 @@ async def rename_lib_item(app, lib_kind, cid, name, match_id=None):
             aid = aid if ANN_ID_RE.match(aid) else cid + (ANN_AUTO_SUFFIX if lib_kind == "ann" else FACT_AUTO_SUFFIX)
             code, acfg = await ha(app, "GET", f"/config/automation/config/{aid}", timeout=10)
             if code == 200 and isinstance(acfg, dict) and acfg.get("description") == mark:
-                await ha_rename(app, "automation", aid, name + " (auto)", (autos.get(aid) or {}).get("entity_id", ""))
+                if not only_ids:
+                    await ha_rename(app, "automation", aid, name + " (auto)", (autos.get(aid) or {}).get("entity_id", ""))
                 if match_id and (autos.get(aid) or {}).get("entity_id"):
                     await match_entity_id(app, autos[aid]["entity_id"], name + " (auto)")
     lib = load_json(path, {})  # re-read: nothing else may have changed it while we talked to Home Assistant
@@ -2800,20 +2808,46 @@ async def rename_lib_item(app, lib_kind, cid, name, match_id=None):
     return True, "", in_ha, note
 
 
-async def push_name_change(app, lib_kind, sid, new):
+async def push_name_change(app, lib_kind, sid, new, match_id=None):
     """A name edited in the editor and only Saved (not pushed): if the item is already in Home Assistant, rename it there
-    right away so both sides always show the same name. Returns a warning text, or "" when all is fine."""
+    right away so both sides always show the same name. match_id: also make the entity id follow the name (even when the
+    name itself did not change). Returns (warning text or "", note about the entity id or "")."""
     new = re.sub(r"\s+", " ", str(new or "")).strip()[:80]
     lib = ANN_LIB if lib_kind == "ann" else FACTS_LIB
     old = (load_json(lib, {}) or {}).get(sid)
-    if not new or not old or new == old.get("name") or not (old.get("pushed_at") or old.get("ha_name")):
-        return ""
+    if not new or not old or not (old.get("pushed_at") or old.get("ha_name")):
+        return "", ""
+    same = new == old.get("name")
+    if same and not match_id:
+        return "", ""
     try:
-        ok, err, _in_ha, _note = await rename_lib_item(app, lib_kind, sid, new)
+        ok, err, _in_ha, note = await rename_lib_item(app, lib_kind, sid, new, match_id, only_ids=same)
     except Exception as e:  # noqa: BLE001 - the save itself must still go through
         log.warning("couldn't rename %s in Home Assistant: %s", sid, e)
-        return "Saved here, but Home Assistant could not be renamed: %s" % e
-    return "" if ok else "Saved here, but Home Assistant would not rename it: %s" % err
+        return "Saved here, but Home Assistant could not be renamed: %s" % e, ""
+    return ("" if ok else "Saved here, but Home Assistant would not rename it: %s" % err), note
+
+
+async def match_ids_after_push(app, name, script_id=None, auto_id=None):
+    """After a push with the box ticked: the entity ids follow the name. Returns a note ("" if nothing changed)."""
+    st, states = await ha(app, "GET", "/states")
+    if not (st == 200 and isinstance(states, list)):
+        return ""
+    reg = await registry_entities(app)
+    notes = []
+    if script_id:
+        s_ = by_config_id(states, reg, "script").get(script_id)
+        if s_:
+            notes.append((await match_entity_id(app, s_["entity_id"], name))[1])
+    if auto_id:
+        a_ = by_config_id(states, reg, "automation").get(auto_id)
+        if a_:
+            notes.append((await match_entity_id(app, a_["entity_id"], name + (" (auto)" if script_id else "")))[1])
+    return " ".join(n for n in notes if n)
+
+
+async def match_default(request):
+    return web.json_response({"on": bool(OPTS.get("match_entity_id"))})
 
 
 async def sync_names_once(app):
@@ -3747,6 +3781,7 @@ def main():
         *FILES.routes(),
         *DASH.routes(),
         web.get("/api/status", status),
+        web.get("/api/match_default", match_default),
         web.get("/api/targets", targets),
         web.get("/api/mine", mine),
         web.get("/api/made", made_route),

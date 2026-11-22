@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.1.5 - 2026-11-22
+
+- **The "Also change the entity ID" box is now on the Announcements and Facts editors too**, right under the name field, so you can tick it while editing instead of only under Rename. It applies to both **Save** and **Save and push**, and it also works with the name left unchanged (it just fixes the entity ID). It remembers your choice, and the first time it starts from the add-on option **Change the entity id when a name changes**. The result is shown in the message after saving.
+
 ## 3.1.4 - 2026-11-22
 
 - **Change the entity ID when you rename.** Renaming used to leave the old entity ID (`script.old_name`). Now:

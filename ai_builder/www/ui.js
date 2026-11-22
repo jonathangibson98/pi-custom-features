@@ -124,3 +124,16 @@ function renameButton(current, save, done) {
   wrap.append(btn);
   return wrap;
 }
+
+/* The "also change the entity ID" tick box for the editors. Remembers the choice; the first time it starts from the
+   add-on option "Change the entity id when a name changes". box.checked() says whether it is ticked. */
+function matchIdBox() {
+  let saved = null, touched = false;
+  try { saved = localStorage.getItem("aib_match_id"); } catch (e) { /* storage blocked */ }
+  const chk = el("input", {type: "checkbox"}); chk.checked = saved === "1";
+  if (saved === null) api("match_default").then(r => { if (r && r.on && !touched) chk.checked = true; }).catch(() => {});
+  chk.addEventListener("change", () => { touched = true; try { localStorage.setItem("aib_match_id", chk.checked ? "1" : "0"); } catch (e) { /* storage blocked */ } });
+  const row = el("label", {class: "dim small", style: "display:flex;gap:8px;align-items:flex-start;margin-top:8px"}, chk,
+    el("span", {}, "Also change the entity ID to match the name when I Save or Push (anything still using the old ID must be updated)"));
+  return {row, checked: () => chk.checked};
+}

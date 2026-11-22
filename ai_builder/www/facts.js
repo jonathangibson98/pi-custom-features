@@ -706,6 +706,7 @@ async function copyCards(list, say2) {
 
 /* ---------- editor ---------- */
 const changed = () => { gen(); markDirty(); };
+let MATCH = null;  /* the "also change the entity ID" box of the open editor */
 const add = (parent, ...kids) => { kids.flat(Infinity).forEach(x => { if (x != null && x !== false) parent.append(x); }); return parent; };
 const rawMode = () => E && E.raw != null;
 
@@ -735,7 +736,8 @@ function drawForm() {
   /* 1. name */
   const c1 = card(1, "Name");
   const nm = tf(viaAuto(E) ? "Automation name" : "Script name", "name", {after: () => { if (FORMCTX) FORMCTX.setAlias(E.name); else if (raw) E.raw = setAlias(E.raw, E.name); }});
-  add(c1, nm, el("p", {class: "help", id: "idhelp"}));
+  MATCH = matchIdBox();
+  add(c1, nm, el("p", {class: "help", id: "idhelp"}), MATCH.row);
   if (cur.isNew && !raw && !isAutoOnly(E)) {
     const chips = el("div", {class: "chips"});
     Object.entries(PRE).forEach(([k, p]) => chips.append(el("button", {class: "chip", onclick: () => applyPreset(p)}, k)));
@@ -939,13 +941,14 @@ async function persist(push) {
   const btns = [$("#save"), $("#push")]; btns.forEach(b => b.disabled = true);
   say(push ? "Pushing to Home Assistant..." : "Saving...");
   let r;
-  if (push) r = await fapi("push", pushBody(s, cur.id, {new: cur.isNew && !cur.pushed}));
-  else r = await fapi("library/save", {id: cur.id, name: s.name, state: s});
+  if (push) r = await fapi("push", pushBody(s, cur.id, {new: cur.isNew && !cur.pushed, match_id: !!(MATCH && MATCH.checked())}));
+  else r = await fapi("library/save", {id: cur.id, name: s.name, state: s, match_id: !!(MATCH && MATCH.checked())});
   btns.forEach(b => b.disabled = false);
   if (!r.ok) { say(r.detail || r.error || "That failed.", "bad"); if (!cur.saved && !cur.pushed && !cur.fixedId) cur.id = null; paintState(); return; }
   cur.saved = true; cur.isNew = false; if (push) cur.pushed = true; dirty = false; paintState(); notifyChanged("facts");
   const am = push ? (isAsAuto(s) ? (s.auto.on ? " It runs " + autoSummary(s.auto) + "." : " It has no schedule, so use Run now.") + (r.cleaned ? " The old script and schedule automation were removed." : "") : ownAuto(s) ? " Your automation is pushed exactly as written." : s.raw == null && s.auto.on ? " The schedule (" + autoSummary(s.auto) + ") is on." : r.auto === "removed" ? " The old schedule was removed." : "") : "";
   say(push ? "Done. " + (viaAuto(s) ? "The automation" : "script." + cur.id) + " is up to date in Home Assistant." + am : "Saved. Home Assistant still has the previous version." + (cur.pushed ? " Push to update it." : ""), "ok");
+  if (r.id_note) say($("#msg").textContent + " " + r.id_note, "ok");
   if (r.name_warning) say($("#msg").textContent + " " + r.name_warning, "bad");
 }
 $("#save").onclick = () => persist(false);

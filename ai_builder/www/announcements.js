@@ -550,16 +550,18 @@ async function persist(push) {
   let r;
   if (IMPORT.original && s.raw == null) Object.assign(s, {original: IMPORT.original, replaces: IMPORT.replaces || "", replacedDone: IMPORT.done});
   if (push) r = await ann("push", {id: cur.id, yaml: makeYaml(s), auto_yaml: makeAuto(s, cur.id), state: s, new: cur.isNew && !cur.pushed,
-    replace_auto: IMPORT.replaces && !IMPORT.done && s.raw == null ? IMPORT.replaces : ""});
-  else r = await ann("library/save", {id: cur.id, name: s.name, state: s});
+    replace_auto: IMPORT.replaces && !IMPORT.done && s.raw == null ? IMPORT.replaces : "", match_id: MATCH.checked()});
+  else r = await ann("library/save", {id: cur.id, name: s.name, state: s, match_id: MATCH.checked()});
   btns.forEach(b => b.disabled = false);
   if (!(r.ok)) { say(r.detail || r.error || "That failed.", "bad"); if (!cur.saved && !cur.pushed && !cur.fixedId) cur.id = null; paintState(); return; }
   cur.saved = true; cur.isNew = false; if (push) cur.pushed = true; dirty = false; paintState(); notifyChanged("ann");
   if (push && r.replaced) IMPORT.done = true;
   const am = push ? (s.auto.on ? " It runs " + autoSummary(s.auto) + "." : r.auto === "removed" ? " The old schedule was removed." : "") : "";
   say(push ? "Done. script." + cur.id + " is up to date in Home Assistant." + am + (r.replaced ? " Your old automation " + r.replaced + " was turned off so it doesn't run twice." : "") : "Saved. Home Assistant still has the previous version." + (cur.pushed ? " Push to update it." : ""), "ok");
+  if (r.id_note) say($("#msg").textContent + " " + r.id_note, "ok");
   if (r.name_warning) say($("#msg").textContent + " " + r.name_warning, "bad");
 }
+const MATCH = matchIdBox(); $("#idhelp").after(MATCH.row);
 $("#save").onclick = () => persist(false);
 $("#push").onclick = () => persist(true);
 
