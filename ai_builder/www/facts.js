@@ -307,7 +307,7 @@ function libCard(it) {
     el("div", {class: "clamp"}, isAutoOnly(st) ? "Your own automation, kept exactly as you wrote it. Open it to convert it to the normal form." : raw ? "Your own script, kept exactly as you wrote it. Open it to convert it to the normal form." : (st.task || "No instructions yet.")),
     el("div", {class: "meta"}, pills),
     el("div", {class: "acts"}, el("button", {class: "btn primary sm", onclick: () => openItem(it)}, "Edit"), run, el("button", {class: "btn sm", title: "Copy a dashboard card for this fact", onclick: () => copyCards([it], (t, c) => { msg.className = "msg " + (c || ""); msg.textContent = t; })}, "Copy card"), dup,
-      renameButton(it.name || it.id, n => api("rename", {lib: "facts", id: it.id, name: n}), r => { flash(r.in_ha ? "Renamed in Home Assistant too. The id stays " + it.id + "." : "Renamed. Push it to use the new name in Home Assistant.", "ok"); loadLib(); }), del), msg);
+      renameButton(it.name || it.id, (n, m) => api("rename", {match_id: m, lib: "facts", id: it.id, name: n}), r => { flash(r.in_ha ? "Renamed in Home Assistant too. The id stays " + it.id + "." + (r.note ? " " + r.note : "") : "Renamed. Push it to use the new name in Home Assistant.", "ok"); loadLib(); }), del), msg);
 }
 async function removeFact(id, alsoScript) {
   const r = await fapi("library/delete", {id, delete_script: !!alsoScript});

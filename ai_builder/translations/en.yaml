@@ -8,6 +8,9 @@ configuration:
   request_timeout:
     name: AI request timeout (seconds)
     description: How long to wait for the AI before giving up (30 to 600).
+  match_entity_id:
+    name: Change the entity id when a name changes
+    description: When an announcement, fact or other item is renamed here, also change its entity id to match (script.my_old_name becomes script.my_new_name). Anything in Home Assistant that used the old entity id must then be updated by you. You can also tick this per rename.
   template_file:
     name: Template sensor file
     description: Where template sensors are written, relative to your Home Assistant config folder. Must end in .yaml.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.1.4 - 2026-11-22
+
+- **Change the entity ID when you rename.** Renaming used to leave the old entity ID (`script.old_name`). Now:
+  - The **Rename** box has a checkbox, **Also change the entity ID to match**. Tick it and the entity ID follows the new name (`script.new_name`). If that ID is taken it adds `_2`, `_3`...
+  - **Fix an old one:** tick the box and press Save without changing the name, and only the entity ID is updated.
+  - New option **Change the entity id when a name changes** (Configuration tab) does the same automatically whenever a name changes here, including when you just press Save in the editor.
+  - Anything in Home Assistant that used the old entity ID (dashboards, other automations) has to be updated by you; Home Assistant doesn't do that. The add-on itself keeps finding and running the item under its new ID.
+
 ## 3.1.3 - 2026-11-21
 
 - **Fixed: Dashboards AI often failed to send back a dashboard.** It used to ask the AI to retype your whole dashboard, which on a big one gets cut off or runs out of time.

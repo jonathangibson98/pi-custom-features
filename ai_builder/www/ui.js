@@ -104,17 +104,22 @@ function renameButton(current, save, done) {
   const btn = el("button", {class: "btn sm", onclick: () => {
     const inp = el("input", {value: current || "", maxlength: 80, style: "max-width:240px;min-width:140px"});
     const msg = el("span", {class: "dim small"});
+    let remembered = false; try { remembered = localStorage.getItem("aib_match_id") === "1"; } catch (e) { /* storage blocked */ }
+    const chk = el("input", {type: "checkbox"}); chk.checked = remembered;
+    const chkRow = el("label", {class: "dim small", style: "display:flex;gap:6px;align-items:center;width:100%"}, chk,
+      "Also change the entity ID to match (anything using the old ID must be updated)");
     const ok = el("button", {class: "btn primary sm", onclick: async () => {
       const n = inp.value.trim(); if (!n) { msg.textContent = "Type a name."; return; }
-      if (n === current) { wrap.replaceChildren(btn); return; }
+      if (n === current && !chk.checked) { wrap.replaceChildren(btn); return; }  /* same name + the box ticked = just fix the entity ID */
+      try { localStorage.setItem("aib_match_id", chk.checked ? "1" : "0"); } catch (e) { /* storage blocked */ }
       ok.disabled = true; msg.textContent = "Renaming...";
-      const r = await save(n); ok.disabled = false;
+      const r = await save(n, chk.checked); ok.disabled = false;
       if (!r || !r.ok) { msg.textContent = (r && (r.error || r.detail)) || "That failed."; return; }
       notifyChanged("rename"); if (done) done(r);
     }}, "Save");
     const no = el("button", {class: "btn quiet sm", onclick: () => wrap.replaceChildren(btn)}, "Cancel");
     inp.onkeydown = e => { if (e.key === "Enter") ok.click(); if (e.key === "Escape") no.click(); };
-    wrap.replaceChildren(el("span", {class: "inline", style: "flex-wrap:wrap;gap:6px;width:100%"}, inp, ok, no, msg)); inp.focus(); inp.select();
+    wrap.replaceChildren(el("span", {class: "inline", style: "flex-wrap:wrap;gap:6px;width:100%"}, inp, ok, no, msg, chkRow)); inp.focus(); inp.select();
   }}, "Rename");
   wrap.append(btn);
   return wrap;

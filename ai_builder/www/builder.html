@@ -865,7 +865,7 @@ async function renderMine() {
     const del = el("button", {class: "btn danger sm"}, "Delete");
     confirmTap(del, "Tap again", async () => { await api("delete_template", {id: x.id}); renderMine(); });
     tl.append(el("div", {class: "li"}, el("div", {class: "t"}, el("b", {}, x.name), el("span", {class: "dim"}, "  " + x.platform)),
-      renameButton(x.name, n => api("rename", {kind: "template", id: x.id, name: n}), renderMine), del));
+      renameButton(x.name, (n, m) => api("rename", {match_id: m, kind: "template", id: x.id, name: n}), renderMine), del));
   }
   t.append(tl); box.append(t);
 
@@ -880,7 +880,7 @@ async function renderMine() {
     const open = el("button", {class: "btn sm", onclick: () => { try { window.parent.show(TABNAME[x.kind].toLowerCase()); } catch (e) { /* not inside the add-on page */ } }}, "Open " + TABNAME[x.kind]);
     ml.append(el("div", {class: "li srcrow"}, el("div", {class: "t"}, el("b", {}, x.name),
       el("div", {class: "dim small"}, TABNAME[x.kind].replace(/s$/, "") + (x.entity ? " · " + x.entity : "") + (x.file && x.file.sensor ? " · writes " + x.file.sensor : "") + (x.kind !== "card" && !x.pushed ? " · draft" : ""))),
-      renameButton(x.name, n => api("rename", {lib: LIBK[x.kind], id: x.id, name: n}), renderMine), open));
+      renameButton(x.name, (n, m) => api("rename", {match_id: m, lib: LIBK[x.kind], id: x.id, name: n}), renderMine), open));
   }
   m.append(ml); box.append(m);
 
@@ -892,7 +892,7 @@ async function renderMine() {
     hl.append(el("div", {class: "li srcrow"}, el("div", {class: "t"}, el("b", {}, x.name || x.entity),
       el("div", {class: "dim small"}, (KIND_LABEL[x.kind] || x.kind) + (x.entity ? " · " + x.entity : "") + (x.exists === false ? " · not in Home Assistant any more" : ""))),
       el("span", {class: "dim small"}, ago(x.time)),
-      can ? renameButton(x.name, n => api("rename", {kind: x.kind_ha, id: x.cfg_id, entity: x.entity, name: n}), renderMine) : null));
+      can ? renameButton(x.name, (n, m) => api("rename", {match_id: m, kind: x.kind_ha, id: x.cfg_id, entity: x.entity, name: n}), renderMine) : null));
   }
   h.append(hl); box.append(h);
 }

@@ -233,7 +233,7 @@ function libCard(it) {
       st.auto && st.auto.on ? (!it.auto_in_ha ? el("span", {class: "pill warn"}, "Schedule not pushed") : it.auto_on ? el("span", {class: "pill ok"}, "Runs " + autoSummary(st.auto)) : el("span", {class: "pill warn"}, "Schedule is off in HA")) : null,
       el("span", {class: "pill plain"}, "Edited " + ago(it.updated))),
     el("div", {class: "acts"}, el("button", {class: "btn primary sm", onclick: () => openItem(it)}, "Edit"), run, dup,
-      renameButton(it.name || it.id, n => api("rename", {lib: "ann", id: it.id, name: n}), r => { flash(r.in_ha ? "Renamed in Home Assistant too. The script id stays script." + it.id + "." : "Renamed. Push it to use the new name in Home Assistant.", "ok"); loadLib(); }), del), msg);
+      renameButton(it.name || it.id, (n, m) => api("rename", {match_id: m, lib: "ann", id: it.id, name: n}), r => { flash(r.in_ha ? "Renamed in Home Assistant too. The script id stays " + it.id + "." + (r.note ? " " + r.note : "") : "Renamed. Push it to use the new name in Home Assistant.", "ok"); loadLib(); }), del), msg);
 }
 
 async function removeAnn(id, alsoScript, found) {

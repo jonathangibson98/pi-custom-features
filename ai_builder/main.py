@@ -1746,7 +1746,7 @@ async def ann_script_get(request):
 async def ann_run(request):
     body = await ann_body(request)
     sid = await ann_script_id(body)
-    code, text = await ha_text(request.app, "POST", "/services/script/turn_on", {"entity_id": f"script.{sid}"})
+    code, text = await ha_text(request.app, "POST", "/services/script/turn_on", {"entity_id": await script_entity(request.app, sid)})
     return web.json_response({"ok": code == 200, "detail": str(text)[:300]})
 
 
@@ -2236,7 +2236,7 @@ async def fact_run(request):
             return web.json_response({"ok": False, "detail": "That automation is not in Home Assistant yet. Push it first."})
         code, text = await ha_text(request.app, "POST", "/services/automation/trigger", {"entity_id": ent, "skip_condition": True})
         return web.json_response({"ok": code == 200, "detail": str(text)[:300]})
-    code, text = await ha_text(request.app, "POST", "/services/script/turn_on", {"entity_id": f"script.{sid}"})
+    code, text = await ha_text(request.app, "POST", "/services/script/turn_on", {"entity_id": await script_entity(request.app, sid)})
     return web.json_response({"ok": code == 200, "detail": str(text)[:300]})
 
 
@@ -2721,11 +2721,42 @@ async def ha_rename(app, kind, cid, name, entity=""):
     return True, ""
 
 
-async def rename_lib_item(app, lib_kind, cid, name):
+async def script_entity(app, sid):
+    """The entity id of a script made here, even if its entity id was changed in Home Assistant."""
+    for e in await registry_entities(app):
+        if e.get("platform") == "script" and str(e.get("unique_id")) == sid and e.get("entity_id"):
+            return e["entity_id"]
+    return "script." + sid
+
+
+async def match_entity_id(app, entity, name):
+    """Change an entity's id so it follows its name (script.old_name -> script.new_name). Returns (new id or "", note).
+    "" with an empty note means it already matches. The old id stops working everywhere in Home Assistant that used it."""
+    dom, _, cur = str(entity or "").partition(".")
+    base = re.sub(r"^_+|_+$", "", slug(name))[:60]
+    if not dom or not base:
+        return "", ""
+    st, states = await ha(app, "GET", "/states")
+    taken = {x["entity_id"] for x in states} if st == 200 and isinstance(states, list) else set()
+    new, n = "%s.%s" % (dom, base), 2
+    if new == entity:
+        return "", ""
+    while new in taken and new != entity:
+        new, n = "%s.%s_%d" % (dom, base, n), n + 1
+    r = await ws_call(app, {"type": "config/entity_registry/update", "entity_id": entity, "new_entity_id": new})
+    if not r.get("success"):
+        return "", "Could not change the entity id of %s: %s" % (entity, (r.get("error") or {}).get("message", "Home Assistant said no."))
+    return new, "Entity id is now %s (was %s). Update anything that still uses the old one." % (new, entity)
+
+
+async def rename_lib_item(app, lib_kind, cid, name, match_id=None):
     """Give a saved announcement or fact its new name in Home Assistant (the script, or the automation for a fact that is
-    one, plus the "<name> (auto)" schedule) and in the library. Returns (ok, error, in_ha)."""
+    one, plus the "<name> (auto)" schedule) and in the library. match_id: also change the entity id to match the name
+    (None follows the match_entity_id option). Returns (ok, error, in_ha, note)."""
     if not ANN_ID_RE.match(cid):
-        return False, "Bad id.", False
+        return False, "Bad id.", False, ""
+    match_id = bool(OPTS.get("match_entity_id")) if match_id is None else bool(match_id)
+    note = ""
     st, states = await ha(app, "GET", "/states")
     ok_states = st == 200 and isinstance(states, list)
     reg = await registry_entities(app) if ok_states else []
@@ -2735,7 +2766,7 @@ async def rename_lib_item(app, lib_kind, cid, name):
     lib = load_json(path, {})
     v = lib.get(cid) if isinstance(lib, dict) else None
     if not v:
-        return False, "That is not saved here.", False
+        return False, "That is not saved here.", False, ""
     st_ = v.get("state") or {}
     one_auto = lib_kind == "facts" and fact_is_auto(st_)
     kind = "automation" if one_auto else "script"
@@ -2744,14 +2775,18 @@ async def rename_lib_item(app, lib_kind, cid, name):
     if live:
         ok, err = await ha_rename(app, kind, cid, name, live.get("entity_id", ""))
         if not ok:
-            return False, err, False
+            return False, err, False, ""
         in_ha = True
+        if match_id:
+            _new, note = await match_entity_id(app, live.get("entity_id", ""), name)
         if not one_auto:  # its schedule automation, if this tool made it, follows: "<name> (auto)"
             aid = str(st_.get("autoId") or "") if lib_kind == "facts" else ""
             aid = aid if ANN_ID_RE.match(aid) else cid + (ANN_AUTO_SUFFIX if lib_kind == "ann" else FACT_AUTO_SUFFIX)
             code, acfg = await ha(app, "GET", f"/config/automation/config/{aid}", timeout=10)
             if code == 200 and isinstance(acfg, dict) and acfg.get("description") == mark:
                 await ha_rename(app, "automation", aid, name + " (auto)", (autos.get(aid) or {}).get("entity_id", ""))
+                if match_id and (autos.get(aid) or {}).get("entity_id"):
+                    await match_entity_id(app, autos[aid]["entity_id"], name + " (auto)")
     lib = load_json(path, {})  # re-read: nothing else may have changed it while we talked to Home Assistant
     v = lib.get(cid)
     if v:
@@ -2762,7 +2797,7 @@ async def rename_lib_item(app, lib_kind, cid, name):
         if x.get("entity") in ("script." + cid, "automation." + cid):
             x["name"] = name
     save_json(HIST, h)
-    return True, "", in_ha
+    return True, "", in_ha, note
 
 
 async def push_name_change(app, lib_kind, sid, new):
@@ -2774,7 +2809,7 @@ async def push_name_change(app, lib_kind, sid, new):
     if not new or not old or new == old.get("name") or not (old.get("pushed_at") or old.get("ha_name")):
         return ""
     try:
-        ok, err, _in_ha = await rename_lib_item(app, lib_kind, sid, new)
+        ok, err, _in_ha, _note = await rename_lib_item(app, lib_kind, sid, new)
     except Exception as e:  # noqa: BLE001 - the save itself must still go through
         log.warning("couldn't rename %s in Home Assistant: %s", sid, e)
         return "Saved here, but Home Assistant could not be renamed: %s" % e
@@ -2832,10 +2867,10 @@ async def rename_route(request):
             save_json(CARDS_LIB, lib)
             return web.json_response({"ok": True, "name": name})
         if lib_kind in ("ann", "facts"):
-            ok, err, in_ha = await rename_lib_item(app, lib_kind, cid, name)
+            ok, err, in_ha, note = await rename_lib_item(app, lib_kind, cid, name, b.get("match_id"))
             if not ok:
                 return web.json_response({"ok": False, "error": err})
-            return web.json_response({"ok": True, "name": name, "in_ha": in_ha})
+            return web.json_response({"ok": True, "name": name, "in_ha": in_ha, "note": note})
         kind = str(b.get("kind") or "")
         if kind == "template":  # a template sensor this add-on manages: its name lives in our own file
             store = load_json(STORE, {})
@@ -2852,6 +2887,11 @@ async def rename_route(request):
         ok, err = await ha_rename(app, kind, cid, name, entity if ANN_ENT_RE.match(entity) else "")
         if not ok:
             return web.json_response({"ok": False, "error": err})
+        note = ""
+        if (bool(OPTS.get("match_entity_id")) if b.get("match_id") is None else bool(b.get("match_id"))) and ANN_ENT_RE.match(entity):
+            new_ent, note = await match_entity_id(app, entity, name)
+            if new_ent:
+                entity = new_ent
         h = load_json(HIST, [])
         for x in h:
             if entity and x.get("entity") == entity:
@@ -2863,7 +2903,7 @@ async def rename_route(request):
             if isinstance(lib, dict) and cid in lib and kind in ("script", "automation"):
                 lib_rename(lib[cid], name, True, "ann" if path == ANN_LIB else "facts")
                 save_json(path, lib)
-        return web.json_response({"ok": True, "name": name})
+        return web.json_response({"ok": True, "name": name, "note": note})
     except Exception as e:  # noqa: BLE001 - report anything that goes wrong talking to Home Assistant
         log.exception("rename failed")
         return web.json_response({"ok": False, "error": "Could not reach Home Assistant: %s" % e})
