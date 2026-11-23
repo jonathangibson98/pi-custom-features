@@ -9,7 +9,7 @@
 
 | | |
 |---|---|
-| Version | `5.1.1` |
+| Version | `5.1.2` |
 | Slug | `photo_shuffle` |
 | Architectures | `aarch64`, `amd64` |
 | Opens from | the sidebar (**Photo Hub**, ingress) |
