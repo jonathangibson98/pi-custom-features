@@ -50,7 +50,9 @@
 - [Help and feedback](#help-and-feedback)
 <!-- /docs:header -->
 
-Everything photos in one add-on (sidebar: Photo Hub):
+Everything photos in one add-on (sidebar: Photo Hub). The top bar has four sections: **Upload**, **Edit** (Photo Editor and SVG Maker), **Shuffle** (Folders and Unsplash) and **Wallpaper**. Sections with two screens have a small switcher under the bar, and Photo Hub remembers where you were.
+
+What's inside:
 
 - **Folders** and **Unsplash**: publish photos to Home Assistant as **image entities** over MQTT.
 - **Wallpaper**: one background for every add-on's page, with darken / lighten / blur controls.
@@ -117,7 +119,7 @@ Open a photo from your device, your photo folders, the current wallpaper, **Edit
 
 ## Upload & Analyze
 
-The **Analyze** tab is for getting photos from your phone into a folder, with an AI describing each one on the way.
+The **Upload** section (first icon at the top) is for getting photos from your phone into a folder, with an AI describing each one on the way.
 
 1. **Pick photos.** Tap the box and choose one photo or many. iPhone HEIC photos work (they're saved as JPEG). JPEG, PNG, WebP and GIF are saved exactly as they were sent.
 2. **Save to.** Tap one of your **destinations**. A destination is a named shortcut to a folder, so the folder you use all the time is one tap away. Tap **+ Add destination**, name it, then browse to a folder (or make a new one with **Create**) and **Save**. **Edit this one** renames it, points it at another folder, or removes it. Removing a destination only removes the shortcut; the folder and its pictures are never touched.
