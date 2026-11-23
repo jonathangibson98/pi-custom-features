@@ -11,11 +11,20 @@ import sys
 import threading
 import time
 import urllib.request
+import uuid
 
 import paho.mqtt.client as mqtt
 import requests
 from flask import Flask, Response, jsonify, request
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+
+try:  # iPhone photos (HEIC/HEIF) open like any other picture once this is registered
+    import pillow_heif
+
+    pillow_heif.register_heif_opener()
+    HEIC_OK = True
+except Exception:  # noqa: BLE001
+    HEIC_OK = False
 
 import addon_backup
 
@@ -1267,6 +1276,7 @@ def mqtt_worker():
 
 # ---------------------------------------------------------------- web ui
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # biggest upload any page can send
 INDEX = open(os.path.join(HERE, "index.html"), encoding="utf-8").read()
 
 
@@ -1641,6 +1651,346 @@ def api_edit_recent():
         pass
     out.sort(key=lambda x: -x["t"])
     return jsonify({"folder": EDIT_DIR, "writable": os.access(EDIT_DIR, os.W_OK), "files": out[:30]})
+
+
+# ---------------------------------------------------------------- Upload & Analyze
+# Upload one picture or a whole batch, optionally let an AI Task entity describe each one, and save the result into a
+# destination you picked once and can tap again later. Destinations can be any folder inside the folders this add-on can
+# see (everything config.yaml maps in), not just the photo paths used by shuffles.
+FS_CANDIDATES = ["/media", "/share", "/homeassistant", "/backup", "/addons", "/ssl", "/addon_configs"]
+if os.environ.get("PS_FS_ROOTS"):  # development only
+    FS_CANDIDATES = [p for p in os.environ["PS_FS_ROOTS"].split(os.pathsep) if p]
+DEST_STORE = os.path.join(DATA_DIR, "destinations.json")
+ANALYSIS_LOG = os.path.join(DATA_DIR, "analysis_log.json")
+DEFAULT_DEST = {"id": "default", "name": "Analyzed photos", "path": "/media/photo_hub/analyzed"}
+LOG_KEEP = 300
+UPLOAD_MAX = 80 * 1024 * 1024
+KEEP_AS_IS = {"JPEG": ".jpg", "PNG": ".png", "WEBP": ".webp", "GIF": ".gif"}  # anything else is saved as JPEG
+GENERIC_NAMES = ("image", "photo", "img", "blob", "unknown")
+FILES_LOCK = threading.Lock()  # guards the destinations and analysis-log files
+
+
+def fs_roots():
+    return [r for r in FS_CANDIDATES if os.path.isdir(r)]
+
+
+def in_fs(path):
+    """True when path (which may not exist yet) is inside a folder this add-on can see. Symlinks are resolved first."""
+    if not path or not os.path.isabs(path):
+        return False
+    rp = os.path.realpath(path)
+    for r in fs_roots():
+        rr = os.path.realpath(r)
+        if rp == rr or rp.startswith(rr + os.sep):
+            return True
+    return False
+
+
+def can_write(path):
+    """Can we write to path, or to the closest folder above it that exists (so we could create it)?"""
+    p = path
+    while p and not os.path.exists(p):
+        up = os.path.dirname(p)
+        if up == p:
+            break
+        p = up
+    return os.access(p, os.W_OK)
+
+
+def load_dests():
+    try:
+        with open(DEST_STORE) as f:
+            d = json.load(f)
+        if isinstance(d, list):
+            return [x for x in d if isinstance(x, dict) and x.get("id") and x.get("path")]
+    except (OSError, ValueError):
+        pass
+    return [dict(DEFAULT_DEST)]
+
+
+def dest_view(d):
+    ok = os.path.isdir(d["path"])
+    return {"id": d["id"], "name": d.get("name") or d["path"], "path": d["path"], "exists": ok,
+            "writable": in_fs(d["path"]) and (os.access(d["path"], os.W_OK) if ok else can_write(d["path"]))}
+
+
+def clean_dest(b):
+    name = re.sub(r"\s+", " ", str(b.get("name") or "")).strip()[:40]
+    raw = str(b.get("path") or "").strip()
+    if not name:
+        raise ValueError("Give the destination a name")
+    if not raw:
+        raise ValueError("Pick a folder")
+    path = os.path.normpath(raw)
+    if not in_fs(path):
+        raise ValueError("Photo Hub can't see that folder. It can see " + (", ".join(fs_roots()) or "no folders") + ".")
+    return name, path
+
+
+@app.get("/api/fs/browse")
+def api_fs_browse():
+    """Folders (not files) anywhere inside what this add-on can see, for the destination picker."""
+    p = request.args.get("path", "")
+    if not p:
+        return jsonify({"roots": [{"path": r, "writable": os.access(r, os.W_OK)} for r in fs_roots()]})
+    p = os.path.normpath(p)
+    if not in_fs(p) or not os.path.isdir(p):
+        return err("Photo Hub can't see that folder")
+    dirs, images = [], 0
+    try:
+        with os.scandir(p) as it:
+            for e in it:
+                if e.name.startswith("."):
+                    continue
+                try:
+                    if e.is_dir():
+                        if in_fs(e.path):
+                            dirs.append({"name": e.name, "path": os.path.join(p, e.name)})
+                    elif e.is_file() and is_image(e.name):
+                        images += 1
+                except OSError:
+                    continue
+    except OSError as e:
+        return err(str(e))
+    dirs.sort(key=lambda d: d["name"].lower())
+    roots = [os.path.normpath(r) for r in fs_roots()]
+    return jsonify({"path": p, "parent": "" if p in roots else os.path.dirname(p), "dirs": dirs[:500],
+                    "more": len(dirs) > 500, "images": images, "writable": os.access(p, os.W_OK)})
+
+
+@app.post("/api/fs/mkdir")
+def api_fs_mkdir():
+    b = request.get_json(silent=True) or {}
+    parent = os.path.normpath(str(b.get("path") or ""))
+    name = re.sub(r'[\\/:*?"<>|]+', "", str(b.get("name") or "")).strip(" .")[:60]
+    if not name:
+        return err("Type a folder name")
+    new = os.path.join(parent, name)
+    if not in_fs(parent) or not os.path.isdir(parent) or not in_fs(new):
+        return err("Photo Hub can't make a folder there")
+    try:
+        os.makedirs(new, exist_ok=True)
+    except OSError as e:
+        return err(f"Couldn't create it: {e}")
+    return jsonify({"ok": True, "path": new})
+
+
+@app.get("/api/destinations")
+def api_dests():
+    return jsonify({"destinations": [dest_view(d) for d in load_dests()], "roots": fs_roots()})
+
+
+@app.post("/api/destinations")
+def api_dest_add():
+    try:
+        name, path = clean_dest(request.get_json(silent=True) or {})
+    except ValueError as e:
+        return err(str(e))
+    try:
+        os.makedirs(path, exist_ok=True)
+    except OSError as e:
+        return err(f"Couldn't create {path}: {e}")
+    with FILES_LOCK:
+        items = load_dests()
+        d = {"id": uuid.uuid4().hex[:8], "name": name, "path": path}
+        items.append(d)
+        write_json(DEST_STORE, items)
+    return jsonify(dest_view(d))
+
+
+@app.put("/api/destinations/<did>")
+def api_dest_update(did):
+    try:
+        name, path = clean_dest(request.get_json(silent=True) or {})
+    except ValueError as e:
+        return err(str(e))
+    try:
+        os.makedirs(path, exist_ok=True)
+    except OSError as e:
+        return err(f"Couldn't create {path}: {e}")
+    with FILES_LOCK:
+        items = load_dests()
+        for d in items:
+            if d["id"] == did:
+                d["name"], d["path"] = name, path
+                write_json(DEST_STORE, items)
+                return jsonify(dest_view(d))
+    return err("Not found", 404)
+
+
+@app.delete("/api/destinations/<did>")
+def api_dest_delete(did):
+    with FILES_LOCK:
+        items = load_dests()
+        keep = [d for d in items if d["id"] != did]
+        if len(keep) == len(items):
+            return err("Not found", 404)
+        write_json(DEST_STORE, keep)  # only the shortcut goes; the folder and its pictures are never touched
+    return jsonify({"ok": True})
+
+
+def safe_stem(n):
+    stem = re.sub(r"[^A-Za-z0-9 ._-]+", "", os.path.splitext(os.path.basename(str(n or "")))[0]).strip(" .-_")[:60]
+    if not stem or stem.lower() in GENERIC_NAMES:  # iPhones often send every photo as "image.jpg"
+        stem = time.strftime("photo_%Y%m%d_%H%M%S")
+    return stem
+
+
+def write_unique(folder, stem, ext, data):
+    """Write data to folder/stem+ext, adding -2, -3 ... if the name is taken. Never overwrites."""
+    i = 1
+    while True:
+        path = os.path.join(folder, stem + ("" if i == 1 else "-%d" % i) + ext)
+        try:
+            with open(path, "xb") as f:
+                f.write(data)
+            return path
+        except FileExistsError:
+            i += 1
+
+
+def run_analysis(raw, entity, notes):
+    """Ask the AI engine to describe one picture. Returns (analysis dict, entity id used)."""
+    try:
+        jpg = render(io.BytesIO(raw))[0]
+    except Exception:  # noqa: BLE001
+        raise RuntimeError("Couldn't prepare the picture for the AI")
+    try:
+        r = requests.post(f"{SVG_URL}/api/photo/ai/analyze", files={"photo": ("photo.jpg", jpg, "image/jpeg")},
+                          data={"entity": entity, "notes": notes[:500]}, timeout=300)
+    except requests.RequestException:
+        raise RuntimeError("The AI engine is still starting. Try again in a few seconds.")
+    try:
+        d = r.json()
+    except ValueError:
+        d = {}
+    if r.status_code != 200:
+        raise RuntimeError(d.get("error") or "The AI engine answered HTTP %d" % r.status_code)
+    return d.get("analysis") or {}, d.get("entity") or entity
+
+
+def log_analysis(entry):
+    with FILES_LOCK:
+        try:
+            with open(ANALYSIS_LOG) as f:
+                items = json.load(f)
+            if not isinstance(items, list):
+                items = []
+        except (OSError, ValueError):
+            items = []
+        items.append(entry)
+        try:
+            write_json(ANALYSIS_LOG, items[-LOG_KEEP:])
+        except OSError as e:
+            log.warning("Couldn't write the analysis log: %s", e)
+
+
+@app.post("/api/analyze")
+def api_analyze():
+    """One picture per request (the page sends a batch one after another). Saves it, then describes it."""
+    f = request.files.get("photo")
+    raw = f.read() if f else b""
+    if not raw:
+        return err("No picture was sent")
+    if len(raw) > UPLOAD_MAX:
+        return err("That picture is too big (80 MB max)", 413)
+    dest = next((d for d in load_dests() if d["id"] == request.form.get("dest")), None)
+    if dest is None:
+        return err("Pick a destination first")
+    folder = os.path.normpath(dest["path"])
+    if not in_fs(folder):
+        return err("That destination is outside the folders Photo Hub can see")
+    try:
+        os.makedirs(folder, exist_ok=True)
+    except OSError as e:
+        return err(f"Can't create {folder}: {e}", 500)
+    if not os.access(folder, os.W_OK):
+        return err(f"Photo Hub can't write to {folder}. Pick another destination.", 500)
+    try:
+        with Image.open(io.BytesIO(raw)) as im:
+            fmt = im.format
+    except Exception:  # noqa: BLE001
+        heic = os.path.splitext(f.filename or "")[1].lower() in (".heic", ".heif")
+        return err("This build can't read HEIC pictures. Update the add-on." if heic and not HEIC_OK
+                   else "That isn't a picture I can read")
+    ext = KEEP_AS_IS.get(fmt)
+    try:
+        if ext:
+            data = raw  # JPEG, PNG, WebP and GIF are saved exactly as they were sent
+        else:  # HEIC from an iPhone, TIFF, BMP ...
+            with Image.open(io.BytesIO(raw)) as im:
+                im = ImageOps.exif_transpose(im).convert("RGB")
+                buf = io.BytesIO()
+                im.save(buf, "JPEG", quality=92, optimize=True)
+            data, ext = buf.getvalue(), ".jpg"
+        path = write_unique(folder, safe_stem(f.filename), ext, data)
+    except OSError as e:
+        return err(f"Couldn't save it: {e}", 500)
+    except Exception:  # noqa: BLE001
+        return err("That isn't a picture I can read")
+
+    analysis, eid, aerr = None, "", ""
+    if request.form.get("analyze", "1") != "0":
+        try:
+            analysis, eid = run_analysis(raw, str(request.form.get("entity") or ""), str(request.form.get("notes") or ""))
+        except RuntimeError as e:
+            aerr = str(e)
+            log.warning("Analysis of %s failed: %s", os.path.basename(path), aerr)
+    sidecar = ""
+    if analysis is not None and request.form.get("sidecar", "1") != "0":
+        sidecar = os.path.splitext(path)[0] + ".json"
+        try:
+            write_json(sidecar, {"file": os.path.basename(path), "analyzed": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                                 "ai_entity": eid, "analysis": analysis})
+        except OSError as e:
+            sidecar = ""
+            aerr = f"The picture was saved but its details file wasn't: {e}"
+    out = {"ok": True, "name": os.path.basename(path), "path": path, "dest": dest.get("name"), "analysis": analysis,
+           "entity": eid, "analysis_error": aerr, "details_file": sidecar}
+    log_analysis({"t": time.time(), "name": out["name"], "path": path, "dest": out["dest"], "entity": eid,
+                  "analysis": analysis, "error": aerr})
+    log.info("Saved %s%s", path, " + analysis" if analysis is not None else "")
+    return jsonify(out)
+
+
+@app.get("/api/analyze/history")
+def api_analyze_history():
+    try:
+        with open(ANALYSIS_LOG) as f:
+            items = json.load(f)
+    except (OSError, ValueError):
+        items = []
+    return jsonify({"items": list(reversed(items if isinstance(items, list) else []))[:150]})
+
+
+@app.delete("/api/analyze/history")
+def api_analyze_history_clear():
+    with FILES_LOCK:
+        try:
+            write_json(ANALYSIS_LOG, [])  # clears the list only; saved pictures and details files stay where they are
+        except OSError as e:
+            return err(str(e), 500)
+    return jsonify({"ok": True})
+
+
+@app.get("/api/fs/thumb.jpg")
+def api_fs_thumb():
+    """Small preview of any picture inside the folders this add-on can see (for the Analyze history)."""
+    p = os.path.normpath(request.args.get("path", ""))
+    if (not in_fs(p) or not os.path.isfile(p)
+            or os.path.splitext(p)[1].lower() not in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif")):
+        return Response(status=404)
+    try:
+        with Image.open(p) as im:
+            if im.format == "JPEG":
+                im.draft("RGB", (240, 240))
+            im = ImageOps.exif_transpose(im).convert("RGB")
+            im.thumbnail((240, 240))
+            buf = io.BytesIO()
+            im.save(buf, "JPEG", quality=70)
+    except Exception:  # noqa: BLE001
+        return Response(status=404)
+    return Response(buf.getvalue(), mimetype="image/jpeg", headers={"Cache-Control": "max-age=3600"})
 
 
 # ---------------------------------------------------------------- SVG Maker engine (its own process)

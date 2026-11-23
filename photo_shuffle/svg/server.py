@@ -76,6 +76,7 @@ def main():
         web.get("/api/photo/ai/settings", photo_ai.settings),
         web.post("/api/photo/ai/edit", photo_ai.edit),
         web.post("/api/photo/ai/auto", photo_ai.auto),
+        web.post("/api/photo/ai/analyze", photo_ai.analyze),
     ])
     web.run_app(app, host="127.0.0.1", port=PORT, access_log=None, print=None)
 

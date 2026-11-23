@@ -39,6 +39,15 @@ AUTO_PROMPT = (
     "that is already fine.%s"
 )
 
+ANALYZE_PROMPT = (
+    "Look at the attached photo and describe what is in it. Reply with ONLY a JSON object, no other text, using "
+    "these keys: caption (one plain sentence), scene (a few words, like 'kitchen' or 'beach at sunset'), objects "
+    "(array of up to 15 short names of the main things you can see), people_count (whole number of people visible, "
+    "0 if none), people (array with one short description per visible person: what they are doing and wearing, "
+    "never a name; do not try to work out who anyone is), text (array of any readable text in the photo, empty if "
+    "none), tags (array of up to 10 lowercase search keywords).%s"
+)
+
 
 class AiPhoto:
     def __init__(self, ai, opts):
@@ -246,3 +255,69 @@ class AiPhoto:
             except (TypeError, ValueError):
                 vals[k] = 0
         return web.json_response({"values": vals, "note": str(out.get("note") or "")[:300]})
+
+    @staticmethod
+    def _strings(v, limit, size):
+        if isinstance(v, str):
+            v = [v]
+        if not isinstance(v, list):
+            return []
+        out = []
+        for x in v:
+            x = str(x).strip()[:size]
+            if x and x not in out:
+                out.append(x)
+        return out[:limit]
+
+    async def analyze(self, request):
+        """Describe a photo: caption, scene, objects, people (described, never named) and tags."""
+        try:
+            raw, f = await self.read_upload(request)
+            pid = await asyncio.get_running_loop().run_in_executor(None, self.save_photo, raw)
+        except ValueError as e:
+            return web.json_response({"error": str(e)}, status=400)
+        note = (f.get("notes") or "").strip()
+        eid = (f.get("entity") or "").strip()
+        try:
+            async with self.lock:
+                eid = await self.pick("data", eid)
+                for e in await self.entities():
+                    if e["id"] == eid and not (e["data"] and e["attachments"]):
+                        raise RuntimeError("%s can't look at photos. Pick an AI Task that supports attachments "
+                                           "(Google Gemini, OpenAI or Anthropic)." % e["name"])
+                log.info("Analyzing a photo with %s", eid)
+                res = await self.call("generate_data", {
+                    "entity_id": eid, "task_name": "Photo Hub analyze",
+                    "instructions": ANALYZE_PROMPT % ((" Pay particular attention to: " + note) if note else ""),
+                    "attachments": await self.attach(pid)}, min(self.ai.timeout, 240))
+        except RuntimeError as e:
+            return web.json_response({"error": str(e)}, status=502)
+        finally:
+            try:
+                os.remove(os.path.join(PHOTO_DIR, pid + ".jpg"))
+            except OSError:
+                pass
+        out = res.get("data")
+        if isinstance(out, str):
+            m = re.search(r"\{.*\}", out, re.S)
+            try:
+                out = json.loads(m.group(0)) if m else {}
+            except ValueError:
+                out = {}
+        if not isinstance(out, dict) or not out:
+            return web.json_response({"error": "The AI answered, but not in a form I could read. Try again or pick "
+                                               "another AI Task."}, status=502)
+        try:
+            count = max(0, int(out.get("people_count") or 0))
+        except (TypeError, ValueError):
+            count = 0
+        people = self._strings(out.get("people"), 20, 200)
+        return web.json_response({"entity": eid, "analysis": {
+            "caption": str(out.get("caption") or "").strip()[:400],
+            "scene": str(out.get("scene") or "").strip()[:120],
+            "objects": self._strings(out.get("objects"), 15, 60),
+            "people_count": max(count, len(people)),
+            "people": people,
+            "text": self._strings(out.get("text"), 10, 200),
+            "tags": [t.lower() for t in self._strings(out.get("tags"), 10, 40)],
+        }})

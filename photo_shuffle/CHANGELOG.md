@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.1.0 - 2026-11-23
+
+- **New Analyze tab.** Upload one photo or a whole batch from your phone, and Photo Hub saves each one to a destination you pick and (optionally) has an AI describe it: a caption, the scene, the objects, how many people there are and what they're doing (described, never named), readable text and search tags. The details are saved as a `.json` file next to each photo and listed, searchable, under **Recent**.
+- **Pick the AI.** A dropdown lists every AI Task entity that can look at photos (Gemini, OpenAI, Anthropic ...), so you can switch or compare. If the AI fails the photo is still saved.
+- **Destinations you can tap.** Add named shortcuts to any folder Photo Hub can see, browse to it, make new folders from the picker, and edit or remove shortcuts later.
+- **iPhone HEIC photos** are accepted and saved as JPEG. Other formats are saved exactly as sent, and nothing is ever overwritten.
+- **Wider file access.** Photo Hub can now also see `/backup`, `/addons`, `/addon_configs` (all read and write) and `/ssl` (read only), on top of `/media`, `/share` and `/homeassistant`. **Restart Photo Hub once after updating** so Home Assistant applies this.
+- New dependency: `pillow-heif` (HEIC support).
+
 ## 5.0.2 - 2026-11-17
 
 - **Better on phones** (built around the Home Assistant iPhone app): text fields no longer make iOS zoom in, buttons and switches are finger-sized, rows of tabs swipe sideways instead of getting cut off, and wide content or long error text no longer pushes the page sideways.
