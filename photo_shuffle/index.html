@@ -125,6 +125,24 @@ textarea{width:100%;font:inherit;padding:8px 10px;border-radius:9px;border:1px s
 .emsg.bad{color:var(--bad)}.emsg.ok{color:var(--good)}
 #svgf{width:100%;border:0;min-height:600px;display:block;background:transparent}
 .lnk{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;font-size:inherit}
+.drop{display:flex;flex-direction:column;align-items:center;gap:4px;padding:22px 12px;border:2px dashed var(--line);border-radius:14px;text-align:center;color:var(--muted);cursor:pointer;background:var(--input)}
+.drop.over{border-color:var(--accent);color:var(--accent)}
+.drop b{color:var(--text);font-size:16px}
+.an-sec{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}
+.an-sec h3{margin:0 0 8px;font-size:15px}
+.qrow{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.qrow:last-child{border-bottom:0}
+.qrow img,.qrow .qph{width:42px;height:42px;border-radius:8px;object-fit:cover;background:var(--line);flex:0 0 auto}
+.qrow .qn{flex:1;min-width:0}.qrow .qn div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qrow .qs{flex:0 0 auto;font-size:12px;color:var(--muted)}
+.qrow .qs.ok{color:var(--good)}.qrow .qs.bad{color:var(--bad)}.qrow .qs.run{color:var(--accent)}
+.hcard{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.hcard:last-child{border-bottom:0}
+.hcard img,.hcard .qph{width:64px;height:64px;border-radius:10px;object-fit:cover;background:var(--line);flex:0 0 auto}
+.hcard .hb{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;font-size:13px}
+.tg{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);margin:0 4px 4px 0;background:var(--input);color:var(--muted);cursor:pointer}
+.an-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.an-bar .grow{flex:1}
 </style>
 <!-- ha-mobile v1.0.0: copied from .shared/ha-mobile.css, edit it there -->
 <style id="ha-mobile">
@@ -824,6 +842,7 @@ window.__hbAddon = "photo_shuffle";
     <button data-tab="unsplash">Unsplash</button>
     <button data-tab="wallpaper">Wallpaper</button>
     <button data-tab="editor">Photo Editor</button>
+    <button data-tab="analyze">Analyze</button>
     <button data-tab="svg">SVG Maker</button>
   </div>
 
@@ -950,6 +969,50 @@ window.__hbAddon = "photo_shuffle";
       </div>
     </div>
   </section>
+  <section id="pane-analyze" hidden>
+    <div class="an-sec">
+      <h3>1. Pick photos</h3>
+      <label class="drop" id="an-drop" for="an-files">
+        <b>Tap to choose photos</b>
+        <span>One or a whole batch. iPhone HEIC photos are fine.</span>
+      </label>
+      <input type="file" id="an-files" accept="image/*,.heic,.heif" multiple hidden>
+      <div id="an-queue" style="margin-top:8px"></div>
+      <div class="an-bar" id="an-qbar" hidden><span class="meta grow" id="an-prog"></span><button id="an-clear" type="button">Clear finished</button></div>
+    </div>
+
+    <div class="an-sec">
+      <h3>2. Save to</h3>
+      <div class="chips" id="an-dests"></div>
+      <div class="mono" id="an-dpath" style="margin:4px 0 8px"></div>
+      <div class="an-bar"><button id="an-add" type="button">+ Add destination</button><button id="an-edit" type="button" hidden>Edit this one</button></div>
+      <div class="emsg bad" id="an-dmsg"></div>
+    </div>
+
+    <div class="an-sec">
+      <h3>3. AI</h3>
+      <label class="check" style="margin-top:0"><input type="checkbox" id="an-do" checked> Look at each photo with AI (objects, scene, people described, tags)</label>
+      <label for="an-ai">AI to use</label>
+      <select id="an-ai"></select>
+      <div class="meta" id="an-aimsg"></div>
+      <label for="an-notes">What should it pay attention to? (optional)</label>
+      <input type="text" id="an-notes" maxlength="300" placeholder="e.g. tools and equipment">
+      <label class="check"><input type="checkbox" id="an-side" checked> Save the details in a .json file next to each photo</label>
+    </div>
+
+    <div class="an-bar" style="margin-bottom:14px">
+      <button class="primary" id="an-go" type="button" disabled>Upload</button>
+      <button id="an-stop" type="button" hidden>Stop after this one</button>
+    </div>
+
+    <div class="an-sec">
+      <div class="an-bar"><h3 class="grow" style="margin:0">Recent</h3><button id="an-hclear" type="button" class="danger">Clear list</button></div>
+      <input type="text" id="an-search" placeholder="Search captions, objects, tags..." style="margin-top:8px">
+      <div id="an-hist"></div>
+      <div class="note">Clearing the list never deletes pictures or details files.</div>
+    </div>
+  </section>
+
   <section id="pane-svg" hidden>
     <iframe id="svgf" title="SVG Maker"></iframe>
   </section>
@@ -1007,6 +1070,24 @@ window.__hbAddon = "photo_shuffle";
   </div>
 </div>
 
+<div class="overlay" id="andestov">
+  <div class="modal">
+    <h2 id="andtitle">Add destination</h2>
+    <label for="andname">Name</label>
+    <input type="text" id="andname" maxlength="40" placeholder="Short name for the button">
+    <label>Folder</label>
+    <div class="mono" id="andpath">Pick a folder below</div>
+    <div class="list" id="andlist"></div>
+    <div class="meta" id="andinfo" style="margin-top:8px"></div>
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="andnew" maxlength="60" placeholder="New folder name">
+      <button class="fix" id="andmk" type="button">Create</button>
+    </div>
+    <div class="emsg bad" id="anderr"></div>
+    <div class="btns"><button id="andrm" type="button" class="danger" hidden>Remove</button><button id="andcancel" type="button">Cancel</button><button class="primary" id="andsave" type="button" disabled>Save</button></div>
+  </div>
+</div>
+
 <div class="overlay" id="browseov">
   <div class="modal">
     <h2>Choose a folder</h2>
@@ -1022,7 +1103,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let S = null, skew = 0, sig = '', usig = '', editId = null, cEditId = null, browsePath = '';
 let tab = 'folders';
-const TABS = ['folders', 'unsplash', 'wallpaper', 'editor', 'svg'];
+const TABS = ['folders', 'unsplash', 'wallpaper', 'editor', 'analyze', 'svg'];
 try { tab = TABS.includes(localStorage.getItem('ph_tab')) ? localStorage.getItem('ph_tab') : 'folders'; } catch (e) {}
 
 async function api(path, method, body) {
@@ -1186,6 +1267,193 @@ $('#bcancel').onclick = () => $('#browseov').classList.remove('show');
 $('#bselect').onclick = () => { $('#fpath').value = browsePath; $('#browseov').classList.remove('show'); };
 
 
+// ---------------------------------------------------------------- upload & analyze
+const AN = {dests: [], dest: '', files: [], running: false, stopReq: false, entities: [], history: [], seq: 0};
+try { AN.dest = localStorage.getItem('ph_an_dest') || ''; } catch (e) {}
+const anStore = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+const kb = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+
+async function analyzeShown() {
+  await Promise.all([anLoadDests(), anLoadAi()]);
+  anHistory();
+}
+
+async function anLoadDests() {
+  try {
+    const d = await api('api/destinations');
+    AN.dests = d.destinations;
+    if (!AN.dests.some(x => x.id === AN.dest)) AN.dest = AN.dests.length ? AN.dests[0].id : '';
+    $('#an-dmsg').textContent = '';
+  } catch (e) { $('#an-dmsg').textContent = e.message; }
+  anDraw();
+}
+
+function anDraw() {
+  $('#an-dests').innerHTML = AN.dests.map(d => '<button type="button" data-d="' + esc(d.id) + '" class="' + (d.id === AN.dest ? 'on' : '') + '" title="' + esc(d.path) + '">📁 ' + esc(d.name) + (d.writable ? '' : ' ⚠') + '</button>').join('') || '<span class="meta">No destinations yet. Add one to get started.</span>';
+  const cur = AN.dests.find(d => d.id === AN.dest);
+  $('#an-dpath').textContent = cur ? cur.path + (cur.writable ? '' : '   (Photo Hub can\'t write here)') : '';
+  $('#an-edit').hidden = !cur;
+  $('#an-go').disabled = AN.running || !cur || !cur.writable || !AN.files.some(f => f.state === 'wait');
+  $('#an-go').textContent = AN.running ? 'Working...' : (() => { const n = AN.files.filter(f => f.state === 'wait').length; return n > 1 ? 'Upload ' + n + ' photos' : 'Upload'; })();
+  $('#an-stop').hidden = !AN.running;
+}
+$('#an-dests').addEventListener('click', ev => { const b = ev.target.closest('button[data-d]'); if (!b) return; AN.dest = b.dataset.d; anStore('ph_an_dest', AN.dest); anDraw(); });
+
+async function anLoadAi() {
+  try {
+    const d = await api('api/ai/settings');
+    const all = d.entities || [];
+    const good = all.filter(e => e.data && e.attachments);
+    AN.entities = good.length ? good : all;
+    let want = ''; try { want = localStorage.getItem('ph_an_entity') || ''; } catch (e) {}
+    const has = id => AN.entities.some(e => e.id === id);
+    const pick = has(want) ? want : (has(d.data_entity) ? d.data_entity : (AN.entities[0] ? AN.entities[0].id : ''));
+    $('#an-ai').innerHTML = AN.entities.map(e => '<option value="' + esc(e.id) + '"' + (e.id === pick ? ' selected' : '') + '>' + esc(e.name) + '</option>').join('') || '<option value="">No AI Task found</option>';
+    $('#an-aimsg').textContent = !all.length ? 'No AI Task found. Add Google Gemini, OpenAI or Anthropic under Settings > Devices & services. You can still upload without AI.'
+      : (!good.length ? 'None of your AI Tasks say they can look at photos, so this may fail.' : '');
+  } catch (e) { $('#an-aimsg').textContent = 'Couldn\'t load your AI Tasks: ' + e.message; }
+}
+$('#an-ai').onchange = () => anStore('ph_an_entity', $('#an-ai').value);
+
+// ---- the picker queue
+function anAdd(list) {
+  const ok = /\.(heic|heif|jpe?g|png|webp|gif|tiff?|bmp)$/i;
+  list.filter(f => /^image\//.test(f.type) || ok.test(f.name)).forEach(f => AN.files.push({id: ++AN.seq, file: f, state: 'wait', url: URL.createObjectURL(f)}));
+  anDrawQ(); anDraw();
+}
+function anDrawQ() {
+  const st = {wait: ['Waiting', ''], up: ['Working...', 'run'], done: ['Done', 'ok'], fail: ['Failed', 'bad']};
+  $('#an-queue').innerHTML = AN.files.map(q => {
+    const s = st[q.state];
+    let extra = '';
+    if (q.state === 'done' && q.res) extra = q.res.analysis ? esc(q.res.analysis.caption || '') : (q.res.analysis_error ? '<span style="color:var(--warn)">Saved, but AI failed: ' + esc(q.res.analysis_error) + '</span>' : 'Saved');
+    if (q.state === 'fail') extra = esc(q.err || '');
+    return '<div class="qrow"><img src="' + q.url + '" alt="" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'qph\'}))"><div class="qn"><div>' + esc(q.file.name) + ' <span class="meta">' + kb(q.file.size) + '</span></div>' + (extra ? '<div class="meta" style="white-space:normal">' + extra + '</div>' : '') + '</div><span class="qs ' + s[1] + '">' + s[0] + '</span>' + (q.state === 'wait' && !AN.running ? '<button type="button" data-rm="' + q.id + '" style="padding:2px 8px">✕</button>' : '') + '</div>';
+  }).join('');
+  $('#an-qbar').hidden = !AN.files.length;
+}
+$('#an-queue').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-rm]'); if (!b) return;
+  const i = AN.files.findIndex(f => f.id == b.dataset.rm);
+  if (i >= 0) { URL.revokeObjectURL(AN.files[i].url); AN.files.splice(i, 1); }
+  anDrawQ(); anDraw();
+});
+$('#an-clear').onclick = () => {
+  AN.files = AN.files.filter(f => { const keep = f.state === 'wait' || f.state === 'up'; if (!keep) URL.revokeObjectURL(f.url); return keep; });
+  anDrawQ(); anDraw();
+};
+$('#an-files').onchange = ev => { anAdd([...ev.target.files]); ev.target.value = ''; };
+['dragenter', 'dragover'].forEach(n => $('#an-drop').addEventListener(n, ev => { ev.preventDefault(); $('#an-drop').classList.add('over'); }));
+['dragleave', 'drop'].forEach(n => $('#an-drop').addEventListener(n, ev => { ev.preventDefault(); $('#an-drop').classList.remove('over'); }));
+$('#an-drop').addEventListener('drop', ev => anAdd([...(ev.dataTransfer ? ev.dataTransfer.files : [])]));
+
+// ---- upload one at a time (gentle on a Raspberry Pi and on AI rate limits)
+$('#an-go').onclick = async () => {
+  if (AN.running) return;
+  AN.running = true; AN.stopReq = false; anDrawQ(); anDraw();
+  const todo = AN.files.filter(f => f.state === 'wait');
+  for (let i = 0; i < todo.length && !AN.stopReq; i++) {
+    const q = todo[i]; q.state = 'up'; anDrawQ();
+    $('#an-prog').textContent = 'Photo ' + (i + 1) + ' of ' + todo.length;
+    const fd = new FormData();
+    fd.append('photo', q.file, q.file.name);
+    fd.append('dest', AN.dest);
+    fd.append('analyze', $('#an-do').checked ? '1' : '0');
+    fd.append('sidecar', $('#an-side').checked ? '1' : '0');
+    fd.append('entity', $('#an-ai').value || '');
+    fd.append('notes', $('#an-notes').value || '');
+    try {
+      const r = await fetch('api/analyze', {method: 'POST', body: fd});
+      let d = {}; try { d = await r.json(); } catch (e) {}
+      if (!r.ok) throw new Error(d.error || ('Error ' + r.status));
+      q.state = 'done'; q.res = d;
+    } catch (e) { q.state = 'fail'; q.err = e.message; }
+    anDrawQ();
+  }
+  AN.running = false;
+  $('#an-prog').textContent = AN.stopReq ? 'Stopped. The rest are still waiting.' : '';
+  anDrawQ(); anDraw(); anHistory();
+};
+$('#an-stop').onclick = () => { AN.stopReq = true; $('#an-stop').hidden = true; };
+
+// ---- recent results (searchable)
+async function anHistory() {
+  try { AN.history = (await api('api/analyze/history')).items; } catch (e) { AN.history = []; }
+  anDrawHist();
+}
+function anDrawHist() {
+  const q = $('#an-search').value.trim().toLowerCase();
+  const hay = h => { const a = h.analysis || {}; return [h.name, h.dest, a.caption, a.scene, (a.objects || []).join(' '), (a.tags || []).join(' '), (a.people || []).join(' '), (a.text || []).join(' ')].join(' ').toLowerCase(); };
+  const items = AN.history.filter(h => !q || hay(h).includes(q));
+  $('#an-hist').innerHTML = items.map(h => {
+    const a = h.analysis;
+    const tags = a ? (a.tags || []).map(t => '<span class="tg" data-t="' + esc(t) + '">' + esc(t) + '</span>').join('') : '';
+    const body = a ? '<div>' + esc(a.caption || '') + '</div><div class="meta">' + [a.scene, (a.objects || []).slice(0, 6).join(', '), a.people_count ? a.people_count + (a.people_count === 1 ? ' person' : ' people') : ''].filter(Boolean).map(esc).join(' · ') + '</div>'
+      : '<div class="meta">' + (h.error ? 'Saved, but the AI failed: ' + esc(h.error) : 'Saved without AI') + '</div>';
+    return '<div class="hcard"><img src="api/fs/thumb.jpg?path=' + encodeURIComponent(h.path) + '" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'qph\'}))"><div class="hb"><b>' + esc(h.name) + '</b>' + body + '<div>' + tags + '</div><div class="mono">' + esc(h.path) + '</div></div></div>';
+  }).join('') || '<div class="meta" style="padding:10px 0">' + (AN.history.length ? 'Nothing matches that search.' : 'Nothing yet. Photos you upload show up here.') + '</div>';
+}
+$('#an-search').oninput = anDrawHist;
+$('#an-hist').addEventListener('click', ev => { const t = ev.target.closest('.tg'); if (t) { $('#an-search').value = t.dataset.t; anDrawHist(); } });
+$('#an-hclear').onclick = async () => { if (!confirm('Clear this list? Your pictures and details files stay where they are.')) return; try { await api('api/analyze/history', 'DELETE'); } catch (e) {} anHistory(); };
+
+// ---- add / edit a destination (browse anywhere Photo Hub can see)
+let andEdit = null, andPath = '';
+async function andBrowse(path) {
+  try {
+    const d = await api('api/fs/browse' + (path ? '?path=' + encodeURIComponent(path) : ''));
+    const list = $('#andlist');
+    $('#anderr').textContent = '';
+    if (d.roots) {
+      andPath = '';
+      $('#andpath').textContent = 'Pick a place to start';
+      $('#andinfo').textContent = '';
+      list.innerHTML = d.roots.map(r => '<button type="button" data-p="' + esc(r.path) + '">📁 ' + esc(r.path) + (r.writable ? '' : ' (read-only)') + '</button>').join('') || '<div class="meta" style="padding:10px">Photo Hub can\'t see any folders.</div>';
+    } else {
+      andPath = d.path;
+      $('#andpath').textContent = d.path;
+      $('#andinfo').textContent = (d.writable ? '' : 'Read-only here, so photos can\'t be saved in it. ') + d.images + ' picture' + (d.images === 1 ? '' : 's') + ' directly in this folder' + (d.more ? ' · showing the first 500 folders' : '');
+      list.innerHTML = '<button type="button" data-p="' + esc(d.parent || '') + '">⬆ Up</button>' + d.dirs.map(x => '<button type="button" data-p="' + esc(x.path) + '">📁 ' + esc(x.name) + '</button>').join('');
+    }
+    $('#andsave').disabled = !andPath;
+    if (andPath && !$('#andname').value.trim()) $('#andname').value = andPath.split('/').filter(Boolean).pop() || '';
+  } catch (e) { if (path) return andBrowse(''); $('#anderr').textContent = e.message; }
+}
+function andOpen(d) {
+  andEdit = d || null;
+  $('#andtitle').textContent = d ? 'Edit destination' : 'Add destination';
+  $('#andname').value = d ? d.name : '';
+  $('#andnew').value = '';
+  $('#andrm').hidden = !d;
+  $('#andsave').disabled = true;
+  $('#andestov').classList.add('show');
+  andBrowse(d ? d.path : '');
+}
+$('#an-add').onclick = () => andOpen(null);
+$('#an-edit').onclick = () => andOpen(AN.dests.find(x => x.id === AN.dest));
+$('#andlist').addEventListener('click', ev => { const b = ev.target.closest('button[data-p]'); if (b) andBrowse(b.dataset.p); });
+$('#andcancel').onclick = () => $('#andestov').classList.remove('show');
+$('#andmk').onclick = async () => {
+  if (!andPath) { $('#anderr').textContent = 'Open a folder first'; return; }
+  try { const d = await api('api/fs/mkdir', 'POST', {path: andPath, name: $('#andnew').value}); $('#andnew').value = ''; andBrowse(d.path); }
+  catch (e) { $('#anderr').textContent = e.message; }
+};
+$('#andsave').onclick = async () => {
+  $('#andsave').disabled = true;
+  try {
+    const body = {name: $('#andname').value, path: andPath};
+    const d = andEdit ? await api('api/destinations/' + andEdit.id, 'PUT', body) : await api('api/destinations', 'POST', body);
+    AN.dest = d.id; anStore('ph_an_dest', AN.dest);
+    $('#andestov').classList.remove('show');
+    await anLoadDests();
+  } catch (e) { $('#anderr').textContent = e.message; $('#andsave').disabled = false; }
+};
+$('#andrm').onclick = async () => {
+  if (!andEdit || !confirm('Remove "' + andEdit.name + '" from your destinations? The folder and its pictures stay.')) return;
+  try { await api('api/destinations/' + andEdit.id, 'DELETE'); $('#andestov').classList.remove('show'); await anLoadDests(); }
+  catch (e) { $('#anderr').textContent = e.message; }
+};
+
 // ---------------------------------------------------------------- tabs
 function showTab(t) {
   tab = t;
@@ -1195,10 +1463,12 @@ function showTab(t) {
   $('#pane-unsplash').hidden = t !== 'unsplash';
   $('#pane-wallpaper').hidden = t !== 'wallpaper';
   $('#pane-editor').hidden = t !== 'editor';
+  $('#pane-analyze').hidden = t !== 'analyze';
   $('#pane-svg').hidden = t !== 'svg';
   if (t === 'svg' && !$('#svgf').getAttribute('src')) $('#svgf').src = 'svg/';
   if (t === 'svg') setTimeout(resizeSvg, 50);
   if (t === 'editor') editorShown();
+  if (t === 'analyze') analyzeShown();
 }
 document.querySelector('.tabs').addEventListener('click', ev => { const b = ev.target.closest('button[data-tab]'); if (b) showTab(b.dataset.tab); });
 setTimeout(() => showTab(tab), 0);

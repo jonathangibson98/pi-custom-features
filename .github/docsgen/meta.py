@@ -30,16 +30,17 @@ META = {
     },
     "photo_shuffle": {
         "tagline": "Everything photos in one place: folder shuffles and Unsplash collections as image entities, one wallpaper for every "
-                   "add-on page, a Photo Editor with AI tools, and SVG Maker.",
+                   "add-on page, a Photo Editor with AI tools, SVG Maker, and photo upload with AI analysis.",
         "features": [
             "**Folders** and **Unsplash** collections published as `image` entities over MQTT, shuffled on a timer",
             "**Wallpaper**: one background for every add-on page in this repository, with darken, lighten and blur",
             "**Photo Editor**: crop, adjust, filters and AI edits through your `ai_task` entity",
             "**SVG Maker**: trace photos into clean SVG icons, or have the AI draw a logo",
+            "**Analyze**: upload one photo or a batch from your phone, let an AI describe each one (objects, scene, tags), and save it to a destination you tap",
             "Pictures move between tabs in one tap (edit a shuffle photo, set it as wallpaper, trace it as an icon)",
             "Resizes images for dashboards (default 1920 px, JPEG quality 85)",
         ],
-        "needs": ["MQTT (Mosquitto add-on or your own broker)", "A free Unsplash access key (only for Unsplash)", "An `ai_task` entity (only for AI edits and logos)"],
+        "needs": ["MQTT (Mosquitto add-on or your own broker)", "A free Unsplash access key (only for Unsplash)", "An `ai_task` entity (only for AI edits, logos and photo analysis)"],
     },
     "party_lights": {
         "tagline": "Music-synced lights, 25 light modes, color themes and 20+ party games, run from a phone-friendly page, a dashboard "

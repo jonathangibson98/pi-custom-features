@@ -4,7 +4,7 @@
 
 ![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjonathangibson98%2Fpi-custom-features%2Fmain%2Fphoto_shuffle%2Fconfig.yaml&query=%24.version&label=version&color=41BDF5&logo=homeassistant) ![Architectures](https://img.shields.io/badge/arch-aarch64%20%7C%20amd64-informational) ![Sidebar](https://img.shields.io/badge/sidebar-ingress-success) ![Prebuilt image](https://img.shields.io/badge/image-GHCR-2ea44f?logo=docker) ![MQTT](https://img.shields.io/badge/MQTT-optional-660066?logo=mqtt) ![AI Task](https://img.shields.io/badge/AI-ai__task-8A2BE2?logo=googlegemini)
 
-Everything photos in one place: folder shuffles and Unsplash collections as image entities, one wallpaper for every add-on page, a Photo Editor with AI tools, and SVG Maker.
+Everything photos in one place: folder shuffles and Unsplash collections as image entities, one wallpaper for every add-on page, a Photo Editor with AI tools, SVG Maker, and photo upload with AI analysis.
 
 ## Features
 
@@ -12,6 +12,7 @@ Everything photos in one place: folder shuffles and Unsplash collections as imag
 - **Wallpaper**: one background for every add-on page in this repository, with darken, lighten and blur
 - **Photo Editor**: crop, adjust, filters and AI edits through your `ai_task` entity
 - **SVG Maker**: trace photos into clean SVG icons, or have the AI draw a logo
+- **Analyze**: upload one photo or a batch from your phone, let an AI describe each one (objects, scene, tags), and save it to a destination you tap
 - Pictures move between tabs in one tap (edit a shuffle photo, set it as wallpaper, trace it as an icon)
 - Resizes images for dashboards (default 1920 px, JPEG quality 85)
 
@@ -20,7 +21,7 @@ Everything photos in one place: folder shuffles and Unsplash collections as imag
 - Home Assistant OS or Supervised (add-ons need the Supervisor)
 - MQTT (Mosquitto add-on or your own broker)
 - A free Unsplash access key (only for Unsplash)
-- An `ai_task` entity (only for AI edits and logos)
+- An `ai_task` entity (only for AI edits, logos and photo analysis)
 
 ## Install
 

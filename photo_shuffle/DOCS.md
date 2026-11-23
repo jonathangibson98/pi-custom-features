@@ -3,18 +3,18 @@
 
 ![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjonathangibson98%2Fpi-custom-features%2Fmain%2Fphoto_shuffle%2Fconfig.yaml&query=%24.version&label=version&color=41BDF5&logo=homeassistant) ![Architectures](https://img.shields.io/badge/arch-aarch64%20%7C%20amd64-informational) ![Sidebar](https://img.shields.io/badge/sidebar-ingress-success) ![Prebuilt image](https://img.shields.io/badge/image-GHCR-2ea44f?logo=docker) ![MQTT](https://img.shields.io/badge/MQTT-optional-660066?logo=mqtt) ![AI Task](https://img.shields.io/badge/AI-ai__task-8A2BE2?logo=googlegemini)
 
-> Everything photos in one place: folder shuffles and Unsplash collections as image entities, one wallpaper for every add-on page, a Photo Editor with AI tools, and SVG Maker.
+> Everything photos in one place: folder shuffles and Unsplash collections as image entities, one wallpaper for every add-on page, a Photo Editor with AI tools, SVG Maker, and photo upload with AI analysis.
 
 ## At a glance
 
 | | |
 |---|---|
-| Version | `5.0.2` |
+| Version | `5.1.0` |
 | Slug | `photo_shuffle` |
 | Architectures | `aarch64`, `amd64` |
 | Opens from | the sidebar (**Photo Hub**, ingress) |
 | Extra ports | none |
-| Folders it can reach | `media`, `share`, `homeassistant_config`, `addon_config` (read only) |
+| Folders it can reach | `media`, `share`, `homeassistant_config`, `addon_config` (read only), `backup`, `all_addon_configs`, `addons`, `ssl` (read only) |
 | API access | Home Assistant API, Supervisor API |
 | MQTT | optional (used when available) |
 | Takes commands via `hassio.addon_stdin` | yes |
@@ -24,7 +24,7 @@
 
 - MQTT (Mosquitto add-on or your own broker)
 - A free Unsplash access key (only for Unsplash)
-- An `ai_task` entity (only for AI edits and logos)
+- An `ai_task` entity (only for AI edits, logos and photo analysis)
 
 ## Contents
 
@@ -34,6 +34,7 @@
 - [Backups](#backups)
 - [Wallpaper](#wallpaper)
 - [Photo Editor](#photo-editor)
+- [Upload & Analyze](#upload--analyze)
 - [SVG Maker](#svg-maker)
     - [How to use](#how-to-use)
     - [AI logo](#ai-logo)
@@ -54,6 +55,7 @@ Everything photos in one add-on (sidebar: Photo Hub):
 - **Folders** and **Unsplash**: publish photos to Home Assistant as **image entities** over MQTT.
 - **Wallpaper**: one background for every add-on's page, with darken / lighten / blur controls.
 - **Photo Editor**: manual and AI photo editing.
+- **Analyze**: upload photos (one or a batch), let an AI describe them, and save them where you choose.
 - **SVG Maker**: turn photos into SVG icons, or have AI draw a logo.
 
 Pictures move between the tabs with one tap: edit a shuffle's photo, set the result as the wallpaper, trace it as an SVG, or open an SVG back in the editor.
@@ -112,6 +114,30 @@ Open a photo from your device, your photo folders, the current wallpaper, **Edit
 - **Save**: save to the edits folder or any of your photo folders (JPG or PNG), **Download**, **Set as add-on wallpaper**, or **Trace as SVG** / **Use for AI logo** to hand it to SVG Maker.
 
 **Undo**/**Redo** cover every step, and holding **Before** shows the original. The editor works at up to 3000 px; very large photos are scaled to that.
+
+## Upload & Analyze
+
+The **Analyze** tab is for getting photos from your phone into a folder, with an AI describing each one on the way.
+
+1. **Pick photos.** Tap the box and choose one photo or many. iPhone HEIC photos work (they're saved as JPEG). JPEG, PNG, WebP and GIF are saved exactly as they were sent.
+2. **Save to.** Tap one of your **destinations**. A destination is a named shortcut to a folder, so the folder you use all the time is one tap away. Tap **+ Add destination**, name it, then browse to a folder (or make a new one with **Create**) and **Save**. **Edit this one** renames it, points it at another folder, or removes it. Removing a destination only removes the shortcut; the folder and its pictures are never touched.
+3. **AI.** Pick which AI Task entity to use from the list. It shows every `ai_task` entity Home Assistant has that can look at photos (Google Gemini, OpenAI, Anthropic and so on), so you can switch between them. Add a hint like "tools and equipment" if you want the AI to focus on something. Turn **Look at each photo with AI** off to just upload.
+4. Tap **Upload**. Photos go one at a time, so a Raspberry Pi and your AI provider's rate limits aren't flooded. **Stop after this one** pauses a long batch.
+
+For each photo the AI returns a one-sentence caption, the scene, the main objects, how many people are visible with a short description of each (what they're doing and wearing), any readable text, and search tags. People are **described, never named**: the AI is told not to work out who anyone is. With **Save the details in a .json file** on, those details are written next to the photo with the same name (`IMG_0042.jpg` and `IMG_0042.json`). The **Recent** list under the buttons shows the last results and can be searched by caption, object or tag; tap a tag to search for it. **Clear list** only clears that list.
+
+If the AI fails (wrong entity, rate limit, timeout), the photo is **still saved**. The error shows next to it and you can upload it again with another AI. Files are never overwritten: a name that's taken becomes `name-2.jpg`. Photos named just `image.jpg` (what some phones send) are named by date and time.
+
+**Where can I save?** Anywhere Photo Hub can see, which is the folders Home Assistant gives add-ons: `/media`, `/share`, `/homeassistant` (your config folder), `/backup`, `/addons`, `/addon_configs` and `/ssl` (read only). It can't see the rest of the Pi or other add-ons' private data. A folder marked ⚠ is read-only for Photo Hub. After updating from an older version, **restart** Photo Hub once so Home Assistant applies the extra folders.
+
+**Privacy.** With AI on, each photo is sent to the AI provider behind the entity you picked. Photo Hub puts a temporary copy in `/media/svg_maker/ai_photos` so Home Assistant can hand it to the AI, and deletes it right after.
+
+**If it doesn't work**
+
+- *"No AI Task found"*: add an AI integration that offers AI Task under **Settings → Devices & services**.
+- *"... can't look at photos"*: that AI Task doesn't accept attachments. Pick another.
+- *"The AI answered, but not in a form I could read"*: try again, or pick another AI.
+- A destination with ⚠ or *"Photo Hub can't write to ..."*: pick a folder under `/media` or `/share`.
 
 ## SVG Maker
 
