@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.1.2 - 2026-11-23
+
+- **Fixed: "The AI answered, but not in a form I could read".** Some AI Tasks (especially "thinking" models) wrap the answer in extra text, use curly quotes or trailing commas, or skip the JSON and just describe the photo. Photo Hub now digs the answer out of all of those. If the AI only replies in plain sentences, that sentence becomes the caption and the file name is made from it. If it really can't be read (for example the AI refused), the message now shows what the AI said, and the Activity log has the start of the reply.
+
 ## 5.1.1 - 2026-11-23
 
 - **Photos are renamed after what's in them.** The AI picks a short name, so `IMG_0042.HEIC` is saved as `dog-on-couch.jpg` (`dog-on-couch-2.jpg` if that name is taken). If the AI gives no usable name the photo keeps its original name, and it's saved either way. Turn it off with **Rename each photo after what's in it** under *AI options*. The `.json` details file is no longer written.

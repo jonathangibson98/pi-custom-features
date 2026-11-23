@@ -50,6 +50,54 @@ ANALYZE_PROMPT = (
     "none), tags (array of up to 10 lowercase search keywords).%s"
 )
 
+ANALYZE_KEYS = ("filename", "caption", "scene", "objects", "tags", "people", "people_count")
+REFUSALS = ("i can't", "i cannot", "i'm unable", "i am unable", "i'm sorry", "i am sorry", "sorry,", "unable to")
+STOP_WORDS = set("the a an of in on at with and or is are was were this that these those photo image picture shows showing "
+                 "show there appears appear looks look seems seem its it his her their from to by for as be being has have "
+                 "very some several view close up".split())
+
+
+def _first_object(text, keys):
+    """The first JSON object in text that has one of keys (or, failing that, any non-empty one). Works with chatter,
+    code fences or 'thinking' text before and after it, because every '{' is tried as a starting point."""
+    dec = json.JSONDecoder()
+    fallback = None
+    for m in re.finditer(r"\{", text):
+        try:
+            obj, _ = dec.raw_decode(text[m.start():])
+        except ValueError:
+            continue
+        if isinstance(obj, dict) and obj:
+            if any(k in obj for k in keys):
+                return obj
+            if fallback is None:
+                fallback = obj
+    return fallback
+
+
+def extract_json(text, keys=ANALYZE_KEYS):
+    text = str(text)[:20000]
+    obj = _first_object(text, keys)
+    if obj is None:  # second try: curly quotes and trailing commas, which some models produce
+        fixed = text.replace("\u201c", '"').replace("\u201d", '"').replace("\u2018", "'").replace("\u2019", "'")
+        obj = _first_object(re.sub(r",\s*([}\]])", r"\1", fixed), keys)
+    return obj
+
+
+def plain_analysis(text):
+    """The AI ignored the JSON format and just described the photo. Use that as the caption and make a file name from it."""
+    t = re.sub(r"```.*?```", " ", str(text), flags=re.S)
+    t = re.sub(r"[*_#>`]+", "", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    if len(t) < 8 or t.lower().startswith(REFUSALS):
+        return None
+    sent = re.split(r"(?<=[.!?])\s", t)[0][:300]
+    words = []
+    for w in re.findall(r"[a-z0-9]+", sent.lower()):
+        if w not in STOP_WORDS and len(w) > 2 and w not in words:
+            words.append(w)
+    return {"caption": sent, "filename": "-".join(words[:4]), "tags": words[:8]}
+
 
 class AiPhoto:
     def __init__(self, ai, opts):
@@ -300,15 +348,29 @@ class AiPhoto:
             except OSError:
                 pass
         out = res.get("data")
+        if isinstance(out, list) and out:
+            out = out[0]
+        if isinstance(out, dict) and not any(k in out for k in ANALYZE_KEYS):  # wrapped, like {"text": "..."}
+            strings = [v for v in out.values() if isinstance(v, str)]
+            if strings:
+                out = max(strings, key=len)
+        raw = ""
         if isinstance(out, str):
-            m = re.search(r"\{.*\}", out, re.S)
-            try:
-                out = json.loads(m.group(0)) if m else {}
-            except ValueError:
-                out = {}
+            raw = out
+            out = extract_json(raw)
+            if out is None:
+                out = plain_analysis(raw)
+                if out is not None:
+                    log.warning("The AI didn't reply in JSON, so its text is used as the caption: %s", raw[:300].replace("\n", " "))
+        if isinstance(out, dict) and not any(k in out for k in ANALYZE_KEYS):  # maybe nested, like {"result": {...}}
+            out = next((v for v in out.values() if isinstance(v, dict) and any(k in v for k in ANALYZE_KEYS)), None)
         if not isinstance(out, dict) or not out:
-            return web.json_response({"error": "The AI answered, but not in a form I could read. Try again or pick "
-                                               "another AI Task."}, status=502)
+            seen = (raw or json.dumps(res.get("data"), default=str))[:140].replace("\n", " ").strip()
+            seen = "" if seen in ('""', "null", "{}", "[]") else seen
+            log.warning("Couldn't read the AI's reply: %s", (raw or json.dumps(res, default=str))[:500].replace("\n", " "))
+            return web.json_response({"error": "The AI answered, but not in a form I could read"
+                                               + (" (it said: %s)" % seen if seen else "") + ". Try again or pick another AI Task."},
+                                     status=502)
         try:
             count = max(0, int(out.get("people_count") or 0))
         except (TypeError, ValueError):
