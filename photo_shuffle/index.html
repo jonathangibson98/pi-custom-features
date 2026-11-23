@@ -84,7 +84,15 @@ textarea{width:100%;font:inherit;padding:8px 10px;border-radius:9px;border:1px s
 .hint{font-size:12px;color:var(--muted);margin-top:6px;word-break:break-all}
 [hidden]{display:none!important}
 .tabs{overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
-.tabs button{white-space:nowrap;min-width:max-content;padding:9px 12px}
+.tabs button{white-space:nowrap;min-width:0;padding:8px 2px;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:12px;line-height:1.2}
+.tabs button .ni{font-size:19px;line-height:1.2}
+.subtabs{display:flex;gap:6px;margin:-4px 0 14px}
+.subtabs button{flex:1;padding:6px 8px;font-size:13px;border-radius:99px;min-width:0;white-space:nowrap}
+.subtabs button.on{border-color:var(--accent);color:var(--accent);font-weight:600}
+.an-opts{margin:0 0 12px;padding:12px}
+.an-opts>summary{font-weight:600;font-size:15px}
+.an-opts[open]>summary{margin-bottom:8px}
+.an-opts>summary .meta{font-weight:400;margin-left:6px}
 .sl{display:grid;grid-template-columns:92px 1fr 40px;gap:8px;align-items:center;margin:6px 0;font-size:13px}
 .sl span:last-child{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
 .sl input{width:100%;accent-color:var(--accent)}
@@ -143,6 +151,7 @@ textarea{width:100%;font:inherit;padding:8px 10px;border-radius:9px;border:1px s
 .tg{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);margin:0 4px 4px 0;background:var(--input);color:var(--muted);cursor:pointer}
 .an-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .an-bar .grow{flex:1}
+#an-go{flex:1;padding:12px;font-size:16px}
 </style>
 <!-- ha-mobile v1.0.0: copied from .shared/ha-mobile.css, edit it there -->
 <style id="ha-mobile">
@@ -837,14 +846,8 @@ window.__hbAddon = "photo_shuffle";
     <span id="mq" class="pill">MQTT</span>
   </header>
 
-  <div class="tabs">
-    <button data-tab="folders" class="on">Folders</button>
-    <button data-tab="unsplash">Unsplash</button>
-    <button data-tab="wallpaper">Wallpaper</button>
-    <button data-tab="editor">Photo Editor</button>
-    <button data-tab="analyze">Analyze</button>
-    <button data-tab="svg">SVG Maker</button>
-  </div>
+  <div class="tabs" id="nav"></div>
+  <div class="subtabs" id="subnav" hidden></div>
 
   <section id="pane-folders">
     <div class="bar">
@@ -989,8 +992,8 @@ window.__hbAddon = "photo_shuffle";
       <div class="emsg bad" id="an-dmsg"></div>
     </div>
 
-    <div class="an-sec">
-      <h3>3. AI</h3>
+    <details class="an-sec an-opts" id="an-opts">
+      <summary>3. AI options <span class="meta" id="an-sum"></span></summary>
       <label class="check" style="margin-top:0"><input type="checkbox" id="an-do" checked> Look at each photo with AI (objects, scene, people described, tags)</label>
       <label for="an-ai">AI to use</label>
       <select id="an-ai"></select>
@@ -998,25 +1001,25 @@ window.__hbAddon = "photo_shuffle";
       <label for="an-notes">What should it pay attention to? (optional)</label>
       <input type="text" id="an-notes" maxlength="300" placeholder="e.g. tools and equipment">
       <label class="check"><input type="checkbox" id="an-name" checked> Rename each photo after what's in it (like dog-on-couch.jpg)</label>
-    </div>
+    </details>
 
     <div class="an-bar" style="margin-bottom:14px">
       <button class="primary" id="an-go" type="button" disabled>Upload</button>
       <button id="an-stop" type="button" hidden>Stop after this one</button>
     </div>
 
-    <div class="an-sec">
-      <div class="an-bar"><h3 class="grow" style="margin:0">Recent</h3><button id="an-hclear" type="button" class="danger">Clear list</button></div>
-      <input type="text" id="an-search" placeholder="Search captions, objects, tags..." style="margin-top:8px">
+    <details class="an-sec an-opts" id="an-recent">
+      <summary>Recent <span class="meta" id="an-rcount"></span></summary>
+      <div class="an-bar"><input type="text" id="an-search" placeholder="Search captions, objects, tags..." style="flex:1;min-width:0"><button id="an-hclear" type="button" class="danger">Clear</button></div>
       <div id="an-hist"></div>
       <div class="note">Clearing the list never deletes or renames your pictures.</div>
-    </div>
+    </details>
   </section>
 
   <section id="pane-svg" hidden>
     <iframe id="svgf" title="SVG Maker"></iframe>
   </section>
-  <details open>
+  <details>
     <summary>Activity</summary>
     <div id="log"></div>
   </details>
@@ -1312,9 +1315,15 @@ async function anLoadAi() {
     $('#an-aimsg').textContent = !all.length ? 'No AI Task found. Add Google Gemini, OpenAI or Anthropic under Settings > Devices & services. You can still upload without AI.'
       : (!good.length ? 'None of your AI Tasks say they can look at photos, so this may fail.' : '');
   } catch (e) { $('#an-aimsg').textContent = 'Couldn\'t load your AI Tasks: ' + e.message; }
+  anSum();
 }
-$('#an-ai').onchange = () => anStore('ph_an_entity', $('#an-ai').value);
-$('#an-do').onchange = () => { $('#an-name').disabled = !$('#an-do').checked; };
+function anSum() {
+  const on = $('#an-do').checked, e = AN.entities.find(x => x.id === $('#an-ai').value);
+  $('#an-sum').textContent = on ? [e ? e.name : 'AI', $('#an-name').checked ? 'renames photos' : ''].filter(Boolean).join(' · ') : 'AI off';
+}
+$('#an-ai').onchange = () => { anStore('ph_an_entity', $('#an-ai').value); anSum(); };
+$('#an-do').onchange = () => { $('#an-name').disabled = !$('#an-do').checked; anSum(); };
+$('#an-name').onchange = anSum;
 
 // ---- the picker queue
 function anAdd(list) {
@@ -1383,6 +1392,7 @@ async function anHistory() {
   anDrawHist();
 }
 function anDrawHist() {
+  $('#an-rcount').textContent = AN.history.length ? '(' + AN.history.length + ')' : '';
   const q = $('#an-search').value.trim().toLowerCase();
   const hay = h => { const a = h.analysis || {}; return [h.name, h.dest, a.caption, a.scene, (a.objects || []).join(' '), (a.tags || []).join(' '), (a.people || []).join(' '), (a.text || []).join(' ')].join(' ').toLowerCase(); };
   const items = AN.history.filter(h => !q || hay(h).includes(q));
@@ -1394,7 +1404,7 @@ function anDrawHist() {
     return '<div class="hcard"><img src="api/fs/thumb.jpg?path=' + encodeURIComponent(h.path) + '" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'qph\'}))"><div class="hb"><b>' + esc(h.name) + '</b>' + (h.original && h.original !== h.name ? '<div class="meta">was ' + esc(h.original) + '</div>' : '') + body + '<div>' + tags + '</div><div class="mono">' + esc(h.path) + '</div></div></div>';
   }).join('') || '<div class="meta" style="padding:10px 0">' + (AN.history.length ? 'Nothing matches that search.' : 'Nothing yet. Photos you upload show up here.') + '</div>';
 }
-$('#an-search').oninput = anDrawHist;
+$('#an-search').oninput = () => { if ($('#an-search').value) $('#an-recent').open = true; anDrawHist(); };
 $('#an-hist').addEventListener('click', ev => { const t = ev.target.closest('.tg'); if (t) { $('#an-search').value = t.dataset.t; anDrawHist(); } });
 $('#an-hclear').onclick = async () => { if (!confirm('Clear this list? Your pictures stay where they are.')) return; try { await api('api/analyze/history', 'DELETE'); } catch (e) {} anHistory(); };
 
@@ -1459,7 +1469,7 @@ $('#andrm').onclick = async () => {
 function showTab(t) {
   tab = t;
   try { localStorage.setItem('ph_tab', t); } catch (e) {}
-  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  navDraw(t);
   $('#pane-folders').hidden = t !== 'folders';
   $('#pane-unsplash').hidden = t !== 'unsplash';
   $('#pane-wallpaper').hidden = t !== 'wallpaper';
@@ -1471,7 +1481,25 @@ function showTab(t) {
   if (t === 'editor') editorShown();
   if (t === 'analyze') analyzeShown();
 }
-document.querySelector('.tabs').addEventListener('click', ev => { const b = ev.target.closest('button[data-tab]'); if (b) showTab(b.dataset.tab); });
+// Four main sections; the ones that hold two screens get a small switcher underneath.
+const GROUPS = [
+  {id: 'upload', icon: '📤', label: 'Upload', tabs: [['analyze', 'Upload']]},
+  {id: 'edit', icon: '🎨', label: 'Edit', tabs: [['editor', 'Photo Editor'], ['svg', 'SVG Maker']]},
+  {id: 'shuffle', icon: '🔀', label: 'Shuffle', tabs: [['folders', 'Folders'], ['unsplash', 'Unsplash']]},
+  {id: 'wallpaper', icon: '🖼', label: 'Wallpaper', tabs: [['wallpaper', 'Wallpaper']]}
+];
+const lastIn = {};
+const groupOf = t => GROUPS.find(g => g.tabs.some(x => x[0] === t)) || GROUPS[0];
+function navDraw(t) {
+  const g = groupOf(t);
+  lastIn[g.id] = t;
+  $('#nav').innerHTML = GROUPS.map(x => '<button type="button" data-g="' + x.id + '" class="' + (x === g ? 'on' : '') + '"><span class="ni">' + x.icon + '</span><span>' + x.label + '</span></button>').join('');
+  const sub = $('#subnav');
+  sub.hidden = g.tabs.length < 2;
+  sub.innerHTML = g.tabs.length < 2 ? '' : g.tabs.map(x => '<button type="button" data-tab="' + x[0] + '" class="' + (x[0] === t ? 'on' : '') + '">' + x[1] + '</button>').join('');
+}
+$('#nav').addEventListener('click', ev => { const b = ev.target.closest('button[data-g]'); if (!b) return; const g = GROUPS.find(x => x.id === b.dataset.g); showTab(lastIn[g.id] || g.tabs[0][0]); });
+$('#subnav').addEventListener('click', ev => { const b = ev.target.closest('button[data-tab]'); if (b) showTab(b.dataset.tab); });
 setTimeout(() => showTab(tab), 0);
 // ---------------------------------------------------------------- unsplash
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
