@@ -997,7 +997,7 @@ window.__hbAddon = "photo_shuffle";
       <div class="meta" id="an-aimsg"></div>
       <label for="an-notes">What should it pay attention to? (optional)</label>
       <input type="text" id="an-notes" maxlength="300" placeholder="e.g. tools and equipment">
-      <label class="check"><input type="checkbox" id="an-side" checked> Save the details in a .json file next to each photo</label>
+      <label class="check"><input type="checkbox" id="an-name" checked> Rename each photo after what's in it (like dog-on-couch.jpg)</label>
     </div>
 
     <div class="an-bar" style="margin-bottom:14px">
@@ -1009,7 +1009,7 @@ window.__hbAddon = "photo_shuffle";
       <div class="an-bar"><h3 class="grow" style="margin:0">Recent</h3><button id="an-hclear" type="button" class="danger">Clear list</button></div>
       <input type="text" id="an-search" placeholder="Search captions, objects, tags..." style="margin-top:8px">
       <div id="an-hist"></div>
-      <div class="note">Clearing the list never deletes pictures or details files.</div>
+      <div class="note">Clearing the list never deletes or renames your pictures.</div>
     </div>
   </section>
 
@@ -1314,6 +1314,7 @@ async function anLoadAi() {
   } catch (e) { $('#an-aimsg').textContent = 'Couldn\'t load your AI Tasks: ' + e.message; }
 }
 $('#an-ai').onchange = () => anStore('ph_an_entity', $('#an-ai').value);
+$('#an-do').onchange = () => { $('#an-name').disabled = !$('#an-do').checked; };
 
 // ---- the picker queue
 function anAdd(list) {
@@ -1326,7 +1327,7 @@ function anDrawQ() {
   $('#an-queue').innerHTML = AN.files.map(q => {
     const s = st[q.state];
     let extra = '';
-    if (q.state === 'done' && q.res) extra = q.res.analysis ? esc(q.res.analysis.caption || '') : (q.res.analysis_error ? '<span style="color:var(--warn)">Saved, but AI failed: ' + esc(q.res.analysis_error) + '</span>' : 'Saved');
+    if (q.state === 'done' && q.res) extra = q.res.analysis ? 'Saved as <b>' + esc(q.res.name) + '</b>' + (q.res.analysis.caption ? ' · ' + esc(q.res.analysis.caption) : '') : (q.res.analysis_error ? '<span style="color:var(--warn)">Saved as ' + esc(q.res.name) + ', but AI failed: ' + esc(q.res.analysis_error) + '</span>' : 'Saved as ' + esc(q.res.name));
     if (q.state === 'fail') extra = esc(q.err || '');
     return '<div class="qrow"><img src="' + q.url + '" alt="" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'qph\'}))"><div class="qn"><div>' + esc(q.file.name) + ' <span class="meta">' + kb(q.file.size) + '</span></div>' + (extra ? '<div class="meta" style="white-space:normal">' + extra + '</div>' : '') + '</div><span class="qs ' + s[1] + '">' + s[0] + '</span>' + (q.state === 'wait' && !AN.running ? '<button type="button" data-rm="' + q.id + '" style="padding:2px 8px">✕</button>' : '') + '</div>';
   }).join('');
@@ -1359,7 +1360,7 @@ $('#an-go').onclick = async () => {
     fd.append('photo', q.file, q.file.name);
     fd.append('dest', AN.dest);
     fd.append('analyze', $('#an-do').checked ? '1' : '0');
-    fd.append('sidecar', $('#an-side').checked ? '1' : '0');
+    fd.append('rename', $('#an-name').checked ? '1' : '0');
     fd.append('entity', $('#an-ai').value || '');
     fd.append('notes', $('#an-notes').value || '');
     try {
@@ -1390,12 +1391,12 @@ function anDrawHist() {
     const tags = a ? (a.tags || []).map(t => '<span class="tg" data-t="' + esc(t) + '">' + esc(t) + '</span>').join('') : '';
     const body = a ? '<div>' + esc(a.caption || '') + '</div><div class="meta">' + [a.scene, (a.objects || []).slice(0, 6).join(', '), a.people_count ? a.people_count + (a.people_count === 1 ? ' person' : ' people') : ''].filter(Boolean).map(esc).join(' · ') + '</div>'
       : '<div class="meta">' + (h.error ? 'Saved, but the AI failed: ' + esc(h.error) : 'Saved without AI') + '</div>';
-    return '<div class="hcard"><img src="api/fs/thumb.jpg?path=' + encodeURIComponent(h.path) + '" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'qph\'}))"><div class="hb"><b>' + esc(h.name) + '</b>' + body + '<div>' + tags + '</div><div class="mono">' + esc(h.path) + '</div></div></div>';
+    return '<div class="hcard"><img src="api/fs/thumb.jpg?path=' + encodeURIComponent(h.path) + '" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'qph\'}))"><div class="hb"><b>' + esc(h.name) + '</b>' + (h.original && h.original !== h.name ? '<div class="meta">was ' + esc(h.original) + '</div>' : '') + body + '<div>' + tags + '</div><div class="mono">' + esc(h.path) + '</div></div></div>';
   }).join('') || '<div class="meta" style="padding:10px 0">' + (AN.history.length ? 'Nothing matches that search.' : 'Nothing yet. Photos you upload show up here.') + '</div>';
 }
 $('#an-search').oninput = anDrawHist;
 $('#an-hist').addEventListener('click', ev => { const t = ev.target.closest('.tg'); if (t) { $('#an-search').value = t.dataset.t; anDrawHist(); } });
-$('#an-hclear').onclick = async () => { if (!confirm('Clear this list? Your pictures and details files stay where they are.')) return; try { await api('api/analyze/history', 'DELETE'); } catch (e) {} anHistory(); };
+$('#an-hclear').onclick = async () => { if (!confirm('Clear this list? Your pictures stay where they are.')) return; try { await api('api/analyze/history', 'DELETE'); } catch (e) {} anHistory(); };
 
 // ---- add / edit a destination (browse anywhere Photo Hub can see)
 let andEdit = null, andPath = '';
