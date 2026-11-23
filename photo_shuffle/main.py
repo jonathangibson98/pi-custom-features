@@ -1836,6 +1836,12 @@ def safe_stem(n):
     return stem
 
 
+def ai_stem(name):
+    """A file name the AI suggested, made safe: lowercase words joined with hyphens. '' if there's nothing usable."""
+    s = re.sub(r"[^a-z0-9]+", "-", str(name or "").lower()).strip("-")[:50].strip("-")
+    return s if len(s) >= 3 else ""
+
+
 def write_unique(folder, stem, ext, data):
     """Write data to folder/stem+ext, adding -2, -3 ... if the name is taken. Never overwrites."""
     i = 1
@@ -1923,31 +1929,37 @@ def api_analyze():
                 buf = io.BytesIO()
                 im.save(buf, "JPEG", quality=92, optimize=True)
             data, ext = buf.getvalue(), ".jpg"
-        path = write_unique(folder, safe_stem(f.filename), ext, data)
-    except OSError as e:
-        return err(f"Couldn't save it: {e}", 500)
     except Exception:  # noqa: BLE001
         return err("That isn't a picture I can read")
 
+    # Describe it first, so the picture can be saved under a name that says what's in it.
     analysis, eid, aerr = None, "", ""
     if request.form.get("analyze", "1") != "0":
         try:
             analysis, eid = run_analysis(raw, str(request.form.get("entity") or ""), str(request.form.get("notes") or ""))
         except RuntimeError as e:
             aerr = str(e)
-            log.warning("Analysis of %s failed: %s", os.path.basename(path), aerr)
+            log.warning("Analysis of %s failed: %s", f.filename, aerr)
+    stem = safe_stem(f.filename)
+    if analysis and request.form.get("rename", "1") != "0":
+        stem = ai_stem(analysis.get("filename")) or ai_stem("-".join((analysis.get("tags") or [])[:3])) or stem
+    try:
+        path = write_unique(folder, stem, ext, data)
+    except OSError as e:
+        return err(f"Couldn't save it: {e}", 500)
     sidecar = ""
-    if analysis is not None and request.form.get("sidecar", "1") != "0":
+    if analysis is not None and request.form.get("sidecar", "0") == "1":  # off unless asked for
         sidecar = os.path.splitext(path)[0] + ".json"
         try:
-            write_json(sidecar, {"file": os.path.basename(path), "analyzed": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                                 "ai_entity": eid, "analysis": analysis})
+            write_json(sidecar, {"file": os.path.basename(path), "original_name": f.filename,
+                                 "analyzed": time.strftime("%Y-%m-%dT%H:%M:%S"), "ai_entity": eid, "analysis": analysis})
         except OSError as e:
             sidecar = ""
             aerr = f"The picture was saved but its details file wasn't: {e}"
-    out = {"ok": True, "name": os.path.basename(path), "path": path, "dest": dest.get("name"), "analysis": analysis,
+    out = {"ok": True, "name": os.path.basename(path), "original": os.path.basename(f.filename or ""), "path": path,
+           "dest": dest.get("name"), "analysis": analysis,
            "entity": eid, "analysis_error": aerr, "details_file": sidecar}
-    log_analysis({"t": time.time(), "name": out["name"], "path": path, "dest": out["dest"], "entity": eid,
+    log_analysis({"t": time.time(), "name": out["name"], "original": out["original"], "path": path, "dest": out["dest"], "entity": eid,
                   "analysis": analysis, "error": aerr})
     log.info("Saved %s%s", path, " + analysis" if analysis is not None else "")
     return jsonify(out)
