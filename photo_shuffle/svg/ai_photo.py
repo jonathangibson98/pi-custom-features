@@ -41,7 +41,9 @@ AUTO_PROMPT = (
 
 ANALYZE_PROMPT = (
     "Look at the attached photo and describe what is in it. Reply with ONLY a JSON object, no other text, using "
-    "these keys: caption (one plain sentence), scene (a few words, like 'kitchen' or 'beach at sunset'), objects "
+    "these keys: filename (2 to 5 lowercase words naming what the photo shows, joined with hyphens, no extension, "
+    "like 'dog-on-couch' or 'sunset-over-lake'; never a person's name), caption (one plain sentence), scene (a few "
+    "words, like 'kitchen' or 'beach at sunset'), objects "
     "(array of up to 15 short names of the main things you can see), people_count (whole number of people visible, "
     "0 if none), people (array with one short description per visible person: what they are doing and wearing, "
     "never a name; do not try to work out who anyone is), text (array of any readable text in the photo, empty if "
@@ -312,7 +314,9 @@ class AiPhoto:
         except (TypeError, ValueError):
             count = 0
         people = self._strings(out.get("people"), 20, 200)
+        fname = re.sub(r"[^a-z0-9]+", "-", str(out.get("filename") or "").lower()).strip("-")[:50].strip("-")
         return web.json_response({"entity": eid, "analysis": {
+            "filename": fname,
             "caption": str(out.get("caption") or "").strip()[:400],
             "scene": str(out.get("scene") or "").strip()[:120],
             "objects": self._strings(out.get("objects"), 15, 60),
