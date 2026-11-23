@@ -1,9 +1,13 @@
 # Changelog
 
+## 5.1.1 - 2026-11-23
+
+- **Photos are renamed after what's in them.** The AI picks a short name, so `IMG_0042.HEIC` is saved as `dog-on-couch.jpg` (`dog-on-couch-2.jpg` if that name is taken). If the AI gives no usable name the photo keeps its original name, and it's saved either way. Turn it off with **Rename each photo after what's in it** under *AI options*. The `.json` details file is no longer written.
+- **Roomier layout.** The six crowded tabs are now four sections with icons: **Upload**, **Edit** (Photo Editor + SVG Maker), **Shuffle** (Folders + Unsplash) and **Wallpaper**. Two-screen sections get a small switcher underneath and remember which one you were on. On the Upload screen, *AI options* and *Recent* are collapsible cards, and the Activity log starts collapsed.
+
 ## 5.1.0 - 2026-11-23
 
-- **Roomier layout.** The six crowded tabs are now four sections with icons: **Upload**, **Edit** (Photo Editor + SVG Maker), **Shuffle** (Folders + Unsplash) and **Wallpaper**. Two-screen sections get a small switcher underneath and remember which one you were on. The Activity log starts collapsed.
-- **New Upload screen (Analyze).** Upload one photo or a whole batch from your phone, and Photo Hub saves each one to a destination you pick and (optionally) has an AI describe it: a caption, the scene, the objects, how many people there are and what they're doing (described, never named), readable text and search tags. Each photo is **renamed after what's in it** (`dog-on-couch.jpg`) and the results are listed, searchable, under **Recent**.
+- **New Analyze tab.** Upload one photo or a whole batch from your phone, and Photo Hub saves each one to a destination you pick and (optionally) has an AI describe it: a caption, the scene, the objects, how many people there are and what they're doing (described, never named), readable text and search tags. The details are saved as a `.json` file next to each photo and listed, searchable, under **Recent**.
 - **Pick the AI.** A dropdown lists every AI Task entity that can look at photos (Gemini, OpenAI, Anthropic ...), so you can switch or compare. If the AI fails the photo is still saved.
 - **Destinations you can tap.** Add named shortcuts to any folder Photo Hub can see, browse to it, make new folders from the picker, and edit or remove shortcuts later.
 - **iPhone HEIC photos** are accepted and saved as JPEG. Other formats are saved exactly as sent, and nothing is ever overwritten.
