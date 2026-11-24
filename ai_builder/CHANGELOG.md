@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.2.1 - 2026-11-24
+
+- **Facts -> Settings now uses the same people picker as a schedule.** The old "Someone is home" card is now **Who is home (default)**: tap the people, pick **Any of them**, **All of them** or **None of them**, and add zones or trackers underneath. The mode is saved with the list.
+- **Use my defaults** on a schedule's **Only if** tab loads both the people and the mode (it shows while that schedule's list is empty). The button says what it will load.
+
 ## 3.2.0 - 2026-11-23
 
 - **The schedule section is rebuilt, and it is the same in Announcements and Facts.** One summary at the top says in plain words what it does ("Runs every 2 h. Only if all of Jon, MJ home, 08:00 to 22:00, Mon Tue"), and three tabs hold the options: **When**, **Only if** and **Limits**. The number on a tab shows how many things are set in it.

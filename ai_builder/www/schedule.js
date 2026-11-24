@@ -105,8 +105,40 @@ const SCHED = (() => {
     return w + (o.length ? ", only if " + o.join(", ") : "");
   };
 
+  /* ---------- who is home (also used for the default in Settings) ---------- */
+  /* a: any object with .home (list of entity ids) and .homeMode ("any", "all", "none"), changed in place.
+     o: {onChange(), defaultHome: [], defaultMode: "any"}. The default button shows only while the list is empty. */
+  function homePicker(a, o) {
+    const O = o || {}, box = el("div", {class: "sched-home"});
+    if (!Array.isArray(a.home)) a.home = [];
+    if (!MODES.some(m => m[0] === a.homeMode)) a.homeMode = "any";
+    const upd = () => { if (O.onChange) O.onChange(); draw(); };
+    function draw() {
+      const people = (typeof ENT !== "undefined" ? ENT : []).filter(e => e.id.startsWith("person."));
+      const mode = el("div", {class: "seg"}, MODES.map(([id, label]) => el("button", {type: "button", class: a.homeMode === id ? "on" : "", onclick: () => { a.homeMode = id; upd(); }}, label)));
+      const chips = el("div", {class: "chips", style: "margin:8px 0"});
+      people.forEach(p => {
+        const on = a.home.includes(p.id);
+        chips.append(el("button", {type: "button", class: "chip" + (on ? " on" : ""), onclick: () => { a.home = on ? a.home.filter(x => x !== p.id) : [...a.home, p.id]; upd(); }}, p.name || p.id));
+      });
+      const others = a.home.filter(x => !x.startsWith("person."));
+      const more = el("details", {class: "sched-more"}, el("summary", {}, "Add a zone, device tracker or any on/off entity" + (others.length ? " (" + others.length + ")" : "")),
+        picker(null, true, () => others, v => { a.home = [...a.home.filter(x => x.startsWith("person.")), ...v]; upd(); }),
+        el("p", {class: "help"}, "A zone (like zone.home) counts when someone is in it. People and device trackers count when home. Anything else counts when on."));
+      if (others.length) more.open = true;
+      const dh = O.defaultHome || [];
+      const defBtn = dh.length && !a.home.length
+        ? el("button", {type: "button", class: "btn sm", style: "margin-top:6px", onclick: () => { a.home = [...dh]; a.homeMode = O.defaultMode || "any"; upd(); }}, "Use my defaults (" + (MODES.find(m => m[0] === (O.defaultMode || "any")) || MODES[0])[1].toLowerCase() + ": " + (dh.length <= 3 ? dh.map(name).join(", ") : dh.length + " picked") + ")") : null;
+      box.replaceChildren(mode, chips, people.length ? null : el("p", {class: "help"}, "No person entities found. Use the box below."), more, defBtn,
+        a.home.length ? el("div", {style: "margin-top:6px"}, el("button", {type: "button", class: "btn sm", onclick: () => { a.home = []; upd(); }}, "Clear the list")) : null,
+        el("p", {class: "help"}, a.homeMode === "all" ? "Runs only when everyone you picked is home." : a.homeMode === "none" ? "Runs only when none of the ones you picked is home." : "Runs when at least one of the ones you picked is home."));
+    }
+    draw();
+    return box;
+  }
+
   /* ---------- the panel ---------- */
-  /* a: the schedule object (changed in place). opts: {onChange(), defaultHome: [] (the saved presence list)} */
+  /* a: the schedule object (changed in place). opts: {onChange(), defaultHome: [] and defaultMode (the saved defaults from Facts > Settings)} */
   function panel(a, opts) {
     fill(a);
     const O = opts || {}, root = el("div", {class: "sched"});
@@ -150,23 +182,7 @@ const SCHED = (() => {
 
     function drawOnly() {
       /* 1. people */
-      const people = (typeof ENT !== "undefined" ? ENT : []).filter(e => e.id.startsWith("person."));
-      const mode = el("div", {class: "seg"}, MODES.map(([id, label]) => el("button", {type: "button", class: a.homeMode === id ? "on" : "", onclick: () => { a.homeMode = id; change(); drawOnly(); }}, label)));
-      const chips = el("div", {class: "chips", style: "margin:8px 0"});
-      people.forEach(p => {
-        const on = a.home.includes(p.id);
-        chips.append(el("button", {type: "button", class: "chip" + (on ? " on" : ""), onclick: () => { a.home = on ? a.home.filter(x => x !== p.id) : [...a.home, p.id]; change(); drawOnly(); }}, p.name || p.id));
-      });
-      const others = a.home.filter(x => !x.startsWith("person."));
-      const more = el("details", {class: "sched-more"}, el("summary", {}, "Add a zone, device tracker or any on/off entity" + (others.length ? " (" + others.length + ")" : "")),
-        picker(null, true, () => others, v => { a.home = [...a.home.filter(x => x.startsWith("person.")), ...v]; change(); drawOnly(); }),
-        el("p", {class: "help"}, "A zone (like zone.home) counts when someone is in it. People and device trackers count when home. Anything else counts when on."));
-      if (others.length) more.open = true;
-      const defBtn = (O.defaultHome || []).length && !a.home.length
-        ? el("button", {type: "button", class: "btn sm", style: "margin-top:6px", onclick: () => { a.home = [...O.defaultHome]; change(); drawOnly(); }}, "Use my default presence list") : null;
-      const homeBox = field("Who is home", mode, chips, people.length ? null : el("p", {class: "help"}, "No person entities found. Use the box below."), more, defBtn,
-        a.home.length ? el("div", {style: "margin-top:6px"}, el("button", {type: "button", class: "btn sm", onclick: () => { a.home = []; change(); drawOnly(); }}, "Clear the list")) : null,
-        el("p", {class: "help"}, a.homeMode === "all" ? "Runs only when everyone you picked is home." : a.homeMode === "none" ? "Runs only when none of the ones you picked is home." : "Runs when at least one of the ones you picked is home."));
+      const homeBox = field("Who is home", homePicker(a, {onChange: change, defaultHome: O.defaultHome, defaultMode: O.defaultMode}));
 
       /* 2. time window + days */
       const tf = el("input", {type: "time", value: a.from || "", style: "max-width:140px"}), tt = el("input", {type: "time", value: a.to || "", style: "max-width:140px"});
@@ -209,5 +225,5 @@ const SCHED = (() => {
     return root;
   }
 
-  return {DAYS, extra, fill, clone, conditions, conditionsYaml, triggers, hasTrigger, summary, panel};
+  return {DAYS, extra, fill, clone, conditions, conditionsYaml, triggers, hasTrigger, summary, panel, homePicker};
 })();
