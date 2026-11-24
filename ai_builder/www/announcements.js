@@ -3,7 +3,7 @@ let O = {}, S = {}, ENT = [], LIB = [], FOUND = [], mem = {};
 let cur = {id: null, isNew: true, pushed: false}, dirty = false, view = "lib", OPEN = "", HEL = {entity: "", goal: "", idea: ""};
 let editorReady = false, rawMode = false;
 let AUTO = SCHED.fill({watch: "", home: []});  /* the schedule being edited; the panel changes it in place */
-const FACT = {home: []};  /* the default "someone is home" list, set in Facts > Settings */
+const FACT = {home: [], mode: "any"};  /* the default "someone is home" list, set in Facts > Settings */
 const CARD = {sw: ""};  /* the dashboard-card switch picked in the editor (the picker widget keeps no value of its own) */
 let IMPORT = {};  /* for an announcement converted from an imported script or automation: its original YAML, and the automation it replaces */
 
@@ -87,7 +87,7 @@ function makeAuto(s0, sid) {
 const autoProblem = s => s.auto && s.auto.on && !makeAuto(s, "x") ? "The schedule needs a repeat time, a time of day or an entity to watch." : "";
 const autoState = () => Object.assign(SCHED.clone(AUTO), {on: $("#auto-on").checked});
 function drawAuto() {
-  $("#schedpanel").replaceChildren(SCHED.panel(AUTO, {defaultHome: FACT.home, onChange: () => { gen(); markDirty(); }}));
+  $("#schedpanel").replaceChildren(SCHED.panel(AUTO, {defaultHome: FACT.home, defaultMode: FACT.mode, onChange: () => { gen(); markDirty(); }}));
 }
 function applyAuto(x) {
   AUTO = SCHED.fill(Object.assign(defAuto(), SCHED.clone(x || {})));
@@ -882,5 +882,6 @@ setInterval(() => { if (view === "lib" && !document.hidden && !(document.activeE
 Promise.all([api("ann/options"), api("ann/entities").then(r => Array.isArray(r) ? r : []), api("facts/options")]).then(async ([o, e, f]) => {
   if (o.error) { $("#setupnote").append(el("div", {class: "note bad"}, o.error)); return; }
   FACT.home = f && Array.isArray(f.home_entities) ? f.home_entities : [];
+  FACT.mode = f && f.home_mode ? f.home_mode : "any";
   S = o; ENT = e; build(); setupNote(); drawHelper(); drawSettings(); await loadLib(); showView("lib");
 });

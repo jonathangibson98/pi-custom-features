@@ -1757,7 +1757,7 @@ async def ann_run(request):
 # (id <script id>_auto) runs it on a schedule. Everything lives under /api/facts/. Data sources, the AI Task entity
 # and the entity list are shared with Announcements.
 FACT_DEFAULTS = {"mqtt_prefix": "file_reader/overwrite/", "last_entity": "", "last_attribute": "content",
-                 "home_entities": [], "default_length": 180, "extra_rules": ""}
+                 "home_entities": [], "home_mode": "any", "default_length": 180, "extra_rules": ""}
 _fp = str(OPTS.get("facts_file_path") or "").strip()
 FACTS_PATH_OPT = _fp if re.match(r"^[A-Za-z0-9_\-./]{1,120}$", _fp) else ""  # add-on option: where fact text files are saved
 FACT_MARK = "Made with Fact Maker"
@@ -1789,6 +1789,8 @@ def fact_clean_settings(body):
     s["last_attribute"] = attr if re.match(r"^[\w .\-]{0,60}$", attr) else "content"
     he = body.get("home_entities", [])
     s["home_entities"] = [x for x in he if isinstance(x, str) and ANN_ENT_RE.match(x)][:20] if isinstance(he, list) else []
+    hm = str(body.get("home_mode", "any")).strip()
+    s["home_mode"] = hm if hm in ("any", "all", "none") else "any"
     try:
         s["default_length"] = max(40, min(2000, int(body.get("default_length") or 180)))
     except (TypeError, ValueError):

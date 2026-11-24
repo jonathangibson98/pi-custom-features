@@ -815,7 +815,7 @@ function drawForm() {
   const A = E.auto, asA = isAsAuto(E), c5 = card(5, asA ? "When it runs" : "Run it automatically", asA ? "This fact is one automation. Without a schedule it has no triggers, so run it by hand with Run now." : "Optional. Makes a Home Assistant automation that runs this script.");
   const on = el("input", {type: "checkbox", checked: !!A.on}); on.onchange = () => { A.on = on.checked; changed(); drawForm(); };
   add(c5, el("label", {class: "check"}, on, el("span", {}, "Run on a schedule")));
-  if (A.on) add(c5, SCHED.panel(A, {defaultHome: F.home_entities || [], onChange: changed}));
+  if (A.on) add(c5, SCHED.panel(A, {defaultHome: F.home_entities || [], defaultMode: F.home_mode || "any", onChange: changed}));
   f.append(c5);
   if (!asA) f.append(autoCard(6));
   f.append(dashCard(asA ? 6 : 7));
@@ -1040,8 +1040,10 @@ function drawSettings() {
   add(c2, el("label", {class: "l"}, "Sensor that reads your fact file"), picker(null, false, () => F.last_entity ? [F.last_entity] : [], a => { F.last_entity = a[0] || ""; }));
   const la = el("input", {value: F.last_attribute || "", placeholder: "content", style: "max-width:260px"}); la.oninput = () => { F.last_attribute = la.value.trim() };
   add(c2, el("label", {class: "l"}, "Its attribute (blank = state)"), la);
-  const c3 = scard("Someone is home", "The default list for \"Only when someone is home\" in a fact's schedule.");
-  add(c3, picker(null, true, () => F.home_entities || [], a => { F.home_entities = a; }), el("p", {class: "help"}, "A zone (like zone.home) counts when someone is in it. People and device trackers count when home. Anything else counts when on."));
+  const c3 = scard("Who is home (default)", "Pre-fills the Only if tab of a new schedule. Same picker as in a schedule. Each fact can still change it.");
+  const D = {home: [...(F.home_entities || [])], homeMode: F.home_mode || "any"};
+  add(c3, SCHED.homePicker(D, {onChange: () => { F.home_entities = [...D.home]; F.home_mode = D.homeMode; }}),
+    el("p", {class: "help"}, "In a fact's schedule, open Only if and tap \"Use my defaults\" to load this list. It shows up while that fact's list is empty. Tap Save settings below to keep your changes."));
   const c4 = scard("Defaults");
   const dl = el("input", {type: "number", value: F.default_length ?? 180, style: "max-width:160px"}); dl.oninput = () => { F.default_length = +dl.value };
   const xr = el("textarea", {value: F.extra_rules || "", placeholder: "e.g. Never mention politics.", style: "min-height:80px"}); xr.oninput = () => { F.extra_rules = xr.value };
