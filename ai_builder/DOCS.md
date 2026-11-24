@@ -9,7 +9,7 @@
 
 | | |
 |---|---|
-| Version | `3.1.1` |
+| Version | `3.2.0` |
 | Slug | `ai_builder` |
 | Architectures | `aarch64`, `amd64` |
 | Opens from | the sidebar (**Creator & AI Builder**, ingress) |
@@ -282,7 +282,12 @@ Each announcement has an optional **Run it automatically** section (step 6, or s
 - **Every** N minutes (up to 59) or hours (up to 23). `0` turns the repeat off.
 - **At this time every day.**
 - **When this entity changes**, optionally for one attribute and only after it has held for some seconds.
-- **Only when someone is home**: runs only if any listed entity is on or home. A zone counts when it has someone in it. **Use my default presence list** fills it from Facts -> Settings -> Someone is home.
+- **Only if** (second tab): the conditions that must be true when it triggers.
+  - **Who is home**: tap the people, then pick **Any of them**, **All of them** or **None of them**. Add a zone, device tracker or on/off entity under the people. A zone counts when it has someone in it. **Use my default presence list** fills it from Facts -> Settings -> Someone is home.
+  - **Time of day and days**: only between two times, and/or only on the days you tick.
+  - **Daylight**: daytime only or after dark only.
+  - **Other things that must be true**: any entity that is, or is not, a state you type.
+- **Limits** (third tab): at most once every N minutes.
 
 **Save and push** then makes a second Home Assistant automation, `<script id>_auto`, that calls the announcement's script. The script is not changed, so your own automations that call it keep working.
 
@@ -557,6 +562,7 @@ Every option on the add-on's **Configuration** tab, with its default. Change the
 | `log_level` | `info` | one of: `debug`, `info`, `warning`, `error` | **Log level.** How chatty the add-on log is. Use debug when troubleshooting, warning or error to keep it quiet. |
 | `ai_task_entity` | `ai_task.google_ai_task` | text | **AI task entity.** The Home Assistant ai_task entity used to write configs and announcements, for example ai_task.google_ai_task. |
 | `request_timeout` | `180` | whole number (30–600) | **AI request timeout (seconds).** How long to wait for the AI before giving up (30 to 600). |
+| `match_entity_id` | `false` | true / false | **Change the entity id when a name changes.** When an announcement, fact or other item is renamed here, also change its entity id to match (script.my_old_name becomes script.my_new_name). Anything in Home Assistant that used the old entity id must then be updated by you. You can also tick this per rename. |
 | `template_file` | `ai_builder/package.yaml` | text | **Template sensor file.** Where template sensors are written, relative to your Home Assistant config folder. Must end in .yaml. |
 | `appdaemon_apps_dir` | `/addon_configs/a0d7b954_appdaemon/apps` | text | **AppDaemon apps folder.** Your AppDaemon apps folder. Must be under /addon_configs or your Home Assistant config folder. |
 | `ha_token` | *(empty)* | secret, optional | **Long-lived access token (optional).** Leave blank unless the default Supervisor access to Home Assistant fails. |
