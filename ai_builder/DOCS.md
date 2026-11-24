@@ -283,7 +283,7 @@ Each announcement has an optional **Run it automatically** section (step 6, or s
 - **At this time every day.**
 - **When this entity changes**, optionally for one attribute and only after it has held for some seconds.
 - **Only if** (second tab): the conditions that must be true when it triggers.
-  - **Who is home**: tap the people, then pick **Any of them**, **All of them** or **None of them**. Add a zone, device tracker or on/off entity under the people. A zone counts when it has someone in it. **Use my default presence list** fills it from Facts -> Settings -> Someone is home.
+  - **Who is home**: tap the people, then pick **Any of them**, **All of them** or **None of them**. Add a zone, device tracker or on/off entity under the people. A zone counts when it has someone in it. **Use my defaults** fills the people and the Any/All/None choice from Facts -> Settings -> Who is home (default).
   - **Time of day and days**: only between two times, and/or only on the days you tick.
   - **Daylight**: daytime only or after dark only.
   - **Other things that must be true**: any entity that is, or is not, a state you type.
@@ -367,7 +367,7 @@ AI-written facts for a dashboard. Each fact is one Home Assistant automation (tr
 
 ## Facts settings
 
-MQTT topic prefix, the sensor that reads your fact file (so the AI can avoid repeating the last fact), the default "someone is home" entities, default length and rules added to every fact.
+MQTT topic prefix, the sensor that reads your fact file (so the AI can avoid repeating the last fact), the default **Who is home** list and its Any/All/None mode (same picker as in a schedule), default length and rules added to every fact.
 
 ## Facts troubleshooting
 
