@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.2.0 - 2026-11-23
+
+- **The schedule section is rebuilt, and it is the same in Announcements and Facts.** One summary at the top says in plain words what it does ("Runs every 2 h. Only if all of Jon, MJ home, 08:00 to 22:00, Mon Tue"), and three tabs hold the options: **When**, **Only if** and **Limits**. The number on a tab shows how many things are set in it.
+- **Pick exactly who has to be home.** Tap the people you want, then choose **Any of them**, **All of them** or **None of them** (for example "only run when nobody is home"). Zones, device trackers and on/off entities can be added under the people. Your old "someone is home" lists keep working as **Any of them**.
+- **More conditions:** a time window and the days of the week, daytime only or after dark only, and as many "this entity is / is not this state" checks as you want. All of them must be true.
+- **Limits:** run at most once every N minutes, so a busy trigger can't spam you.
+
 ## 3.1.5 - 2026-11-22
 
 - **The "Also change the entity ID" box is now on the Announcements and Facts editors too**, right under the name field, so you can tick it while editing instead of only under Rename. It applies to both **Save** and **Save and push**, and it also works with the name left unchanged (it just fixes the entity ID). It remembers your choice, and the first time it starts from the add-on option **Change the entity id when a name changes**. The result is shown in the message after saving.

@@ -3777,6 +3777,7 @@ def main():
         web.get("/facts.js", asset("facts.js", "application/javascript")),
         web.get("/cards.js", asset("cards.js", "application/javascript")),
         web.get("/autoform.js", asset("autoform.js", "application/javascript")),
+        web.get("/schedule.js", asset("schedule.js", "application/javascript")),
         web.get("/js-yaml.min.js", asset("js-yaml.min.js", "application/javascript")),
         *FILES.routes(),
         *DASH.routes(),

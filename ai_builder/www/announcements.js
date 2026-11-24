@@ -2,7 +2,7 @@
 let O = {}, S = {}, ENT = [], LIB = [], FOUND = [], mem = {};
 let cur = {id: null, isNew: true, pushed: false}, dirty = false, view = "lib", OPEN = "", HEL = {entity: "", goal: "", idea: ""};
 let editorReady = false, rawMode = false;
-const AUTO = {watch: "", home: []};  /* the entity pickers in "Run it automatically" keep no value of their own */
+let AUTO = SCHED.fill({watch: "", home: []});  /* the schedule being edited; the panel changes it in place */
 const FACT = {home: []};  /* the default "someone is home" list, set in Facts > Settings */
 const CARD = {sw: ""};  /* the dashboard-card switch picked in the editor (the picker widget keeps no value of its own) */
 let IMPORT = {};  /* for an announcement converted from an imported script or automation: its original YAML, and the automation it replaces */
@@ -73,54 +73,25 @@ function setAlias(y, name) {
   const line = "alias: " + JSON.stringify(name || "Announcement");
   return /^alias:.*$/m.test(y) ? y.replace(/^alias:.*$/m, () => line) : line + "\n" + y;
 }
-const defAuto = () => ({on: false, every: 0, unit: "hours", at: "", watch: "", watchAttr: "", watchFor: 0, home: []});
-const autoSummary = a => {
-  const p = [];
-  if (+a.every > 0) p.push("every " + Math.round(+a.every) + (a.unit === "hours" ? " h" : " min"));
-  if (a.at) p.push("daily at " + a.at);
-  if (a.watch) p.push("when " + a.watch + " changes");
-  return p.join(" and ") || "no trigger set";
-};
+const defAuto = () => Object.assign({on: false, every: 0, unit: "hours", at: "", watch: "", watchAttr: "", watchFor: 0, home: []}, SCHED.extra());
+const autoSummary = a => SCHED.summary(SCHED.fill(Object.assign({}, a)));
 /* the schedule: an automation (<script id>_auto) that calls the script. Works for form scripts and pasted ones alike. */
 function makeAuto(s0, sid) {
-  const a = Object.assign(defAuto(), (s0 && s0.auto) || {});
+  const a = SCHED.fill(Object.assign(defAuto(), (s0 && s0.auto) || {}));
   if (!a.on) return "";
-  const T = [];
-  if (+a.every > 0) {
-    if (a.unit === "hours") T.push(`  - trigger: time_pattern\n    hours: "/${Math.min(23, Math.max(1, Math.round(+a.every)))}"\n    minutes: 0\n`);
-    else T.push(`  - trigger: time_pattern\n    minutes: "/${Math.min(59, Math.max(1, Math.round(+a.every)))}"\n`);
-  }
-  if (/^\d{1,2}:\d{2}$/.test(a.at || "")) T.push(`  - trigger: time\n    at: "${a.at.padStart(5, "0")}:00"\n`);
-  if (a.watch) T.push(`  - trigger: state\n    entity_id: ${a.watch}\n` + (a.watchAttr ? `    attribute: ${a.watchAttr}\n` : "") + (+a.watchFor > 0 ? `    for:\n      seconds: ${Math.round(+a.watchFor)}\n` : ""));
+  const T = SCHED.triggers(a);
   if (!T.length) return "";
-  let y = "alias: " + JSON.stringify((s0.name || "Announcement") + " (auto)") + "\ndescription: " + ASK + "\nmode: single\nmax_exceeded: silent\ntriggers:\n" + T.join("");
-  const C = (a.home || []).map(e => {
-    const d = e.split(".")[0];
-    if (d === "zone") return `numeric_state\n        entity_id: ${e}\n        above: 0`;
-    if (d === "person" || d === "device_tracker") return `state\n        entity_id: ${e}\n        state: home`;
-    return `state\n        entity_id: ${e}\n        state: "on"`;
-  });
-  if (C.length === 1) y += "conditions:\n  - condition: " + C[0].replace(/\n        /g, "\n    ") + "\n";
-  else if (C.length) y += "conditions:\n  - condition: or\n    conditions:\n" + C.map(c => "      - condition: " + c + "\n").join("");
+  const y = "alias: " + JSON.stringify((s0.name || "Announcement") + " (auto)") + "\ndescription: " + ASK + "\nmode: single\nmax_exceeded: silent\ntriggers:\n" + T.join("") + SCHED.conditionsYaml(a);
   return y + "actions:\n  - action: script." + sid + "\n";
 }
 const autoProblem = s => s.auto && s.auto.on && !makeAuto(s, "x") ? "The schedule needs a repeat time, a time of day or an entity to watch." : "";
-const autoState = () => ({on: $("#auto-on").checked, every: $("#auto-every").value === "" ? 0 : +$("#auto-every").value, unit: $("#auto-unit").value === "minutes" ? "minutes" : "hours",
-  at: $("#auto-at").value || "", watch: AUTO.watch, watchAttr: $("#auto-attr").value.trim(), watchFor: Math.max(0, Math.round(+$("#auto-for").value || 0)), home: [...AUTO.home]});
-function drawAutoDefault() {
-  const b = $("#autodefault"); b.replaceChildren();
-  if (FACT.home.length && !AUTO.home.length) b.append(el("button", {class: "btn sm", style: "margin-top:6px", onclick: () => { AUTO.home = [...FACT.home]; drawAuto(); gen(); markDirty(); }}, "Use my default presence list"));
-}
+const autoState = () => Object.assign(SCHED.clone(AUTO), {on: $("#auto-on").checked});
 function drawAuto() {
-  $("#autowatch").replaceChildren(picker(null, false, () => AUTO.watch ? [AUTO.watch] : [], a => { AUTO.watch = a[0] || ""; gen(); markDirty(); }));
-  $("#autohome").replaceChildren(picker(null, true, () => AUTO.home, a => { AUTO.home = a; drawAutoDefault(); gen(); markDirty(); }));
-  drawAutoDefault();
+  $("#schedpanel").replaceChildren(SCHED.panel(AUTO, {defaultHome: FACT.home, onChange: () => { gen(); markDirty(); }}));
 }
 function applyAuto(x) {
-  const a = Object.assign(defAuto(), x || {});
-  $("#auto-on").checked = !!a.on; $("#auto-every").value = a.every; $("#auto-unit").value = a.unit === "minutes" ? "minutes" : "hours"; $("#auto-at").value = a.at || "";
-  $("#auto-attr").value = a.watchAttr || ""; $("#auto-for").value = a.watchFor || 0;
-  AUTO.watch = a.watch || ""; AUTO.home = [...(a.home || [])]; drawAuto();
+  AUTO = SCHED.fill(Object.assign(defAuto(), SCHED.clone(x || {})));
+  $("#auto-on").checked = !!AUTO.on; drawAuto();
 }
 
 function setRaw(on) {
@@ -580,7 +551,7 @@ $("#gohelp").onclick = () => { showView("help"); $("#tabs").hidden = true; HEL.b
 
 function gen() {
   const s = st(); $("#out").textContent = makeYaml(s);
-  $("#autoopts").hidden = !s.auto.on; $("#autowatchopts").hidden = !s.auto.watch;
+  $("#autoopts").hidden = !s.auto.on;
   $("#autoout").textContent = makeAuto(s, cur.id || slug(s.name)) || (s.auto.on ? "Set a repeat time, a time of day or an entity to watch to see the schedule." : "No schedule. Turn on \"Run on a schedule\" to make one.");
   if (rawMode) { paintState(); return; }
   $("#onewrap").hidden = s.usePers; $("#volv").textContent = Math.round(s.vol * 100);

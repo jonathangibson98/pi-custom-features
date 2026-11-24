@@ -898,23 +898,7 @@ window.__hbAddon = "ai_builder";
           <div class="ch"><h2><span class="n" id="autonum">6</span>Run it automatically</h2><p>Optional. Makes a Home Assistant automation that runs this script, so it plays without you pressing anything. The script stays as it is, so your other automations can still call it.</p></div>
           <label class="check"><input type="checkbox" id="auto-on"> Run on a schedule</label>
           <div id="autoopts" hidden>
-            <label class="l" for="auto-every">Every</label>
-            <div class="inline"><input type="number" id="auto-every" min="0" step="1" style="width:90px"><select id="auto-unit"><option value="minutes">minutes</option><option value="hours">hours</option></select></div>
-            <p class="help">0 turns the repeat off. Minutes up to 59, hours up to 23.</p>
-            <label class="l" for="auto-at">And at this time every day (optional)</label>
-            <input type="time" id="auto-at" style="max-width:160px">
-            <label class="l">And when this entity changes (optional)</label>
-            <div id="autowatch"></div>
-            <div class="inline" id="autowatchopts" style="margin-top:8px" hidden>
-              <input id="auto-attr" placeholder="attribute (blank = state)" style="max-width:240px">
-              <span class="dim small">after it has held for</span>
-              <input type="number" id="auto-for" min="0" step="1" style="width:90px">
-              <span class="dim small">seconds</span>
-            </div>
-            <label class="l">Only when someone is home (optional)</label>
-            <div id="autohome"></div>
-            <p class="help">Runs only if any of these is on or home. A zone counts when it has someone in it.</p>
-            <div id="autodefault"></div>
+            <div id="schedpanel"></div>
             <p class="help">If it is still talking when the next trigger comes, the new trigger is skipped. It does not cut the announcement off.</p>
           </div>
         </section>
@@ -952,6 +936,7 @@ window.__hbAddon = "ai_builder";
 </main>
 <script src="ui.js"></script>
 <script src="sources.js"></script>
+<script src="schedule.js"></script>
 <script src="announcements.js"></script>
 <script src="ann-file.js"></script>
 </body>

@@ -165,3 +165,15 @@ details[open]>summary{color:var(--text)}
 .pi small{color:var(--dim);margin-left:6px}
 .picker .chips{margin-bottom:6px}
 .picker .chips:empty{display:none}
+
+/* schedule panel (schedule.js): summary on top, three tabs, one pane at a time */
+.sched-top{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px;margin:10px 0;display:grid;gap:4px}
+.sched-line{font-size:.9rem;line-height:1.35}
+.sched-tabs{display:flex;width:100%;margin-bottom:12px}
+.sched-tabs button{flex:1;padding:10px 6px}
+.sched-f{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.sched-body>.sched-f:first-child,.sched-body>.help+.sched-f{border-top:0;padding-top:0;margin-top:8px}
+.sched-f .chips{display:flex;flex-wrap:wrap;gap:6px}
+.sched-more{margin-top:8px}
+.sched-more>summary{cursor:pointer;color:var(--dim);font-size:.88rem}
+.sched-more .picker{margin-top:8px}

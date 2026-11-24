@@ -45,12 +45,12 @@ const PRE = {
 };
 
 /* ---------- state ---------- */
-const defAuto = () => ({on: false, every: 10, unit: "minutes", at: "", watch: "", watchAttr: "", watchFor: 10, home: []});
+const defAuto = () => Object.assign({on: false, every: 10, unit: "minutes", at: "", watch: "", watchAttr: "", watchFor: 10, home: []}, SCHED.extra());
 const blankState = () => ({name: "My fact", src: [], task: "", picks: [], seed: true, len: F.default_length || 180, style: "plain", titleHint: "", heading: "", count: 5,
   file: "", swear: "none", real: true, obscure: true, skip: "", noPeople: true, avoidLast: true, lastEntity: "", lastAttr: "", extra: "", ai: "", auto: defAuto(), autoRaw: "", autoId: "", autoOnly: false,
   asAuto: true, listKey: "items", fields: [], sortBy: "", sortDir: "desc", keepIf: "", useDate: false});
 const clone = o => JSON.parse(JSON.stringify(o));
-const full = s => Object.assign(blankState(), clone(s || {}), {auto: Object.assign(defAuto(), (s && s.auto) || {})});
+const full = s => Object.assign(blankState(), clone(s || {}), {auto: SCHED.fill(Object.assign(defAuto(), (s && s.auto) || {}))});
 
 const cleanName = n => { n = String(n || "").toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").replace(/^[0-9]+/, ""); n = n.slice(0, 24); if (!n) return ""; return RESERVED.test(n) ? "pick_" + n : n; };
 const itemsOf = p => String(p.items || "").split("\n").map(x => x.trim()).filter(Boolean);
@@ -162,13 +162,7 @@ function stepsYaml(s, o) {
   return y;
 }
 
-const autoSummary = a => {
-  const p = [];
-  if (+a.every > 0) p.push("every " + Math.round(+a.every) + (a.unit === "hours" ? " h" : " min"));
-  if (a.at) p.push("daily at " + a.at);
-  if (a.watch) p.push("when " + a.watch + " changes");
-  return p.join(" and ") || "no trigger set";
-};
+const autoSummary = a => SCHED.summary(SCHED.fill(Object.assign({}, a)));
 const F_PREFIX = () => { const p = F.mqtt_prefix || ""; return p && !p.endsWith("/") ? p + "/" : p; };
 const isAutoOnly = s => !!(s && s.autoOnly);
 const ownAuto = s => !!String((s && s.autoRaw) || "").trim();
@@ -177,23 +171,9 @@ function makeAuto(s0, sid) {
   if (s0.raw != null) return "";
   const s = full(s0), a = s.auto;
   if (!a.on) return "";
-  const T = [];
-  if (+a.every > 0) {
-    if (a.unit === "hours") T.push(`  - trigger: time_pattern\n    hours: "/${Math.min(23, Math.max(1, Math.round(+a.every)))}"\n    minutes: 0\n`);
-    else T.push(`  - trigger: time_pattern\n    minutes: "/${Math.min(59, Math.max(1, Math.round(+a.every)))}"\n`);
-  }
-  if (/^\d{1,2}:\d{2}$/.test(a.at || "")) T.push(`  - trigger: time\n    at: "${a.at.padStart(5, "0")}:00"\n`);
-  if (a.watch) T.push(`  - trigger: state\n    entity_id: ${a.watch}\n` + (a.watchAttr ? `    attribute: ${a.watchAttr}\n` : "") + (+a.watchFor > 0 ? `    for:\n      seconds: ${Math.round(+a.watchFor)}\n` : ""));
+  const T = SCHED.triggers(a);
   if (!T.length) return "";
-  let y = "alias: " + JSON.stringify((s.name || "Fact") + " (auto)") + "\ndescription: " + FASK + "\nmode: restart\ntriggers:\n" + T.join("");
-  const C = (a.home || []).map(e => {
-    const d = e.split(".")[0];
-    if (d === "zone") return `numeric_state\n        entity_id: ${e}\n        above: 0`;
-    if (d === "person" || d === "device_tracker") return `state\n        entity_id: ${e}\n        state: home`;
-    return `state\n        entity_id: ${e}\n        state: "on"`;
-  });
-  if (C.length === 1) y += "conditions:\n  - condition: " + C[0].replace(/\n        /g, "\n    ") + "\n";
-  else if (C.length) y += "conditions:\n  - condition: or\n    conditions:\n" + C.map(c => "      - condition: " + c + "\n").join("");
+  let y = "alias: " + JSON.stringify((s.name || "Fact") + " (auto)") + "\ndescription: " + FASK + "\nmode: restart\ntriggers:\n" + T.join("") + SCHED.conditionsYaml(a);
   y += "actions:\n  - action: script." + sid + "\n";
   return y;
 }
@@ -201,28 +181,14 @@ function makeAuto(s0, sid) {
 const isAsAuto = s => !!(s && s.asAuto && !s.autoOnly && s.raw == null);
 const viaAuto = s => isAutoOnly(s) || isAsAuto(s);
 function makeAutomation(s0, sid) {
-  const s = full(s0), a = s.auto, T = [];
-  if (a.on && +a.every > 0) {
-    if (a.unit === "hours") T.push(`  - trigger: time_pattern\n    hours: "/${Math.min(23, Math.max(1, Math.round(+a.every)))}"\n    minutes: 0\n`);
-    else T.push(`  - trigger: time_pattern\n    minutes: "/${Math.min(59, Math.max(1, Math.round(+a.every)))}"\n`);
-  }
-  if (a.on && /^\d{1,2}:\d{2}$/.test(a.at || "")) T.push(`  - trigger: time\n    at: "${a.at.padStart(5, "0")}:00"\n`);
-  if (a.on && a.watch) T.push(`  - trigger: state\n    entity_id: ${a.watch}\n` + (a.watchAttr ? `    attribute: ${a.watchAttr}\n` : "") + (+a.watchFor > 0 ? `    for:\n      seconds: ${Math.round(+a.watchFor)}\n` : ""));
+  const s = full(s0), a = s.auto, T = a.on ? SCHED.triggers(a) : [];
   let y = "alias: " + JSON.stringify(s.name || "Fact") + "\ndescription: " + FASK + "\nmode: restart\n" + (T.length ? "triggers:\n" + T.join("") : "triggers: []\n");
-  const C = (a.on ? (a.home || []) : []).map(e => {
-    const d = e.split(".")[0];
-    if (d === "zone") return `numeric_state\n        entity_id: ${e}\n        above: 0`;
-    if (d === "person" || d === "device_tracker") return `state\n        entity_id: ${e}\n        state: home`;
-    return `state\n        entity_id: ${e}\n        state: "on"`;
-  });
-  if (C.length === 1) y += "conditions:\n  - condition: " + C[0].replace(/\n        /g, "\n    ") + "\n";
-  else if (C.length) y += "conditions:\n  - condition: or\n    conditions:\n" + C.map(c => "      - condition: " + c + "\n").join("");
-  else y += "conditions: []\n";
+  y += (a.on ? SCHED.conditionsYaml(a) : "") || "conditions: []\n";
   return y + "actions:\n" + stepsYaml(s, {});
 }
 const pushBody = (s, id, extra) => Object.assign({id, yaml: viaAuto(s) ? "" : makeYaml(s), auto_yaml: isAsAuto(s) ? makeAutomation(s, id) : makeAuto(s, id), state: s,
   auto_raw: ownAuto(s) && !isAsAuto(s), auto_only: viaAuto(s), cleanup_script: isAsAuto(s), auto_id: viaAuto(s) ? id : ownAuto(s) ? (s.autoId || "") : ""}, extra || {});
-const hasTrigger = s => !!(s.auto && ((+s.auto.every > 0) || s.auto.at || s.auto.watch));
+const hasTrigger = s => !!(s.auto && SCHED.hasTrigger(s.auto));
 
 /* ---------- DOM ---------- */
 /* ---------- views ---------- */
@@ -849,23 +815,7 @@ function drawForm() {
   const A = E.auto, asA = isAsAuto(E), c5 = card(5, asA ? "When it runs" : "Run it automatically", asA ? "This fact is one automation. Without a schedule it has no triggers, so run it by hand with Run now." : "Optional. Makes a Home Assistant automation that runs this script.");
   const on = el("input", {type: "checkbox", checked: !!A.on}); on.onchange = () => { A.on = on.checked; changed(); drawForm(); };
   add(c5, el("label", {class: "check"}, on, el("span", {}, "Run on a schedule")));
-  if (A.on) {
-    const ev = el("input", {type: "number", min: 0, step: 1, value: A.every, style: "width:90px"}); ev.oninput = () => { A.every = ev.value === "" ? "" : +ev.value; changed(); };
-    const un = el("select", {style: "width:auto"}, el("option", {value: "minutes"}, "minutes"), el("option", {value: "hours"}, "hours")); un.value = A.unit; un.onchange = () => { A.unit = un.value; changed(); };
-    add(c5, el("label", {class: "l"}, "Every"), el("div", {class: "inline"}, ev, un), el("p", {class: "help"}, "0 turns the repeat off. Minutes up to 59, hours up to 23."));
-    const tm = el("input", {type: "time", value: A.at || "", style: "max-width:160px"}); tm.onchange = () => { A.at = tm.value; changed(); };
-    const clr = el("button", {class: "btn sm", onclick: () => { A.at = ""; tm.value = ""; changed(); }}, "Clear");
-    add(c5, el("label", {class: "l"}, "And at this time every day (optional)"), el("div", {class: "inline"}, tm, clr));
-    add(c5, el("label", {class: "l"}, "And when this entity changes (optional)"), picker(null, false, () => A.watch ? [A.watch] : [], a => { A.watch = a[0] || ""; changed(); drawForm(); }));
-    if (A.watch) {
-      const at = el("input", {value: A.watchAttr, placeholder: "attribute (blank = state)", style: "max-width:240px"}); at.oninput = () => { A.watchAttr = at.value.trim(); changed(); };
-      const fr = el("input", {type: "number", min: 0, step: 1, value: A.watchFor, style: "width:90px"}); fr.oninput = () => { A.watchFor = fr.value === "" ? 0 : +fr.value; changed(); };
-      add(c5, el("div", {class: "inline", style: "margin-top:8px"}, at, el("span", {class: "dim small"}, "after it has held for"), fr, el("span", {class: "dim small"}, "seconds")));
-    }
-    add(c5, el("label", {class: "l"}, "Only when someone is home (optional)"), picker(null, true, () => A.home || [], a => { A.home = a; changed(); }),
-      el("p", {class: "help"}, "Runs only if any of these is on or home. A zone counts when it has someone in it."));
-    if ((F.home_entities || []).length && !(A.home || []).length) add(c5, el("button", {class: "btn sm", style: "margin-top:6px", onclick: () => { A.home = [...F.home_entities]; changed(); drawForm(); }}, "Use my default presence list"));
-  }
+  if (A.on) add(c5, SCHED.panel(A, {defaultHome: F.home_entities || [], onChange: changed}));
   f.append(c5);
   if (!asA) f.append(autoCard(6));
   f.append(dashCard(asA ? 6 : 7));
