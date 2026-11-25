@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.3.0 - 2026-11-25
+
+- **New "Check with AI" button in Announcements and Facts.** It sits above "Try it first". Tap **Check it** and two things happen: a quick check confirms the YAML parses, no placeholders like `SET_ME` are left, the schedule has a trigger, and every entity it uses really exists in your Home Assistant. Then your AI Task (the one picked for that announcement or fact, else your default) reads the whole thing and lists what is wrong (**Fix**) or could be better (**Tip**), with a plain-words fix for each. Nothing is changed or run.
+- If no AI Task is set, the quick checks still run and the result says so.
+
 ## 3.2.2 - 2026-11-24
 
 - **Pick the AI Task for each announcement or fact, or use your default.** Both editors now have an **AI Task that writes it** box with two buttons: **Use my default** (the one set in Announcements > Settings, shown by name) or **Pick one** (search and choose any AI Task). Facts had this hidden under "Use a different AI Task for this one"; it is now in section 2 where you can see it. Announcements could only use the default before.

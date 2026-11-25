@@ -1500,6 +1500,103 @@ async def ann_test_start(request):
     return web.json_response({"ok": True})
 
 
+# ---------------------------------------------------------------- "Check with AI" (Announcements and Facts)
+REVIEW_FN_RE = re.compile(r"""(?:states|state_attr|is_state|is_state_attr|has_value|device_attr|expand)\(\s*['"]([a-z_]+\.[a-z0-9_]+)['"]""")
+
+
+def review_entity_ids(obj, text):
+    """Every entity id the YAML points at: entity_id values plus ids used inside templates."""
+    found = set()
+
+    def walk(o):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if k == "entity_id":
+                    for x in (v if isinstance(v, list) else [v]):
+                        if isinstance(x, str) and ANN_ENT_RE.match(x):
+                            found.add(x)
+                walk(v)
+        elif isinstance(o, list):
+            for x in o:
+                walk(x)
+    walk(obj)
+    return found | set(REVIEW_FN_RE.findall(text))
+
+
+async def review_facts(app, docs, own_id):
+    """Checks that need no AI: YAML that parses, ids that really exist, placeholders left in, a schedule with no trigger."""
+    issues, ents = [], set()
+    for label, text in docs:
+        if not text.strip():
+            continue
+        try:
+            obj = yaml.safe_load(text)
+        except yaml.YAMLError as e:
+            issues.append({"level": "problem", "where": label, "message": "The YAML does not parse: %s" % str(e).replace("\n", " ")[:200], "fix": ""})
+            continue
+        if "SET_ME" in text:
+            issues.append({"level": "problem", "where": label, "message": "A placeholder (SET_ME) is still in it. Pick an AI Task, text-to-speech engine or speaker in Settings.", "fix": ""})
+        if isinstance(obj, dict) and label.startswith("Schedule"):
+            bad = fact_auto_problem(obj)
+            if bad:
+                issues.append({"level": "problem", "where": label, "message": bad.replace(": list.", "."), "fix": "Set a repeat, a time or an entity to watch."})
+        if isinstance(obj, (dict, list)):
+            ents |= review_entity_ids(obj, text)
+    code, states = await ha(app, "GET", "/states")
+    if code == 200 and isinstance(states, list):
+        known = {e.get("entity_id") for e in states}
+        code2, svc = await ha(app, "GET", "/services")
+        notify = {"notify." + n for d in (svc if code2 == 200 and isinstance(svc, list) else []) if d.get("domain") == "notify" for n in (d.get("services") or {})}
+        own = {own_id, own_id + ANN_AUTO_SUFFIX, own_id + "_auto"}
+        for e in sorted(ents):
+            if e in known or e in notify or e.split(".", 1)[1] in own:
+                continue
+            issues.append({"level": "problem", "where": e, "message": "Home Assistant has no entity called %s right now." % e,
+                           "fix": "Pick one that exists, or fix the spelling."})
+    return issues
+
+
+async def review_item(request):
+    """The Check with AI button: sanity checks first, then the AI Task reads the whole thing and says what is wrong or could be better."""
+    body = await ann_body(request)
+    kind = "fact" if body.get("kind") == "fact" else "announcement"
+    name = str(body.get("name", ""))[:80]
+    script, auto, ai = str(body.get("yaml", ""))[:30000], str(body.get("auto_yaml", ""))[:15000], str(body.get("ai", ""))
+    if not (script.strip() or auto.strip()):
+        return web.json_response({"ok": False, "error": "Nothing to check yet."})
+    own_id = re.sub(r"[^a-z0-9_]", "", str(body.get("id", "")).lower()) or "x_unsaved"
+    found = await review_facts(request.app, [("Script", script), ("Schedule" if script.strip() else "Automation", auto)], own_id)
+    out = {"ok": True, "issues": list(found), "ai": ai, "ai_error": ""}
+    if not (ANN_ENT_RE.match(ai) and ai.startswith("ai_task.")):
+        out["ai_error"] = "No AI Task is set, so only the basic checks ran. Set one in Announcements > Settings."
+    else:
+        what = ("a Home Assistant voice announcement script (an AI Task writes the text, then it is spoken or sent to phones)" if kind == "announcement"
+                else "a Home Assistant automation or script that asks an AI Task for one short fact and saves it to a text file for a dashboard")
+        prompt = ("You review %s that its owner built with a point-and-click tool. Read it like a careful friend who knows Home Assistant.\n"
+                  "Name: %s\n\nSCRIPT OR AUTOMATION YAML:\n%s\n\nSCHEDULE AUTOMATION YAML (may be empty):\n%s\n\n"
+                  "Problems already found by simple checks (do not repeat them): %s\n\n"
+                  "Look for: instructions for the AI that are vague, contradictory or too long; a style or length that does not fit the output; "
+                  "data that is read but never mentioned in the instructions, or mentioned but not read; template mistakes; "
+                  "a schedule that can never run or will run too often; conditions that clash (for example nobody home AND someone home); "
+                  "anything that would sound wrong when read aloud. Only report things you are fairly sure about, at most 6.\n"
+                  "Reply with ONLY JSON, no code fences: {\"summary\": \"one or two plain sentences: is it ready to use\", "
+                  "\"issues\": [{\"level\": \"problem\" or \"tip\", \"where\": \"short place name\", \"message\": \"what is wrong\", \"fix\": \"what to change, in plain words\"}]}"
+                  % (what, name or "(unnamed)", script or "(none)", auto or "(none)",
+                     "; ".join(i["message"] for i in found) or "none"))
+        j, err = await ann_ai_json(request.app, ai, "Check my %s" % kind, prompt)
+        if err:
+            out["ai_error"] = err.replace("Try rewording.", "Try again.")
+        else:
+            out["summary"] = str(j.get("summary") or "")[:400]
+            for i in (j.get("issues") or [])[:6]:
+                if isinstance(i, dict) and i.get("message"):
+                    out["issues"].append({"level": "problem" if i.get("level") == "problem" else "tip", "where": str(i.get("where") or "")[:60],
+                                          "message": str(i["message"])[:400], "fix": str(i.get("fix") or "")[:300]})
+    out["verdict"] = "needs_work" if any(i["level"] == "problem" for i in out["issues"]) else "good"
+    return web.json_response(out)
+
+
+
 async def ann_helper(request):
     body = await ann_body(request)
     if body.get("mode") == "instructions":
@@ -3806,6 +3903,7 @@ def main():
         web.post("/api/ann/personality_dropdown", ann_dropdown_sync),
         web.post("/api/ann/test", ann_test_start),
         web.post("/api/ann/helper", ann_helper),
+        web.post("/api/review", review_item),
         web.post("/api/ann/push", ann_push),
         web.post("/api/ann/run", ann_run),
         web.post("/api/ann/card_switch", ann_card_switch),
