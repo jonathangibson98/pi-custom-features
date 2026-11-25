@@ -7,6 +7,7 @@ const FACT = {home: [], mode: "any"};  /* the default "someone is home" list, se
 const CARD = {sw: ""};  /* the dashboard-card switch picked in the editor (the picker widget keeps no value of its own) */
 let IMPORT = {};  /* for an announcement converted from an imported script or automation: its original YAML, and the automation it replaces */
 
+let AIPICK = "";  /* AI Task chosen for this announcement ("" = the default from Settings) */
 const aiName = () => S.helper_ai_task_entity || S.ai_task_entity || "";
 const ann = (path, body) => api("ann/" + path, body);
 const ASK = "Made with Announcement Maker";  // marker the server uses to recognise scripts made here
@@ -264,8 +265,11 @@ function st() {
   return {name: $("#name").value, auto: autoState(), src: $$("[data-s]:checked").map(c => c.dataset.s), outs: $$("[data-o]:checked").map(c => c.dataset.o),
     json: $$('[data-o^="n:"]:checked').length > 0, pers: Object.fromEntries($$("[data-p]").map(t => [t.dataset.p, t.value])),
     usePers: $("#usePers").checked && !!O.personality_select, one: $("#one").value, len: +$("#len").value || 1000,
-    task: $("#task").value.trim(), vol: +$("#vol").value / 100, pause: $("#pause").checked,
+    task: $("#task").value.trim(), ai: AIPICK, vol: +$("#vol").value / 100, pause: $("#pause").checked,
     cardSw: CARD.sw, cardWhen: $("#cardwhen").value || "talk", cardOff: $("#cardoff").checked, cardHold: Math.max(0, Math.round(+$("#cardhold").value || 0))};
+}
+function drawAi() {
+  $("#aibox").replaceChildren(aiChoice(() => AIPICK, v => { AIPICK = v; }, O.ai_task_entity || "", () => { gen(); markDirty(); }));
 }
 function drawCardPick() {
   $("#cardpick").replaceChildren(picker(["input_boolean"], false, () => CARD.sw ? [CARD.sw] : [], a => { CARD.sw = a[0] || ""; gen(); markDirty(); }));
@@ -290,6 +294,7 @@ function applyState(s) {
   if (s.one) $("#one").value = s.one;
   if (!$("#one").value) $("#one").value = DEF;  /* the one it used was removed in Settings */
   if (s.len) $("#len").value = s.len;
+  AIPICK = s.ai || ""; drawAi();
   $("#task").value = s.task ?? s.extra ?? "";
   if (s.vol != null) $("#vol").value = Math.round(s.vol * 100);
   if (s.pause != null) $("#pause").checked = s.pause;
@@ -356,7 +361,7 @@ function makeYaml(s0, o) {
       ? "the full spoken announcement. Follow YOUR TASK and STYLE above for this one" + (f.hint ? " (" + f.hint + ")" : "") + "."
       : (f.hint || "short text") + ". Short plain text for a dashboard card, no markdown.")).join("\n") + (nt.length ? '\n"notification": one short sentence banner under 100 characters.' : ""));
     else if (s.json) L.push('Output ONLY a JSON object, no code fences, no other text, exactly like this:\n{"speech": "the full monologue", "notification": "one short sentence banner under 100 characters"}');
-    return "- action: ai_task.generate_data\n  data:\n    task_name: " + n + "\n    entity_id: " + (O.ai_task_entity || "ai_task.SET_ME") + "\n    instructions: |-\n" + ind(L.join("\n\n"), 6) + "\n  response_variable: announcement";
+    return "- action: ai_task.generate_data\n  data:\n    task_name: " + n + "\n    entity_id: " + (s.ai || O.ai_task_entity || "ai_task.SET_ME") + "\n    instructions: |-\n" + ind(L.join("\n\n"), 6) + "\n  response_variable: announcement";
   };
   const styleFor = k => s.pers[k] ?? s.pers[DEF] ?? DEF_STYLE;
   if (cardOn && s.cardWhen === "start") y += cardStep("Show dashboard card early");

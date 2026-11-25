@@ -129,9 +129,9 @@ const SCHED = (() => {
       const dh = O.defaultHome || [];
       const defBtn = dh.length && !a.home.length
         ? el("button", {type: "button", class: "btn sm", style: "margin-top:6px", onclick: () => { a.home = [...dh]; a.homeMode = O.defaultMode || "any"; upd(); }}, "Use my defaults (" + (MODES.find(m => m[0] === (O.defaultMode || "any")) || MODES[0])[1].toLowerCase() + ": " + (dh.length <= 3 ? dh.map(name).join(", ") : dh.length + " picked") + ")") : null;
-      box.replaceChildren(mode, chips, people.length ? null : el("p", {class: "help"}, "No person entities found. Use the box below."), more, defBtn,
+      box.replaceChildren(...[mode, chips, people.length ? null : el("p", {class: "help"}, "No person entities found. Use the box below."), more, defBtn,
         a.home.length ? el("div", {style: "margin-top:6px"}, el("button", {type: "button", class: "btn sm", onclick: () => { a.home = []; upd(); }}, "Clear the list")) : null,
-        el("p", {class: "help"}, a.homeMode === "all" ? "Runs only when everyone you picked is home." : a.homeMode === "none" ? "Runs only when none of the ones you picked is home." : "Runs when at least one of the ones you picked is home."));
+        el("p", {class: "help"}, a.homeMode === "all" ? "Runs only when everyone you picked is home." : a.homeMode === "none" ? "Runs only when none of the ones you picked is home." : "Runs when at least one of the ones you picked is home.")].filter(Boolean));
     }
     draw();
     return box;
