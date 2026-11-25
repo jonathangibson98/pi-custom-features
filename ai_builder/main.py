@@ -1597,6 +1597,129 @@ async def review_item(request):
 
 
 
+# "Fix selected with AI": the AI Task proposes changes to the editor's own settings (not to the generated YAML), they are
+# checked here against what the editor already holds, and the browser shows them for review. Nothing is saved or pushed.
+FIX_SKIP = {"name", "id", "original", "originalAuto", "replaces", "replacedDone", "autoRaw", "autoId", "autoOnly", "asAuto", "cardSw"}
+FIX_KEY_RE = re.compile(r"^[A-Za-z0-9_]{1,40}$")
+
+
+def fix_clean(old, new, depth=0):
+    """The proposed value if it has the same kind as the old one and is plain data, else None (meaning: ignore it)."""
+    if isinstance(old, bool):
+        return new if isinstance(new, bool) else None
+    if isinstance(old, (int, float)):
+        return new if isinstance(new, (int, float)) and not isinstance(new, bool) and abs(new) < 1e9 else None
+    if isinstance(old, str):
+        return new[:6000] if isinstance(new, str) else None
+    if depth > 3:
+        return None
+    if isinstance(old, dict):
+        if not isinstance(new, dict):
+            return None
+        out = dict(old)
+        for k, v in new.items():
+            if k in old:
+                c = fix_clean(old[k], v, depth + 1)
+                if c is not None:
+                    out[k] = c
+        return out
+    if isinstance(old, list):
+        if not isinstance(new, list) or len(new) > 40:
+            return None
+        tmpl = old[0] if old else None
+        out = []
+        for item in new:
+            if isinstance(item, (str, int, float, bool)) and not isinstance(tmpl, dict):
+                out.append(item[:2000] if isinstance(item, str) else item)
+            elif isinstance(item, dict) and (isinstance(tmpl, dict) or tmpl is None):
+                out.append({k: (v[:2000] if isinstance(v, str) else v) for k, v in item.items()
+                            if FIX_KEY_RE.match(str(k)) and isinstance(v, (str, int, float, bool))})
+            else:
+                return None
+        return out
+    return None
+
+
+def fix_text(v):
+    t = json.dumps(v, ensure_ascii=False) if not isinstance(v, str) else v
+    return t if len(t) <= 400 else t[:400] + "..."
+
+
+async def review_fix(request):
+    body = await ann_body(request)
+    state, ai = body.get("state"), str(body.get("ai", ""))
+    issues = [i for i in (body.get("issues") or []) if isinstance(i, dict) and i.get("message")][:12]
+    if not isinstance(state, dict) or not issues:
+        return web.json_response({"ok": False, "error": "Tick at least one thing to fix."})
+    if not (ANN_ENT_RE.match(ai) and ai.startswith("ai_task.")):
+        return web.json_response({"ok": False, "error": "Set an AI Task first (Announcements > Settings), or pick one for this item."})
+    kind = "fact" if body.get("kind") == "fact" else "announcement"
+    raw = state.get("raw") if isinstance(state.get("raw"), str) else None
+    editable = {k: v for k, v in state.items() if k not in FIX_SKIP and k != "raw" and not str(k).startswith("_")}
+    view = {k: v for k, v in editable.items() if len(json.dumps(v)) < 6000}
+    # real entities of the kinds the problems mention, so the AI can suggest a close match instead of inventing one
+    domains = {m.split(".")[0] for i in issues for m in re.findall(r"[a-z_]+\.[a-z0-9_]+", "%s %s" % (i.get("where", ""), i.get("message", "")))}
+    code, states = await ha(request.app, "GET", "/states")
+    cands = []
+    if code == 200 and isinstance(states, list):
+        for d in sorted(domains):
+            cands += [e["entity_id"] for e in states if e.get("entity_id", "").startswith(d + ".")][:120]
+    prompt = ("You fix a Home Assistant %s that its owner built with a point-and-click tool. The owner ticked the problems below. "
+              "Change only what is needed for those problems and keep everything else exactly as it is.\n\n"
+              "PROBLEMS TO FIX:\n%s\n\n%s"
+              "Existing entity ids you may use as replacements (never invent one): %s\n\n"
+              "Reply with ONLY JSON, no code fences: {\"changes\": {%s}, \"notes\": [{\"where\": \"same name as the problem\", "
+              "\"done\": true or false, \"note\": \"what you changed, or why you could not\"}]}\n"
+              "Rules: %s If a problem is not something you can fix by changing these settings (for example it lives in a data source in "
+              "Settings, or the right entity is not in the list), do not change anything for it and say so in its note with done false."
+              % (kind, "\n".join("- %s: %s%s" % (i.get("where", ""), i.get("message", ""), (" Suggested: " + i["fix"]) if i.get("fix") else "") for i in issues),
+                 ("THE YAML (a pasted script, kept exactly as written; to fix it return the whole corrected YAML text as changes.raw):\n%s\n\n" % raw[:20000]) if raw is not None
+                 else "THE EDITOR SETTINGS (JSON):\n%s\n\n" % json.dumps(view, ensure_ascii=False)[:14000],
+                 ", ".join(cands) or "(none)",
+                 '"raw": "the whole corrected YAML"' if raw is not None else '"setting name": new value, only for settings that change',
+                 "Return the whole corrected YAML text and nothing else changed." if raw is not None else
+                 "Use the same setting names and the same kind of value as in the JSON (text stays text, lists stay lists, numbers stay numbers). "
+                 "For a nested setting such as auto or pers, give only the parts that change."))
+    j, err = await ann_ai_json(request.app, ai, "Fix my %s" % kind, prompt)
+    if err:
+        return web.json_response({"ok": False, "error": err.replace("Try rewording.", "Try again.")})
+    ch = j.get("changes") if isinstance(j.get("changes"), dict) else {}
+    new, applied = dict(state), []
+    if raw is not None:
+        t = ch.get("raw")
+        if isinstance(t, str) and t.strip() and t.strip() != raw.strip():
+            try:
+                ok = isinstance(yaml.safe_load(t), (dict, list))
+            except yaml.YAMLError:
+                ok = False
+            if ok and len(t) <= 30000:
+                new["raw"] = t
+                applied.append({"key": "YAML", "before": fix_text(raw[:300]), "after": fix_text(t[:300])})
+    else:
+        for k, v in ch.items():
+            if k not in editable:
+                continue
+            if k == "src":  # only data sources that exist
+                ids = {str(x) for x in (body.get("source_ids") or [])}
+                c = [x for x in v if x in ids] if isinstance(v, list) else None
+            elif k == "outs":  # outputs can be switched off here, never added
+                c = [x for x in v if x in (state.get("outs") or [])] if isinstance(v, list) else None
+            else:
+                c = fix_clean(editable[k], v)
+            if c is not None and c != editable[k]:
+                new[k] = c
+                if isinstance(c, dict) and isinstance(editable[k], dict):
+                    for kk in c:
+                        if c[kk] != editable[k].get(kk):
+                            applied.append({"key": "%s: %s" % (k, kk), "before": fix_text(editable[k].get(kk)), "after": fix_text(c[kk])})
+                else:
+                    applied.append({"key": k, "before": fix_text(editable[k]), "after": fix_text(c)})
+    notes = [{"where": str(n.get("where") or "")[:60], "done": bool(n.get("done")), "note": str(n.get("note") or "")[:300]}
+             for n in (j.get("notes") or [])[:12] if isinstance(n, dict)]
+    return web.json_response({"ok": True, "state": new, "applied": applied, "notes": notes, "ai": ai})
+
+
+
 async def ann_helper(request):
     body = await ann_body(request)
     if body.get("mode") == "instructions":
@@ -3904,6 +4027,7 @@ def main():
         web.post("/api/ann/test", ann_test_start),
         web.post("/api/ann/helper", ann_helper),
         web.post("/api/review", review_item),
+        web.post("/api/review/fix", review_fix),
         web.post("/api/ann/push", ann_push),
         web.post("/api/ann/run", ann_run),
         web.post("/api/ann/card_switch", ann_card_switch),

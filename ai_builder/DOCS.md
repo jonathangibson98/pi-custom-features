@@ -265,7 +265,7 @@ Already have an announcement script or automation? Tap **Import my script or aut
 
 ## Announcement tabs
 
-- **Check with AI:** the button above **Try it first** checks the script and its schedule (entities exist, nothing left unfilled), then asks your AI Task to point out problems and tips. Facts has the same button.
+- **Check with AI:** the button above **Try it first** checks the script and its schedule (entities exist, nothing left unfilled), then asks your AI Task to point out problems and tips. Facts has the same button. Tick items and press **Fix selected with AI** to have the AI change the editor's settings for them; review the Was/Now list, then Save (or **Undo these changes**).
 - **Editor:** pick data, personality, then type **What should it do?** in plain words. Every data source is loaded into a variable (`src_<name>`) in the script, and the AI Task reads those variables.
 - **Test before saving:** runs a temporary copy of the script and deletes it afterward, so nothing lands in your Scripts list. *Preview data only* skips the AI and speaking, and shows what each source rendered. *Test (text only)* also runs the AI and shows what it would say. *Test with sound* speaks it too. If a step fails, the error from Home Assistant is shown.
 - **Push to Home Assistant** writes the script (it then appears in Settings -> Scripts and in Build's history).

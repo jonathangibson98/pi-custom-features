@@ -63,24 +63,74 @@ function picker(doms, multi, get, set) {
   draw(); w.append(chips, inp, list); return w;
 }
 
-/* "Check with AI" button. getBody() returns what to send ({kind, name, id, yaml, auto_yaml, ai}); res is where the answer goes. */
-function aiReview(btn, res, getBody) {
+/* "Check with AI" button. getBody() returns what to send ({kind, name, id, yaml, auto_yaml, ai}); res is where the answer goes.
+   hooks (optional, turns on the tick boxes and "Fix selected with AI"): state() the editor's current settings, apply(state) puts settings
+   back into the editor and marks it as changed, sourceIds() the data source ids that exist. */
+function aiReview(btn, res, getBody, hooks) {
+  let last = null;
+  const busy = (b, on, text) => { b.disabled = on; if (text) b.textContent = text; };
+  function showFix(r, before) {
+    const out = el("div", {style: "margin-top:12px"});
+    if (r.applied.length) {
+      out.append(el("div", {class: "note ok"}, el("div", {}, el("b", {}, "Changed " + r.applied.length + " setting" + (r.applied.length === 1 ? "" : "s") + " in the editor. "), "Nothing is saved or pushed yet. Look it over, then Save.")),
+        el("div", {class: "list", style: "margin-top:10px"}, r.applied.map(a => el("div", {class: "li"}, el("div", {class: "t"}, el("b", {}, a.key),
+          el("small", {style: "display:block"}, "Was: " + (a.before || "(empty)")), el("small", {style: "display:block"}, "Now: " + (a.after || "(empty)")))))));
+      const undo = el("button", {type: "button", class: "btn sm", style: "margin-top:10px", onclick: () => { hooks.apply(before); out.replaceChildren(el("div", {class: "note"}, el("div", {}, "Put everything back the way it was."))); }}, "Undo these changes");
+      out.append(undo);
+    } else out.append(el("div", {class: "note warn"}, el("div", {}, "The AI did not change anything.")));
+    (r.notes || []).forEach(n => out.append(el("p", {class: "help"}, (n.done ? "Done" : "Not changed") + " - " + (n.where ? n.where + ": " : "") + n.note)));
+    out.append(el("p", {class: "help"}, "Press Check it again to see what is left."));
+    return out;
+  }
+  function draw(r) {
+    last = r;
+    const probs = r.issues.filter(i => i.level === "problem"), tips = r.issues.filter(i => i.level !== "problem");
+    const boxes = [];
+    const row = i => {
+      const cb = hooks ? el("input", {type: "checkbox", style: "flex:none;width:20px;height:20px;margin-right:2px", "aria-label": "Fix this"}) : null;
+      if (cb) boxes.push([cb, i]);
+      return el("div", {class: "li"}, cb, el("div", {class: "t"}, el("b", {}, (i.level === "problem" ? "Fix: " : "Tip: ") + (i.where || "")), el("small", {style: "display:block"}, i.message + (i.fix ? " " + i.fix : ""))));
+    };
+    const fixOut = el("div", {});
+    const fixBtn = el("button", {type: "button", class: "btn", disabled: true}, "Fix selected with AI");
+    const all = el("button", {type: "button", class: "btn sm"}, "Tick all");
+    const upd = () => { const n = boxes.filter(([c]) => c.checked).length; fixBtn.disabled = !n; fixBtn.textContent = n ? "Fix " + n + " selected with AI" : "Fix selected with AI"; };
+    boxes.forEach(([c]) => c.onchange = upd);
+    const list = r.issues.length ? el("div", {class: "list", style: "margin-top:10px"}, [...probs, ...tips].map(row)) : null;
+    boxes.forEach(([c]) => c.onchange = upd);
+    all.onclick = () => { const on = boxes.some(([c]) => !c.checked); boxes.forEach(([c]) => c.checked = on); all.textContent = on ? "Untick all" : "Tick all"; upd(); };
+    fixBtn.onclick = async () => {
+      const picked = boxes.filter(([c]) => c.checked).map(([, i]) => i); if (!picked.length) return;
+      const before = JSON.parse(JSON.stringify(hooks.state()));
+      busy(fixBtn, true, "Fixing..."); fixOut.replaceChildren(el("p", {class: "dim small"}, "Your AI Task is working on it. This can take up to a minute."));
+      try {
+        const g = getBody();
+        const f = await api("review/fix", {kind: g.kind, name: g.name, id: g.id, ai: g.ai, state: before, issues: picked, source_ids: hooks.sourceIds ? hooks.sourceIds() : []});
+        if (!f || f.ok === false || f.error) { fixOut.replaceChildren(el("div", {class: "note bad"}, el("div", {}, (f && f.error) || "The fix failed."))); return; }
+        if (f.applied.length) hooks.apply(f.state);
+        fixOut.replaceChildren(showFix(f, before));
+      } catch (e) { fixOut.replaceChildren(el("div", {class: "note bad"}, el("div", {}, "The fix failed: " + e))); }
+      finally { busy(fixBtn, false); upd(); }
+    };
+    res.replaceChildren(...[
+      el("div", {class: "note " + (r.verdict === "good" ? "ok" : "warn")}, el("div", {}, el("b", {}, r.verdict === "good" ? "Looks good. " : probs.length + " thing" + (probs.length === 1 ? "" : "s") + " to fix. "), r.summary || "")),
+      r.ai_error ? el("p", {class: "help"}, r.ai_error) : null,
+      list,
+      hooks && r.issues.length && (r.ai && !r.ai_error) ? el("div", {class: "inline", style: "margin-top:10px"}, fixBtn, all) : null,
+      hooks && r.issues.length && (!r.ai || r.ai_error) ? el("p", {class: "help"}, "Set an AI Task to let it fix things for you.") : null,
+      fixOut,
+      r.ai ? el("p", {class: "help"}, "Checked with " + r.ai + ".") : null].filter(Boolean));
+  }
   btn.onclick = async () => {
     const b = getBody();
-    btn.disabled = true; const old = btn.textContent; btn.textContent = "Checking...";
+    const old = btn.textContent; busy(btn, true, "Checking...");
     res.replaceChildren(el("p", {class: "dim small"}, "Reading it with your AI Task. This can take up to a minute."));
     try {
       const r = await api("review", b);
       if (!r || r.ok === false || r.error) { res.replaceChildren(el("div", {class: "note bad"}, el("div", {}, (r && r.error) || "The check failed."))); return; }
-      const probs = r.issues.filter(i => i.level === "problem"), tips = r.issues.filter(i => i.level !== "problem");
-      const row = i => el("div", {class: "li"}, el("div", {class: "t"}, el("b", {}, (i.level === "problem" ? "Fix: " : "Tip: ") + (i.where || "")), el("small", {style: "display:block"}, i.message + (i.fix ? " " + i.fix : ""))));
-      res.replaceChildren(...[
-        el("div", {class: "note " + (r.verdict === "good" ? "ok" : "warn")}, el("div", {}, el("b", {}, r.verdict === "good" ? "Looks good. " : probs.length + " thing" + (probs.length === 1 ? "" : "s") + " to fix. "), r.summary || "")),
-        r.ai_error ? el("p", {class: "help"}, r.ai_error) : null,
-        r.issues.length ? el("div", {class: "list", style: "margin-top:10px"}, [...probs, ...tips].map(row)) : null,
-        r.ai ? el("p", {class: "help"}, "Checked with " + r.ai + ".") : null].filter(Boolean));
+      draw(r);
     } catch (e) { res.replaceChildren(el("div", {class: "note bad"}, el("div", {}, "The check failed: " + e))); }
-    finally { btn.disabled = false; btn.textContent = old; }
+    finally { busy(btn, false, old); }
   };
 }
 
