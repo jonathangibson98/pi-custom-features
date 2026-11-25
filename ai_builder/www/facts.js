@@ -221,10 +221,18 @@ async function loadLib() {
   $("#libcount").textContent = LIB.length;
   renderLib();
 }
+function drawRepair() {
+  aiRepair({box: $("#airepair"), items: LIB, def: S.ai_task_entity || "",
+    saveDefault: async to => { const r = await api("ann/settings", Object.assign({}, S, {ai_task_entity: to})); if (!r || r.error) return false; S = r; return true; },
+    push: (it, st) => fapi("push", pushBody(st, it.id)),
+    save: (it, st) => fapi("library/save", {id: it.id, name: it.name, state: st}),
+    done: (t, ok) => { flash(t, ok ? "ok" : "bad"); loadLib(); }});
+}
 function renderLib() {
   const live = LIB.filter(x => x.pushed_at || x.in_ha).length;
   $("#libsub").textContent = LIB.length ? LIB.length + " fact" + (LIB.length === 1 ? "" : "s") + ", " + live + " in Home Assistant" : "";
   $("#updall").hidden = !LIB.some(x => x.pushed_at);
+  drawRepair();
   const box = $("#cards"); box.replaceChildren();
   if (!LIB.length) {
     box.style.display = "block";
