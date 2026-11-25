@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.5.0 - 2026-11-25
+
+- **Many more schedule options.** On the When tab: extra times every day, sunrise or sunset with minutes before or after, and an entity trigger that can wait for a specific new state. On the Only if tab: a second time window (morning and evening), months of the year, and the extra entity checks can now be "is", "is not", "is above" or "is below" a number, on an attribute, and held for some minutes. Old schedules keep working as they were.
+- **Fixes the "nothing works any more" case.** If any announcement or fact points at an AI Task that no longer exists in Home Assistant (for example after you renamed or removed one), a banner at the top of the library lists them and switches them all to an AI Task you pick, then updates Home Assistant. A missing default AI Task in Settings gets switched too.
+
 ## 3.4.1 - 2026-11-25
 
 - **Check with AI and Fix selected with AI now know how this add-on works.** Before it reviewed your YAML like any Home Assistant script. Now the AI is first told how announcements and facts are built and run: the order of the steps, what each setting does and which values are allowed, how the schedule and its "only if" conditions are checked, what the add-on adds on purpose (delays, pausing music, the talking flag), and what you have set up (your data sources, speaker, text-to-speech, Alexa and phone targets, personalities). So it stops flagging the add-on's own steps as problems and its fixes use the right setting names and real values.

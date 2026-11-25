@@ -134,6 +134,52 @@ function aiReview(btn, res, getBody, hooks) {
   };
 }
 
+/* Repair banner: finds library items that use an AI Task that no longer exists and switches them all to one that does.
+   o: {box, items (library items, each {id, name, state, pushed_at}), def (the default AI Task from Settings),
+       saveDefault(entity) -> true/false, save(it, state) -> result, push(it, state) -> result, done(text, ok)} */
+function aiRepair(o) {
+  o.box.replaceChildren();
+  const have = ENT.filter(e => e.id.startsWith("ai_task.")).map(e => e.id);
+  if (!ENT.length) return;  /* the entity list did not load, so we cannot tell what is missing */
+  const ID = /ai_task\.[a-z0-9_]+/g, gone = id => id && !have.includes(id);
+  const missingOf = it => {
+    const st = it.state || {}, m = new Set();
+    if (st.ai) { if (gone(st.ai)) m.add(st.ai); } else if (gone(o.def) && o.def) m.add(o.def);
+    ["raw", "autoRaw"].forEach(k => (String(st[k] || "").match(ID) || []).forEach(id => { if (gone(id)) m.add(id); }));
+    return [...m];
+  };
+  const bad = o.items.map(it => ({it, miss: missingOf(it)})).filter(x => x.miss.length);
+  const defBad = !!o.def && gone(o.def);
+  if (!bad.length && !defBad) return;
+  const names = [...new Set(bad.flatMap(x => x.miss).concat(defBad ? [o.def] : []))];
+  const sel = el("select", {style: "width:auto;max-width:100%"}, have.map(id => el("option", {value: id}, id)));
+  const btn = el("button", {type: "button", class: "btn sm", style: "margin-top:8px"}, have.length ? "Switch them and update" : "No AI Task found");
+  btn.disabled = !have.length;
+  const msg = el("p", {class: "help"});
+  const run = async () => {
+    const to = sel.value; btn.disabled = true; msg.textContent = "Working...";
+    const fixes = [];
+    let defOk = !defBad;
+    if (defBad) { defOk = await o.saveDefault(to); if (!defOk) { msg.textContent = "Could not save the new default AI Task."; btn.disabled = false; return; } }
+    let done = 0; const fail = [];
+    for (const x of bad) {
+      const st = JSON.parse(JSON.stringify(x.it.state || {}));
+      if (st.ai && gone(st.ai)) st.ai = to;
+      ["raw", "autoRaw"].forEach(k => { if (typeof st[k] === "string") st[k] = st[k].replace(ID, id => gone(id) ? to : id); });
+      const r = x.it.pushed_at ? await o.push(x.it, st) : await o.save(x.it, st);
+      if (r && r.ok) done++; else fail.push(x.it.name + ": " + ((r && (r.detail || r.error)) || "failed"));
+    }
+    o.done("Switched " + done + " of " + bad.length + " to " + to + (x_default(defBad, to)) + "." + (fail.length ? " Failed: " + fail.join("; ") : ""), !fail.length);
+  };
+  const x_default = (d, to) => d ? " and made it your default AI Task" : "";
+  confirmTap(btn, "Tap again to switch and update Home Assistant", run);
+  o.box.append(el("div", {class: "note warn"}, el("div", {},
+    el("b", {}, "Some of these use an AI Task that does not exist any more. "), (bad.length ? bad.length + " item" + (bad.length === 1 ? "" : "s") + ": " : "") +
+      (bad.length ? bad.slice(0, 6).map(x => x.it.name).join(", ") + (bad.length > 6 ? " and more" : "") + ". " : "Your default AI Task is missing. ") +
+      "Missing: " + names.join(", ") + ". They stop at the AI step every time they run, so nothing new is written.",
+    el("div", {style: "margin-top:8px"}, el("span", {class: "dim small"}, "Use this one instead: "), sel), btn, msg)));
+}
+
 /* AI Task choice for one announcement or fact: use the default from Settings, or pick a specific one.
    get()/set(): the saved override ("" = default). def: the default AI Task entity id. onChange(): called after a change. */
 function aiChoice(get, set, def, onChange) {

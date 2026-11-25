@@ -143,10 +143,18 @@ async function loadLib() {
   renderLib();
 }
 
+function drawRepair() {
+  aiRepair({box: $("#airepair"), items: LIB, def: S.ai_task_entity || "",
+    saveDefault: async to => { S.ai_task_entity = to; return await saveSettings(); },
+    push: (it, st) => ann("push", {id: it.id, yaml: makeYaml(Object.assign({src: [], outs: [], pers: {}}, st)), auto_yaml: makeAuto(Object.assign({}, st, {name: st.name || it.name}), it.id), state: st}),
+    save: (it, st) => ann("library/save", {id: it.id, name: it.name, state: st}),
+    done: (t, ok) => { flash(t, ok ? "ok" : "bad"); loadLib(); }});
+}
 function renderLib() {
   const live = LIB.filter(x => x.pushed_at || x.in_ha).length;
   $("#libsub").textContent = LIB.length + FOUND.length ? (LIB.length + FOUND.length) + " announcement" + (LIB.length + FOUND.length === 1 ? "" : "s") + ", " + live + " in Home Assistant" : "";
   $("#updall").hidden = !LIB.some(x => x.pushed_at);
+  drawRepair();
 
   /* announcements saved in this browser before the library existed */
   const lg = $("#legacy"); lg.replaceChildren();
