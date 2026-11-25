@@ -923,7 +923,7 @@ function gen() {
   const t = $("#topicshow"); if (t) t.textContent = topicOf(E);
   paintState();
 }
-aiReview($("#ai-check"), $("#check-res"), () => { const id = cur.id || fslug(E.name); return {kind: "fact", name: E.name, id, yaml: isAsAuto(E) ? makeAutomation(E, id) : makeYaml(E), auto_yaml: isAsAuto(E) ? "" : (makeAuto(E, id) || ""), ai: E.ai || aiName()}; },
+aiReview($("#ai-check"), $("#check-res"), () => { const id = cur.id || fslug(E.name); return {kind: "fact", name: E.name, id, yaml: isAsAuto(E) ? makeAutomation(E, id) : makeYaml(E), auto_yaml: isAsAuto(E) ? "" : (makeAuto(E, id) || ""), ai: E.ai || aiName(), sources: usable().map(x => ({id: x.id, label: x.label, type: x.type}))}; },
   {state: () => E, apply: s => { E = full(s); drawForm(); changed(); }, sourceIds: () => usable().map(x => x.id)});
 $("#run").onclick = async () => {
   if (!cur.id) { say("Push it to Home Assistant first.", "warn"); return; }

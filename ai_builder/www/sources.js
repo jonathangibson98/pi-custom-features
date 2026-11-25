@@ -105,7 +105,7 @@ function aiReview(btn, res, getBody, hooks) {
       busy(fixBtn, true, "Fixing..."); fixOut.replaceChildren(el("p", {class: "dim small"}, "Your AI Task is working on it. This can take up to a minute."));
       try {
         const g = getBody();
-        const f = await api("review/fix", {kind: g.kind, name: g.name, id: g.id, ai: g.ai, state: before, issues: picked, source_ids: hooks.sourceIds ? hooks.sourceIds() : []});
+        const f = await api("review/fix", {kind: g.kind, name: g.name, id: g.id, ai: g.ai, state: before, issues: picked, source_ids: hooks.sourceIds ? hooks.sourceIds() : [], sources: g.sources});
         if (!f || f.ok === false || f.error) { fixOut.replaceChildren(el("div", {class: "note bad"}, el("div", {}, (f && f.error) || "The fix failed."))); return; }
         if (f.applied.length) hooks.apply(f.state);
         fixOut.replaceChildren(showFix(f, before));

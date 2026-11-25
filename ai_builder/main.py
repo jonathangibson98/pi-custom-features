@@ -19,6 +19,8 @@ import aiohttp
 import yaml
 from aiohttp import web
 
+import knowledge
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("ai_builder")
 
@@ -1572,16 +1574,22 @@ async def review_item(request):
     else:
         what = ("a Home Assistant voice announcement script (an AI Task writes the text, then it is spoken or sent to phones)" if kind == "announcement"
                 else "a Home Assistant automation or script that asks an AI Task for one short fact and saves it to a text file for a dashboard")
-        prompt = ("You review %s that its owner built with a point-and-click tool. Read it like a careful friend who knows Home Assistant.\n"
+        prompt = ("You review %s that its owner built with a point-and-click tool. Read it like a careful friend who knows Home Assistant and who knows "
+                  "exactly how this tool works (below).\n\n%s\n\n%s\n\n"
                   "Name: %s\n\nSCRIPT OR AUTOMATION YAML:\n%s\n\nSCHEDULE AUTOMATION YAML (may be empty):\n%s\n\n"
                   "Problems already found by simple checks (do not repeat them): %s\n\n"
                   "Look for: instructions for the AI that are vague, contradictory or too long; a style or length that does not fit the output; "
                   "data that is read but never mentioned in the instructions, or mentioned but not read; template mistakes; "
                   "a schedule that can never run or will run too often; conditions that clash (for example nobody home AND someone home); "
-                  "anything that would sound wrong when read aloud. Only report things you are fairly sure about, at most 6.\n"
+                  "anything that would sound wrong when read aloud. "
+                  "The tool adds delays, waits, the pause/resume of music, the talking flag and the JSON cleanup steps on purpose: they are not problems. "
+                  "For every item say, in its fix, which SETTING to change (use the setting names above) so the fix can be done from the editor; "
+                  "if the cause is in Settings (a data source, the speaker, the default AI Task) say that instead. "
+                  "Only report things you are fairly sure about, at most 6.\n"
                   "Reply with ONLY JSON, no code fences: {\"summary\": \"one or two plain sentences: is it ready to use\", "
                   "\"issues\": [{\"level\": \"problem\" or \"tip\", \"where\": \"short place name\", \"message\": \"what is wrong\", \"fix\": \"what to change, in plain words\"}]}"
-                  % (what, name or "(unnamed)", script or "(none)", auto or "(none)",
+                  % (what, knowledge.briefing(kind), knowledge.context_text(body.get("sources"), ann_settings()),
+                     name or "(unnamed)", script or "(none)", auto or "(none)",
                      "; ".join(i["message"] for i in found) or "none"))
         j, err = await ann_ai_json(request.app, ai, "Check my %s" % kind, prompt)
         if err:
@@ -1665,14 +1673,16 @@ async def review_fix(request):
         for d in sorted(domains):
             cands += [e["entity_id"] for e in states if e.get("entity_id", "").startswith(d + ".")][:120]
     prompt = ("You fix a Home Assistant %s that its owner built with a point-and-click tool. The owner ticked the problems below. "
-              "Change only what is needed for those problems and keep everything else exactly as it is.\n\n"
+              "Change only what is needed for those problems and keep everything else exactly as it is. You know exactly how the tool works (below), "
+              "so use its setting names and rules.\n\n%s\n\n%s\n\n"
               "PROBLEMS TO FIX:\n%s\n\n%s"
               "Existing entity ids you may use as replacements (never invent one): %s\n\n"
               "Reply with ONLY JSON, no code fences: {\"changes\": {%s}, \"notes\": [{\"where\": \"same name as the problem\", "
               "\"done\": true or false, \"note\": \"what you changed, or why you could not\"}]}\n"
               "Rules: %s If a problem is not something you can fix by changing these settings (for example it lives in a data source in "
               "Settings, or the right entity is not in the list), do not change anything for it and say so in its note with done false."
-              % (kind, "\n".join("- %s: %s%s" % (i.get("where", ""), i.get("message", ""), (" Suggested: " + i["fix"]) if i.get("fix") else "") for i in issues),
+              % (kind, knowledge.briefing(kind), knowledge.context_text(body.get("sources"), ann_settings()),
+                 "\n".join("- %s: %s%s" % (i.get("where", ""), i.get("message", ""), (" Suggested: " + i["fix"]) if i.get("fix") else "") for i in issues),
                  ("THE YAML (a pasted script, kept exactly as written; to fix it return the whole corrected YAML text as changes.raw):\n%s\n\n" % raw[:20000]) if raw is not None
                  else "THE EDITOR SETTINGS (JSON):\n%s\n\n" % json.dumps(view, ensure_ascii=False)[:14000],
                  ", ".join(cands) or "(none)",

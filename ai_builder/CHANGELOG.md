@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.4.1 - 2026-11-25
+
+- **Check with AI and Fix selected with AI now know how this add-on works.** Before it reviewed your YAML like any Home Assistant script. Now the AI is first told how announcements and facts are built and run: the order of the steps, what each setting does and which values are allowed, how the schedule and its "only if" conditions are checked, what the add-on adds on purpose (delays, pausing music, the talking flag), and what you have set up (your data sources, speaker, text-to-speech, Alexa and phone targets, personalities). So it stops flagging the add-on's own steps as problems and its fixes use the right setting names and real values.
+- The briefing lives in a new file, `knowledge.py`, so it can be kept in step with the editors.
+
 ## 3.4.0 - 2026-11-25
 
 - **Tick what you want fixed and let the AI do it.** Every item in **Check with AI** now has a tick box (and a **Tick all** button). Tap **Fix selected with AI** and your AI Task changes the editor's settings (the instructions, length, schedule, who must be home and so on) to solve just those items. You see each change as "Was / Now" and nothing is saved or pushed until you press Save. **Undo these changes** puts everything back.
