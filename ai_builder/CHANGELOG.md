@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.4.0 - 2026-11-25
+
+- **Tick what you want fixed and let the AI do it.** Every item in **Check with AI** now has a tick box (and a **Tick all** button). Tap **Fix selected with AI** and your AI Task changes the editor's settings (the instructions, length, schedule, who must be home and so on) to solve just those items. You see each change as "Was / Now" and nothing is saved or pushed until you press Save. **Undo these changes** puts everything back.
+- It only uses entities that exist in your Home Assistant and data sources you already have, and it ignores any change to the name, id or the kind of a setting. For a pasted script it returns corrected YAML, which is checked before it is used.
+- Some problems cannot be fixed this way, for example an entity that lives inside a data source in Settings. The AI says so next to that item instead of guessing.
+
 ## 3.3.0 - 2026-11-25
 
 - **New "Check with AI" button in Announcements and Facts.** It sits above "Try it first". Tap **Check it** and two things happen: a quick check confirms the YAML parses, no placeholders like `SET_ME` are left, the schedule has a trigger, and every entity it uses really exists in your Home Assistant. Then your AI Task (the one picked for that announcement or fact, else your default) reads the whole thing and lists what is wrong (**Fix**) or could be better (**Tip**), with a plain-words fix for each. Nothing is changed or run.
