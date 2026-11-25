@@ -610,6 +610,7 @@ async function runTest(mode) {
     for (let i = 0; i < 200; i++) { const t = await (await fetch("./api/ann/test")).json(); showTest(t); if (t.status !== "running") break; await sleep(2500); }
   } catch (e) { $("#tres").textContent = "Failed: " + e; } finally { btns.forEach(x => x.disabled = false); }
 }
+aiReview($("#ai-check"), $("#check-res"), () => { const s = st(), id = cur.id || slug(s.name); return {kind: "announcement", name: s.name, id, yaml: makeYaml(s), auto_yaml: makeAuto(s, id) || "", ai: s.ai || aiName()}; });
 $("#t-data").onclick = () => runTest("data"); $("#t-text").onclick = () => runTest("text"); $("#t-full").onclick = () => runTest("full");
 
 /* ---------- import a pasted script ---------- */

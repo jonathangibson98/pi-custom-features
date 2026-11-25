@@ -63,6 +63,27 @@ function picker(doms, multi, get, set) {
   draw(); w.append(chips, inp, list); return w;
 }
 
+/* "Check with AI" button. getBody() returns what to send ({kind, name, id, yaml, auto_yaml, ai}); res is where the answer goes. */
+function aiReview(btn, res, getBody) {
+  btn.onclick = async () => {
+    const b = getBody();
+    btn.disabled = true; const old = btn.textContent; btn.textContent = "Checking...";
+    res.replaceChildren(el("p", {class: "dim small"}, "Reading it with your AI Task. This can take up to a minute."));
+    try {
+      const r = await api("review", b);
+      if (!r || r.ok === false || r.error) { res.replaceChildren(el("div", {class: "note bad"}, el("div", {}, (r && r.error) || "The check failed."))); return; }
+      const probs = r.issues.filter(i => i.level === "problem"), tips = r.issues.filter(i => i.level !== "problem");
+      const row = i => el("div", {class: "li"}, el("div", {class: "t"}, el("b", {}, (i.level === "problem" ? "Fix: " : "Tip: ") + (i.where || "")), el("small", {style: "display:block"}, i.message + (i.fix ? " " + i.fix : ""))));
+      res.replaceChildren(...[
+        el("div", {class: "note " + (r.verdict === "good" ? "ok" : "warn")}, el("div", {}, el("b", {}, r.verdict === "good" ? "Looks good. " : probs.length + " thing" + (probs.length === 1 ? "" : "s") + " to fix. "), r.summary || "")),
+        r.ai_error ? el("p", {class: "help"}, r.ai_error) : null,
+        r.issues.length ? el("div", {class: "list", style: "margin-top:10px"}, [...probs, ...tips].map(row)) : null,
+        r.ai ? el("p", {class: "help"}, "Checked with " + r.ai + ".") : null].filter(Boolean));
+    } catch (e) { res.replaceChildren(el("div", {class: "note bad"}, el("div", {}, "The check failed: " + e))); }
+    finally { btn.disabled = false; btn.textContent = old; }
+  };
+}
+
 /* AI Task choice for one announcement or fact: use the default from Settings, or pick a specific one.
    get()/set(): the saved override ("" = default). def: the default AI Task entity id. onChange(): called after a change. */
 function aiChoice(get, set, def, onChange) {
