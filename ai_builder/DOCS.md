@@ -230,7 +230,7 @@ All announcement setup happens inside the app, on the **Settings** tab of Announ
 - **Auto-fill empty** fills single-choice fields that only have one match.
 - **Info sources** cover anything else: label, entity, optional attribute (concerts, sports, PS5...), or a custom template.
 - **Export / Import** moves your settings as JSON. `examples/announcement-settings.json` is a filled-in example.
-- Required to generate: AI Task, text-to-speech engine, main speaker. The AI Task defaults to this add-on's `ai_task_entity`.
+- Required to generate: AI Task, text-to-speech engine, main speaker. The AI Task defaults to this add-on's `ai_task_entity`. In the editor, **AI Task that writes it** lets each announcement use **Use my default** or **Pick one**.
 - **Personalities** (Settings -> Personalities): a list of voices. Add, rename, edit or remove them. `Default` has no special personality, is always first and can't be removed. New announcements start on it.
 - **Personality dropdown** (optional): an `input_select` that picks the personality from Home Assistant. Press **Create the dropdown for me** to have the add-on make one. Once one is set, saving settings keeps its options in step with your list. Only dropdowns made in Settings -> Helpers can be edited this way; for one in `configuration.yaml`, set its `options` by hand to match your list.
 - After adding, renaming or removing a personality, push your announcements again. Each script carries its own copy of the list, and falls back to Default if the dropdown is on a name it doesn't know.
@@ -346,7 +346,7 @@ Only the Home Assistant ingress gateway can reach this add-on's web server, so o
 
 # Facts
 
-AI-written facts for a dashboard. Each fact is one Home Assistant automation (triggers, then the steps) that asks your AI Task for one fact and saves it to a text file over MQTT (by default under `file_reader/overwrite/`). It works like Announcements: a library, an editor, a test panel and a helper. The AI Task, data sources and entity list are shared with Announcements.
+AI-written facts for a dashboard. Each fact is one Home Assistant automation (triggers, then the steps) that asks your AI Task for one fact and saves it to a text file over MQTT (by default under `file_reader/overwrite/`). It works like Announcements: a library, an editor, a test panel and a helper. The AI Task, data sources and entity list are shared with Announcements. Each fact can use that default or **Pick one** under **AI Task that writes it**.
 
 ## My facts
 

@@ -63,6 +63,25 @@ function picker(doms, multi, get, set) {
   draw(); w.append(chips, inp, list); return w;
 }
 
+/* AI Task choice for one announcement or fact: use the default from Settings, or pick a specific one.
+   get()/set(): the saved override ("" = default). def: the default AI Task entity id. onChange(): called after a change. */
+function aiChoice(get, set, def, onChange) {
+  const box = el("div", {class: "aichoice"});
+  let custom = !!get();
+  const draw = () => {
+    const seg = el("div", {class: "seg"}, [[false, "Use my default"], [true, "Pick one"]].map(([c, label]) => el("button", {type: "button", class: custom === c ? "on" : "", onclick: () => {
+      custom = c; if (!c) { set(""); if (onChange) onChange(); } draw(); }}, label)));
+    box.replaceChildren(...[seg,
+      custom ? el("div", {style: "margin-top:8px"}, picker(["ai_task"], false, get ? () => (get() ? [get()] : []) : () => [], a => { set(a[0] || ""); if (onChange) onChange(); draw(); }))
+        : null,
+      el("p", {class: "help"}, custom
+        ? (get() ? "This one uses " + get() + "." : "Nothing picked yet, so it uses the default" + (def ? " (" + def + ")" : "") + " until you do.")
+        : (def ? "Using your default: " + def + ". Change the default in Announcements > Settings." : "No default AI Task is set. Pick one here, or set a default in Announcements > Settings."))].filter(Boolean));
+  };
+  draw();
+  return box;
+}
+
 
 /* ---------- import: turn a hand-made script or automation into the form ----------
    The server reads it and says which data sources it needs. New ones are added to the shared list in

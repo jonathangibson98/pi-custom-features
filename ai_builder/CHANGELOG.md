@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.2.2 - 2026-11-24
+
+- **Pick the AI Task for each announcement or fact, or use your default.** Both editors now have an **AI Task that writes it** box with two buttons: **Use my default** (the one set in Announcements > Settings, shown by name) or **Pick one** (search and choose any AI Task). Facts had this hidden under "Use a different AI Task for this one"; it is now in section 2 where you can see it. Announcements could only use the default before.
+- The setup warning now says a fact can also pick its own AI Task when no default is set.
+- Fixed the word "null" showing under the who-is-home picker in 3.2.1.
+
 ## 3.2.1 - 2026-11-24
 
 - **Facts -> Settings now uses the same people picker as a schedule.** The old "Someone is home" card is now **Who is home (default)**: tap the people, pick **Any of them**, **All of them** or **None of them**, and add zones or trackers underneath. The mode is saved with the list.

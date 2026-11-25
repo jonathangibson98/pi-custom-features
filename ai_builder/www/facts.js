@@ -204,7 +204,7 @@ $$("#tabs .tab").forEach(b => b.onclick = () => { showView(b.dataset.v); if (b.d
 
 function setupNote() {
   const miss = [];
-  if (!S.ai_task_entity) miss.push("an AI Task (set it in Announcements > Settings or the add-on options)");
+  if (!S.ai_task_entity) miss.push("a default AI Task (set it in Announcements > Settings or the add-on options), or pick one inside each fact");
   const box = $("#setupnote"); box.replaceChildren();
   if (!miss.length) return;
   box.append(el("div", {class: "note warn"}, el("div", {}, el("b", {}, "Finish setup to make facts. "), "Still needed: " + miss.join(", ") + "."),
@@ -754,6 +754,7 @@ function drawForm() {
   add(c2, pk, el("div", {class: "row", style: "margin-top:10px"}, el("button", {class: "btn sm", onclick: () => { E.picks.push({name: ["topic", "angle", "genre", "decade", "style", "era"].find(x => !E.picks.some(p => p.name === x)) || "pick" + (E.picks.length + 1), items: ""}); changed(); drawForm(); }}, "Add a random list")),
     el("p", {class: "help"}, "Each run picks one option from every list, and the AI is told what was picked (for example \"TOPIC FOR THIS RUN: ...\"). Mention a list by name in your instructions if you like. Names use lowercase letters and underscores."));
   add(c2, cb("Add a random number so repeats are less likely", "seed"));
+  add(c2, el("label", {class: "l"}, "AI Task that writes it"), aiChoice(() => E.ai || "", v => { E.ai = v; }, S.ai_task_entity || "", changed));
   f.append(c2);
 
   /* 3. how it reads */
@@ -806,9 +807,6 @@ function drawForm() {
   const c4 = card(4, "Where it goes", "Saved over MQTT. A dashboard card (for example file_reader) shows the file.");
   add(c4, tf("File name", "file", {ph: fslug(E.name) + ".txt", help: "Added to the topic prefix from Settings. Type a full topic (with a slash) to override."}));
   add(c4, el("p", {class: "help"}, el("span", {}, "Publishes to "), el("code", {id: "topicshow"}, topicOf(E))));
-  const adv = el("details", {style: "margin-top:12px"}, el("summary", {}, "Use a different AI Task for this one"));
-  adv.append(picker(["ai_task"], false, () => E.ai ? [E.ai] : [], a => { E.ai = a[0] || ""; changed(); }), el("p", {class: "help"}, "Blank uses " + (S.ai_task_entity || "the AI Task from Announcements") + "."));
-  add(c4, adv);
   f.append(c4);
 
   /* 5. schedule */
