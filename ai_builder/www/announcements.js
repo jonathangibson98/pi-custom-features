@@ -358,9 +358,6 @@ function makeYaml(s0, o) {
   let y = "alias: " + n + "\ndescription: " + ASK + "\nsequence:\n  - variables:\n      current_time: '{{ now().strftime(''%A, %B %-d %Y %-I:%M %p %Z'') }}'\n";
   chosen.forEach(c => { y += genPre(c) });
   if (chosen.length) y += "  - alias: Load data sources\n    variables:\n" + chosen.map(c => { const b = body(c).trim(); return b ? `      src_${c.id}: |-\n` + ind(b, 8) : `      src_${c.id}: ""` }).join("\n") + "\n";
-  if (speak && s.pause && players.length) y += "  - alias: Pause music if playing\n    if:\n      - condition: state\n        entity_id:\n" + players.map(p => "          - " + p).join("\n") + "\n        state: playing\n        match: any\n    then:\n      - action: media_player.media_pause\n        target:\n          entity_id: " + players[0] + "\n";
-  if (speak && flag) y += `  - action: input_boolean.turn_on\n    target:\n      entity_id: ${flag}\n`;
-  if (sp_on) y += `  - delay:\n      seconds: 3\n  - action: media_player.volume_set\n    target:\n      entity_id: ${A}\n    data:\n      volume_level: ${s.vol}\n`;
   const task = r => {
     const L = ["Current time: {{ current_time }}. Use this to understand what 'tonight', 'this morning', 'Friday' etc. mean."];
     chosen.forEach(c => L.push(c.label.toUpperCase() + ":\n{{ src_" + c.id + " }}"));
@@ -389,6 +386,10 @@ function makeYaml(s0, o) {
     const sp = s.json ? "{{ (announcement.data | from_json).speech }}" : "{{ announcement.data }}";
     y += `  - variables:\n      speech: '${sp}'\n`;
   }
+  /* music pauses, talking flag, volume: only now that the AI answer is in hand, so the music keeps playing while it generates */
+  if (speak && s.pause && players.length) y += "  - alias: Pause music if playing\n    if:\n      - condition: state\n        entity_id:\n" + players.map(p => "          - " + p).join("\n") + "\n        state: playing\n        match: any\n    then:\n      - action: media_player.media_pause\n        target:\n          entity_id: " + players[0] + "\n";
+  if (speak && flag) y += `  - action: input_boolean.turn_on\n    target:\n      entity_id: ${flag}\n`;
+  if (sp_on) y += `  - delay:\n      seconds: 3\n  - action: media_player.volume_set\n    target:\n      entity_id: ${A}\n    data:\n      volume_level: ${s.vol}\n`;
   if (tx) y += "  - alias: Save announcement " + (F ? "fields" : "text") + "\n    action: mqtt.publish\n    data:\n      topic: " + JSON.stringify(txtTopicOf(tx, s0.name || "Announcement")) + "\n      payload: '" + (F ? "{{ ann_fields | tojson }}" : "{{ speech }}") + "'\n";
   if (cardOn && s.cardWhen !== "start") y += cardStep("Show dashboard card");
   y += "  - alias: Deliver\n    parallel:\n";
