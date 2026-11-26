@@ -19,7 +19,14 @@ function migrate(s) {
   (s.custom_sources || []).forEach(c => add("entity", {label: c.label, entity: c.entity, attribute: c.attribute || ""}));
   return L;
 }
-const usable = () => (S.sources || []).filter(s => {
+/* Where a source can be used: shared by announcements and facts (the default), or only one of them. Sources an AI made
+   (the helper, an import) are flagged ai:true and live in their own "Made by AI" section, scoped to what made them.
+   The page defines SCOPE as "ann" or "fact". */
+const SCOPES = [["shared", "Shared (announcements and facts)"], ["ann", "Announcements only"], ["fact", "Facts only"]];
+const scopeOf = s => (s.scope === "ann" || s.scope === "fact") ? s.scope : "shared";
+const pageScope = () => (typeof SCOPE === "string" ? SCOPE : "");
+const seesScope = (s, sc) => !sc || scopeOf(s) === "shared" || scopeOf(s) === sc;
+const usable = () => (S.sources || []).filter(s => seesScope(s, pageScope())).filter(s => {
   if (["weather", "news", "todo", "trash", "entity"].includes(s.type)) return !!s.entity;
   if (s.type === "calendar") return (s.entities || []).length > 0;
   if (s.type === "template") return !!(s.template || "").trim();
@@ -46,6 +53,17 @@ function auto(s) {
   return "";
 }
 const body = s => s.type === "template" ? s.template : (s.template || auto(s));
+
+/* Add a source an AI made, unless one that reads the same thing is already visible here (then reuse it, so nothing piles up).
+   New ones are flagged ai:true and scoped to the page or kind that made them. Returns the source. */
+function addAiSource(list, type, o, scope) {
+  const sc = scope || pageScope() || "shared", sorted = a => JSON.stringify([...(a || [])].sort());
+  const hit = list.find(x => seesScope(x, sc) && x.type === type && (type === "calendar" ? sorted(x.entities) === sorted((o || {}).entities)
+    : type === "template" ? String(x.template || "").trim() === String((o || {}).template || "").trim()
+    : ["household", "locations"].includes(type) ? true : (x.entity || "") === ((o || {}).entity || "") && (x.attribute || "") === ((o || {}).attribute || "")));
+  if (hit) return hit;
+  const n = mk(list, type, o); n.ai = true; n.scope = sc; list.push(n); return n;
+}
 
 /* ---------- entity picker ---------- */
 function picker(doms, multi, get, set) {
@@ -201,10 +219,11 @@ function aiChoice(get, set, def, onChange) {
 
 
 /* ---------- import: turn a hand-made script or automation into the form ----------
-   The server reads it and says which data sources it needs. New ones are added to the shared list in
-   Announcements > Settings (one that reads the same thing is reused). Returns the converted result, or {ok:false}. */
+   The server reads it and says which data sources it needs. New ones go in the "Made by AI" section of Settings, only for
+   what imported them (one that reads the same thing is reused). Returns the converted result, or {ok:false}. */
 async function convertImport(target, yaml, autoYaml) {
-  const r = await api("convert", {target, yaml, auto_yaml: autoYaml || "", sources: (typeof S === "object" && S.sources) || []});
+  const sc = target === "fact" ? "fact" : "ann";
+  const r = await api("convert", {target, yaml, auto_yaml: autoYaml || "", sources: ((typeof S === "object" && S.sources) || []).filter(x => seesScope(x, sc))});
   if (!r || !r.ok) return r || {ok: false, error: "That failed."};
   const fresh = await api("ann/options");  /* start from what is saved now, so nothing is lost */
   if (fresh.error) return {ok: false, error: fresh.error};
@@ -213,6 +232,7 @@ async function convertImport(target, yaml, autoYaml) {
   const ids = (r.sources || []).map(x => {
     if (x.existing && fresh.sources.some(s => s.id === x.existing)) return x.existing;
     const n = mk(fresh.sources, x.new.type, Object.assign({}, x.new, {template: x.new.type === "template" ? x.new.template : ""}));
+    n.ai = true; n.scope = sc;  /* made by the import, so it goes in the AI section and only where it was made */
     fresh.sources.push(n); changed = true; return n.id;
   });
   Object.entries(r.settings_add || {}).forEach(([k, add]) => {
@@ -233,4 +253,77 @@ function convertNote(r, what) {
   const p = ["Converted into a normal " + what + "." + (r.used_ai ? " Your AI Task split your prompt into " + split + ", so read them before you push." : "")];
   if ((r.added || []).length) p.push("New data sources added to Settings: " + r.added.join(", ") + ".");
   return p.concat(r.notes || []).join(" ");
+}
+
+const varNames = s => ({weather: "fc_" + s.id + " (forecast response)", calendar: "cal_" + s.id + " (events response)", todo: "todo_" + s.id + " (items response)"}[s.type] || "");
+
+function editor(s) {
+  const box = el("div", {class: "card sub"}), f = (l, node) => box.append(el("label", {class: "l"}, l), node);
+  const tpl = el("textarea", {class: "code"});
+  const sync = () => { if (!s.template) tpl.value = auto(s) };
+  const txt = (k, ph) => { const i = el("input", {placeholder: ph || "", value: s[k] || ""}); i.oninput = () => { s[k] = i.value; sync() }; return i };
+  const one = (k, d, l) => f(l, picker(d, false, () => s[k] ? [s[k]] : [], a => { s[k] = a[0] || ""; sync() }));
+  f("Name (shown in the editor and told to the AI)", (() => { const i = el("input", {value: s.label}); i.oninput = () => { s.label = i.value }; return i })());
+  if (s.type === "household") { const t = el("textarea", {value: s.text || "", placeholder: "Who lives here, pets, friends, running jokes..."}); t.oninput = () => { s.text = t.value; sync() }; f("Text", t); one("entity", null, "Extra entity to append (optional)"); f("Its attribute (blank = state)", txt("attribute")); }
+  if (s.type === "locations") one("entity", DOMS.locations, "Sensor whose attributes are name: place (blank = use people)");
+  if (s.type === "weather") { one("entity", DOMS.weather, "Weather entity"); one("extra", ["sensor"], "Inside temperature sensor (optional)"); }
+  if (s.type === "news") one("entity", DOMS.news, 'News feed sensor (needs an "entries" attribute)');
+  if (s.type === "calendar") { f("Calendars", picker(DOMS.calendar, true, () => s.entities || [], a => { s.entities = a; sync() })); const d = el("input", {type: "number", value: s.days || 7}); d.oninput = () => { s.days = +d.value || 7; sync() }; f("Days ahead", d); }
+  if (s.type === "todo") one("entity", DOMS.todo, "To-do list");
+  if (s.type === "trash") one("entity", DOMS.trash, "Entity that is on when pickup is tomorrow");
+  if (s.type === "entity") { one("entity", null, "Entity"); f("Attribute (blank = state + all attributes)", txt("attribute")); }
+  tpl.value = body(s); tpl.oninput = () => { if (s.type === "template") s.template = tpl.value; else s.template = tpl.value === auto(s) ? "" : tpl.value };
+  const hint = varNames(s);
+  box.append(el("label", {class: "l"}, s.type === "template" ? "Template (Home Assistant Jinja)" : "Template the script uses (edit to fix it)"), tpl,
+    el("p", {class: "help"}, (hint ? "Available variable: " + hint + ". " : "") + "This text becomes variable src_" + s.id + ". Use Preview the data in the editor to see what it renders."));
+  if (s.type !== "template") box.append(el("button", {class: "btn sm", style: "margin-top:8px", onclick: () => { s.template = ""; tpl.value = auto(s) }}, "Reset template to auto"));
+  return box;
+}
+
+/* ---------- the data sources list in Settings (used by both pages) ----------
+   o: {scope: "ann" or "fact" (this page), redraw(), save() (optional, saves after a change)} */
+let SRC_OPEN = "";
+function srcManager(host, o) {
+  const sc = o.scope, okIds = new Set(usable().map(x => x.id)), list = S.sources || (S.sources = []);
+  const mine = list.filter(x => seesScope(x, sc));
+  const row = x => {
+    const r = el("div", {}), top = el("div", {class: "li srcrow", style: "display:flex;align-items:center;gap:10px"});
+    const eb = el("button", {class: "btn sm", onclick: () => { SRC_OPEN = SRC_OPEN === x.id ? "" : x.id; o.redraw() }}, SRC_OPEN === x.id ? "Close" : "Edit");
+    const db = el("button", {class: "btn danger sm"}, "Remove");
+    confirmTap(db, "Tap again", () => { list.splice(list.indexOf(x), 1); if (SRC_OPEN === x.id) SRC_OPEN = ""; o.redraw(); });
+    const sub = TYPES[x.type] + (scopeOf(x) !== "shared" && x.ai ? " · " + (scopeOf(x) === "ann" ? "announcements only" : "facts only") : "") + (x.template && x.type !== "template" ? " · custom template" : "") + (okIds.has(x.id) ? "" : " · needs an entity before it shows up");
+    top.append(el("div", {class: "t"}, el("b", {}, x.label), el("small", {}, sub)), ...(x.ai ? [el("button", {class: "btn sm", title: "Move it out of the AI section", onclick: () => { delete x.ai; o.redraw(); }}, "Keep")] : []), eb, db);
+    r.append(top);
+    if (SRC_OPEN === x.id) {
+      const use = el("select", {style: "width:auto"}, SCOPES.map(([v, l]) => el("option", {value: v}, l))); use.value = scopeOf(x);
+      use.onchange = () => { if (use.value === "shared") delete x.scope; else x.scope = use.value; if (!seesScope(x, sc)) SRC_OPEN = ""; o.redraw(); };
+      r.append(el("div", {style: "margin-top:8px"}, el("div", {class: "card sub"}, el("label", {class: "l"}, "Used by"), use,
+        el("p", {class: "help"}, "Shared sources show up for both. An announcement or fact that already uses it stops seeing it if you narrow it to the other side.")), editor(x)));
+    }
+    return r;
+  };
+  const group = (title, hint, items) => {
+    if (!items.length) return;
+    host.append(el("h3", {style: "margin-top:16px"}, title + " · " + items.length), hint ? el("p", {class: "help"}, hint) : null, el("div", {class: "stack"}, items.map(row)));
+  };
+  const own = sc === "fact" ? "Facts only" : "Announcements only";
+  group("Shared by announcements and facts", "Either one can use these.", mine.filter(x => !x.ai && scopeOf(x) === "shared"));
+  group(own, "Only " + (sc === "fact" ? "facts" : "announcements") + " can use these.", mine.filter(x => !x.ai && scopeOf(x) === sc));
+  group("Made by AI", "Added for you by the helper or an import, so they don't mix with the ones you made. Tap Keep to move one into your own list.", mine.filter(x => x.ai));
+  if (!mine.length) host.append(el("p", {class: "dim small"}, "No sources yet."));
+  const sel = el("select", {style: "width:auto"}), where = el("select", {style: "width:auto"});
+  Object.entries(TYPES).forEach(([k, l]) => sel.append(el("option", {value: k}, l)));
+  SCOPES.forEach(([v, l]) => where.append(el("option", {value: v}, l)));
+  host.append(el("div", {class: "row", style: "margin-top:14px"}, sel, where, el("button", {class: "btn", onclick: () => {
+    const n = mk(list, sel.value); if (where.value !== "shared") n.scope = where.value; list.push(n); SRC_OPEN = n.id; o.redraw();
+  }}, "Add source")), el("p", {class: "help"}, "Pick who can use it: both, or just one."));
+}
+/* Save only the sources, on top of what is saved now (the Facts page uses this so it never overwrites Announcements settings). */
+async function saveSources() {
+  const fresh = await api("ann/options");
+  if (fresh.error) return {error: fresh.error};
+  fresh.sources = S.sources;
+  const saved = await api("ann/settings", fresh);
+  if (!saved.error) { S = saved; if (!Array.isArray(S.sources)) S.sources = []; }
+  return saved;
 }

@@ -1,4 +1,5 @@
 /* Announcements page: library of saved announcements, editor, helper and settings. */
+const SCOPE = "ann";  /* which kind of thing this page makes: sources can be shared, or only for one kind */
 let O = {}, S = {}, ENT = [], LIB = [], FOUND = [], mem = {};
 let cur = {id: null, isNew: true, pushed: false}, dirty = false, view = "lib", OPEN = "", HEL = {entity: "", goal: "", idea: ""};
 let editorReady = false, rawMode = false;
@@ -317,7 +318,7 @@ function build() {
   const prev = editorReady ? st() : null;
   O = S; if (!Array.isArray(S.sources)) S.sources = migrate(S);
   ["srcs", "persbox", "presets", "outs"].forEach(i => $("#" + i).replaceChildren());
-  usable().forEach(s => pickBox($("#srcs"), "s", s.id, s.label, s.type === "household"));
+  usable().forEach(s => pickBox($("#srcs"), "s", s.id, s.label + (s.ai ? " (AI)" : ""), s.type === "household"));
   if (!usable().length) $("#srcs").append(el("p", {class: "dim small"}, "No data sources yet. Add some in Settings."));
   if (O.speaker && O.tts_entity) pickBox($("#outs"), "o", "tts", "Main speaker (TTS)", 1);
   (O.alexa_targets || []).forEach(a => pickBox($("#outs"), "o", "a:" + a, "Alexa: " + a, 1));
@@ -739,7 +740,7 @@ function drawHelper() {
     if (!r.ok) { res.textContent = r.error; return; }
     res.replaceChildren(el("p", {}, el("b", {}, r.label), r.attribute ? " (attribute: " + r.attribute + ")" : " (whole entity)"), el("p", {class: "dim small"}, r.note), el("p", {class: "dim small"}, "Preview: " + r.preview));
     const ab = el("button", {class: "btn good", style: "margin-top:8px"}, "Add as data source");
-    ab.onclick = async () => { S.sources.push(mk(S.sources, "entity", {label: r.label, entity: HEL.entity, attribute: r.attribute})); await saveSettings(); ab.textContent = "Added and saved"; ab.disabled = true; };
+    ab.onclick = async () => { addAiSource(S.sources, "entity", {label: r.label, entity: HEL.entity, attribute: r.attribute}); await saveSettings(); ab.textContent = "Added and saved"; ab.disabled = true; };
     res.append(ab);
   };
   b.append(gt, tb, res);
@@ -777,31 +778,6 @@ async function syncDropdown(create) {
   if (r.settings) { S = r.settings; if (!Array.isArray(S.sources)) S.sources = []; build(); setupNote(); drawSettings(); }
   m.className = "msg " + (r.ok ? "ok" : "bad"); m.textContent = r.ok ? r.message + " Push your announcements again so their scripts use the new list." : r.error;
 }
-const varNames = s => ({weather: "fc_" + s.id + " (forecast response)", calendar: "cal_" + s.id + " (events response)", todo: "todo_" + s.id + " (items response)"}[s.type] || "");
-
-function editor(s) {
-  const box = el("div", {class: "card sub"}), f = (l, node) => box.append(el("label", {class: "l"}, l), node);
-  const tpl = el("textarea", {class: "code"});
-  const sync = () => { if (!s.template) tpl.value = auto(s) };
-  const txt = (k, ph) => { const i = el("input", {placeholder: ph || "", value: s[k] || ""}); i.oninput = () => { s[k] = i.value; sync() }; return i };
-  const one = (k, d, l) => f(l, picker(d, false, () => s[k] ? [s[k]] : [], a => { s[k] = a[0] || ""; sync() }));
-  f("Name (shown in the editor and told to the AI)", (() => { const i = el("input", {value: s.label}); i.oninput = () => { s.label = i.value }; return i })());
-  if (s.type === "household") { const t = el("textarea", {value: s.text || "", placeholder: "Who lives here, pets, friends, running jokes..."}); t.oninput = () => { s.text = t.value; sync() }; f("Text", t); one("entity", null, "Extra entity to append (optional)"); f("Its attribute (blank = state)", txt("attribute")); }
-  if (s.type === "locations") one("entity", DOMS.locations, "Sensor whose attributes are name: place (blank = use people)");
-  if (s.type === "weather") { one("entity", DOMS.weather, "Weather entity"); one("extra", ["sensor"], "Inside temperature sensor (optional)"); }
-  if (s.type === "news") one("entity", DOMS.news, 'News feed sensor (needs an "entries" attribute)');
-  if (s.type === "calendar") { f("Calendars", picker(DOMS.calendar, true, () => s.entities || [], a => { s.entities = a; sync() })); const d = el("input", {type: "number", value: s.days || 7}); d.oninput = () => { s.days = +d.value || 7; sync() }; f("Days ahead", d); }
-  if (s.type === "todo") one("entity", DOMS.todo, "To-do list");
-  if (s.type === "trash") one("entity", DOMS.trash, "Entity that is on when pickup is tomorrow");
-  if (s.type === "entity") { one("entity", null, "Entity"); f("Attribute (blank = state + all attributes)", txt("attribute")); }
-  tpl.value = body(s); tpl.oninput = () => { if (s.type === "template") s.template = tpl.value; else s.template = tpl.value === auto(s) ? "" : tpl.value };
-  const hint = varNames(s);
-  box.append(el("label", {class: "l"}, s.type === "template" ? "Template (Home Assistant Jinja)" : "Template the script uses (edit to fix it)"), tpl,
-    el("p", {class: "help"}, (hint ? "Available variable: " + hint + ". " : "") + "This text becomes variable src_" + s.id + ". Use Preview the data in the editor to see what it renders."));
-  if (s.type !== "template") box.append(el("button", {class: "btn sm", style: "margin-top:8px", onclick: () => { s.template = ""; tpl.value = auto(s) }}, "Reset template to auto"));
-  return box;
-}
-
 function drawSettings() {
   const v = $("#v-set"); v.replaceChildren();
   const card = (t, sub) => { const c = el("div", {class: "card"}, el("div", {class: "ch"}, el("h2", {}, t), sub ? el("p", {}, sub) : null)); v.append(c); return c; };
@@ -813,21 +789,8 @@ function drawSettings() {
   fields(card("Voice and speakers", "The AI Task, text-to-speech engine and main speaker are required. The rest is optional."), [...FIELDS.core, ...FIELDS.more]);
   fields(card("Phones"), FIELDS.phones);
 
-  const si = card("Data sources", "These feed the data list in the editor. Edit one to fix it, remove ones you don't want, or add more.");
-  const okIds = new Set(usable().map(x => x.id)), L = el("div", {class: "stack"});
-  (S.sources || []).forEach((s, i) => {
-    const row = el("div", {}), top = el("div", {class: "li srcrow", style: "display:flex;align-items:center;gap:10px"});
-    const eb = el("button", {class: "btn sm", onclick: () => { OPEN = OPEN === s.id ? "" : s.id; drawSettings() }}, OPEN === s.id ? "Close" : "Edit");
-    const db = el("button", {class: "btn danger sm"}, "Remove");
-    confirmTap(db, "Tap again", () => { S.sources.splice(i, 1); if (OPEN === s.id) OPEN = ""; drawSettings() });
-    top.append(el("div", {class: "t"}, el("b", {}, s.label), el("small", {}, TYPES[s.type] + (s.template && s.type !== "template" ? " · custom template" : "") + (okIds.has(s.id) ? "" : " · needs an entity before it shows up"))), eb, db);
-    row.append(top); if (OPEN === s.id) row.append(el("div", {style: "margin-top:8px"}, editor(s)));
-    L.append(row);
-  });
-  if (!(S.sources || []).length) L.append(el("p", {class: "dim small"}, "No sources yet."));
-  si.append(L);
-  const sel = el("select", {style: "width:auto"}); Object.entries(TYPES).forEach(([k, l]) => sel.append(el("option", {value: k}, l)));
-  si.append(el("div", {class: "row", style: "margin-top:12px"}, sel, el("button", {class: "btn", onclick: () => { const n = mk(S.sources, sel.value); S.sources.push(n); OPEN = n.id; drawSettings() }}, "Add source")));
+  const si = card("Data sources", "These feed the data list in the editor. Shared ones are also used by Facts. Edit one to fix it, remove ones you don't want, or add more.");
+  srcManager(si, {scope: "ann", redraw: drawSettings});
 
   const sp = card("Personalities", "Each one is a voice an announcement can use. Add your own, edit the wording, or remove the ones you don't want. Default has no special personality and always stays.");
   const PL = el("div", {class: "stack"});

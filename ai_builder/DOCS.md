@@ -251,7 +251,7 @@ Already have an announcement script or automation? Tap **Import my script or aut
 **How to bring it in** has two choices:
 
 - **Turn it into a normal announcement I edit with the form** (the default). The add-on reads your steps and fills in the form:
-  - Whatever the prompt reads (`states(...)`, `state_attr(...)`, weather forecasts, calendars, to-do lists, other templates) becomes data sources. They are added to Settings, and a source that already reads the same thing is reused.
+  - Whatever the prompt reads (`states(...)`, `state_attr(...)`, weather forecasts, calendars, to-do lists, other templates) becomes data sources. They are added to Settings under **Made by AI** (only for what imported them), and a source that already reads the same thing is reused.
   - `tts.speak`, Alexa and phone notifications become **Where it plays**, and Alexa or phone targets you don't have yet are added to Settings. Volume, pausing music, a card switch and MQTT file saving are filled in too.
   - Triggers (every N minutes or hours, a time of day, an entity changing) and "someone is home" conditions become **Run it automatically**.
   - Your AI Task splits the prompt into **What should it do?** and the personality's voice, and spots a max length or JSON fields. A prompt per personality (a `choose` on your personality dropdown) becomes one style per personality. If the AI Task fails, your prompt is kept as the instructions.
@@ -359,7 +359,7 @@ AI-written facts for a dashboard. Each fact is one Home Assistant automation (tr
 ## The editor
 
 1. **Name**, plus presets.
-2. **What it's about**: optional data sources (shared with Announcements), what the fact should be, and **random lists**. Each run picks one option from every list and tells the AI (for example `TOPIC FOR THIS RUN`). A random number is added so repeats are less likely.
+2. **What it's about**: optional data sources (shared ones, ones for facts only, and ones the AI made), what the fact should be, and **random lists**. Each run picks one option from every list and tells the AI (for example `TOPIC FOR THIS RUN`). A random number is added so repeats are less likely.
 3. **How it reads**: just the fact, a title and the fact, a short list, or a **data list (JSON)** (name the list, say how many items, add fields, optionally sort and drop items that fail a test, for example birthdays: `{"birthdays": [{"name": ..., "year": ...}]}`); a heading line saved above it (can use `{{ fact_title }}` and your list names); length; language (clean, light, profanity as needed); rules (real and verifiable, go obscure, keep the household out, don't repeat the last fact); extra rules.
 4. **Where it goes**: the file name, added to the MQTT topic prefix from Settings. A name with a slash is used as the full topic.
 5. **Run it automatically** (optional): every N minutes or hours, and/or when an entity or attribute changes, only when someone is home. These become the triggers and conditions of the fact's automation. With the schedule off the automation has no triggers and you start it with **Run now**.
@@ -591,3 +591,6 @@ Every option on the add-on's **Configuration** tab, with its default. Change the
 - **Pages follow your theme:** every page in this repository picks up your Home Assistant theme and wallpaper automatically.
 - **On your phone:** the pages are built for the Home Assistant iPhone and Android apps. Turn on **Show in sidebar** to reach them from the app's menu.
 <!-- /docs:footer -->
+
+## Data sources: shared, your own, and made by AI
+Each data source is **Shared** (announcements and facts both can use it), **Announcements only** or **Facts only**. Set it when you add the source, or under **Used by** while editing it. Settings on each page lists what that page can use in three groups: Shared, that page's own, and **Made by AI**. Sources the helper or an import creates go in **Made by AI** and only for the kind that made them (tap **Keep** to move one into your own list). A source that reads the same thing as one you already have is reused instead of duplicated. Existing sources stay shared.

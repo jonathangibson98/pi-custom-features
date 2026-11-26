@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.6.0 - 2026-11-25
+
+- **Data sources can be shared or belong to one side.** Each source is now **Shared** (announcements and facts both use it), **Announcements only** or **Facts only**. Pick it when you add a source, or change it under **Used by** when you edit one. Facts has its own **Data sources** section in Settings now, so it no longer has to send you to the Announcements settings. Everything you already have stays shared.
+- **A "Made by AI" section.** When the helper (Add something to talk about) or an import makes a data source for you, it goes in its own **Made by AI** section instead of mixing into your own list, and only for the kind of thing that made it. Tap **Keep** on one to move it into your own list. A source that reads the same thing as one you already have is reused instead of copied, so making a new announcement or fact no longer piles up near-duplicates.
+- In the editor, sources the AI made show **(AI)** after their name.
+
 ## 3.5.0 - 2026-11-25
 
 - **Many more schedule options.** On the When tab: extra times every day, sunrise or sunset with minutes before or after, and an entity trigger that can wait for a specific new state. On the Only if tab: a second time window (morning and evening), months of the year, and the extra entity checks can now be "is", "is not", "is above" or "is below" a number, on an attribute, and held for some minutes. Old schedules keep working as they were.
