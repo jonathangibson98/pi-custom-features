@@ -1,5 +1,6 @@
 /* Facts page: library of saved facts, editor, helper and settings.
    Each fact is ONE Home Assistant automation (triggers, then ask the AI Task, then publish over MQTT). Older facts that were made as a script plus a schedule automation still work and can be switched over. */
+const SCOPE = "fact";  /* which kind of thing this page makes: sources can be shared, or only for one kind */
 let S = {}, F = {}, ENT = [], LIB = [], mem = {};
 let cur = {id: null, isNew: true, pushed: false}, E = null, dirty = false, view = "lib", HEL = {entity: "", goal: "", idea: "", back: false};
 
@@ -746,7 +747,7 @@ function drawForm() {
   add(c2, el("label", {class: "l"}, "Data to include (optional)"));
   const g = el("div", {class: "pickgrid"});
   U.forEach(s => { const i = el("input", {type: "checkbox", checked: (E.src || []).includes(s.id)}); i.onchange = () => { E.src = i.checked ? [...E.src, s.id] : E.src.filter(x => x !== s.id); changed(); }; g.append(el("label", {class: "pick", title: s.label}, i, el("span", {}, s.label))); });
-  if (!U.length) g.append(el("p", {class: "dim small"}, "No data sources yet. Add some in Announcements > Settings, or use Helper > Add something to talk about."));
+  if (!U.length) g.append(el("p", {class: "dim small"}, "No data sources yet. Add some in Settings, or use Helper > Add something to talk about."));
   add(c2, g, el("p", {class: "help"}, "Shared with Announcements. Ticked ones are given to the AI as extra context."));
   add(c2, tf("What should it say?", "task", {area: 1, cls: "tall", ph: "e.g. Share one real trivia fact about the topic. Keep it weird and specific."}));
   add(c2, el("div", {class: "row", style: "margin-top:8px"}, el("button", {class: "btn sm", onclick: () => { showView("help"); $("#chrome").hidden = true; $("#tabs").hidden = true; HEL.back = true; drawHelper(); }}, "Help me write this")));
@@ -1021,7 +1022,7 @@ function drawHelper() {
       const fresh = await api("ann/options");  /* start from what is saved now, so nothing made in Announcements is lost */
       if (fresh.error) { ab.textContent = fresh.error; return; }
       if (!Array.isArray(fresh.sources)) fresh.sources = migrate(fresh);
-      fresh.sources.push(mk(fresh.sources, "entity", {label: r.label, entity: HEL.entity, attribute: r.attribute}));
+      addAiSource(fresh.sources, "entity", {label: r.label, entity: HEL.entity, attribute: r.attribute}, "fact");
       const saved = await api("ann/settings", fresh);
       if (saved.error) { ab.textContent = saved.error; return; }
       S = saved; if (!Array.isArray(S.sources)) S.sources = []; ab.textContent = "Added and saved"; if (E) drawForm();
@@ -1033,6 +1034,8 @@ function drawHelper() {
 
 /* ---------- settings ---------- */
 async function saveSettings() {
+  const sv = await saveSources();   /* the data sources live with the shared settings */
+  if (sv.error) { $("#smsg").className = "msg bad"; $("#smsg").textContent = sv.error; return false; }
   const r = await fapi("settings", F);
   if (r.error) { $("#smsg").className = "msg bad"; $("#smsg").textContent = r.error; return false; }
   F = r; setupNote(); drawSettings(); return true;
@@ -1052,11 +1055,13 @@ function drawSettings() {
   const D = {home: [...(F.home_entities || [])], homeMode: F.home_mode || "any"};
   add(c3, SCHED.homePicker(D, {onChange: () => { F.home_entities = [...D.home]; F.home_mode = D.homeMode; }}),
     el("p", {class: "help"}, "In a fact's schedule, open Only if and tap \"Use my defaults\" to load this list. It shows up while that fact's list is empty. Tap Save settings below to keep your changes."));
+  const c5 = scard("Data sources", "What the AI can be told in a fact. Shared ones are also used by Announcements. Ones made by the helper or an import land in Made by AI.");
+  srcManager(c5, {scope: "fact", redraw: drawSettings});
   const c4 = scard("Defaults");
   const dl = el("input", {type: "number", value: F.default_length ?? 180, style: "max-width:160px"}); dl.oninput = () => { F.default_length = +dl.value };
   const xr = el("textarea", {value: F.extra_rules || "", placeholder: "e.g. Never mention politics.", style: "min-height:80px"}); xr.oninput = () => { F.extra_rules = xr.value };
   add(c4, el("label", {class: "l"}, "Default length (characters)"), dl, el("label", {class: "l"}, "Rules added to every fact"), xr,
-    el("p", {class: "help"}, "The AI Task, data sources and entity list are shared with Announcements. Change them in Announcements > Settings. Using AI Task: " + (aiName() || "none set yet") + "."));
+    el("p", {class: "help"}, "The AI Task and entity list are shared with Announcements (change them in Announcements > Settings). Using AI Task: " + (aiName() || "none set yet") + "."));
   v.append(el("div", {style: "height:60px"}));
 }
 $("#setsave").onclick = async () => { if (await saveSettings()) { $("#smsg").className = "msg ok"; $("#smsg").textContent = "Settings saved."; } };

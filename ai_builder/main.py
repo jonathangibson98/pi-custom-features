@@ -1369,6 +1369,15 @@ async def ann_save_settings(request):
     clean = {k: v for k, v in body.items() if k in ANN_DEFAULTS and k != "helper_ai_task_entity"}
     if "personalities" in clean:
         clean["personalities"] = clean_personalities(clean["personalities"])
+    if isinstance(clean.get("sources"), list):  # who can use a source, and whether an AI made it
+        for x in clean["sources"]:
+            if isinstance(x, dict):
+                if x.get("scope") not in ("ann", "fact"):
+                    x.pop("scope", None)
+                if x.get("ai"):
+                    x["ai"] = True
+                else:
+                    x.pop("ai", None)
     save_json(ANN_SETTINGS, clean)
     return web.json_response(ann_settings())
 
