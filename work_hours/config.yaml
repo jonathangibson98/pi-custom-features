@@ -1,5 +1,5 @@
 name: Work Hours Tracker
-version: "1.12.0"
+version: "1.13.0"
 slug: work_hours
 image: "ghcr.io/jonathangibson98/{arch}-addon-work_hours"
 description: Logs time spent in chosen zones, one file per person, with MQTT sensors
@@ -31,6 +31,7 @@ options:
   backup_every: daily
   backup_keep: 10
   wallpaper: ""
+  separate_sensors: false
 schema:
   save_folder: str
   keep_days: int(0,36500)
@@ -46,3 +47,4 @@ schema:
   backup_keep: int(1,100)
   wallpaper: str?
   ai_task_entity: str?
+  separate_sensors: bool?
