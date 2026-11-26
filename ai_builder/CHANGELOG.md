@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.6.1 - 2026-11-25
+
+- **Music keeps playing while the AI writes.** The script now asks the AI Task for the text first, and only pauses your music (and sets the talking flag and speaker volume) once the answer is ready, right before it speaks. No more silence while it thinks. If the AI answer is unusable, the music is never paused. Scripts you already pushed keep the old order until you push them again.
+
 ## 3.6.0 - 2026-11-25
 
 - **Data sources can be shared or belong to one side.** Each source is now **Shared** (announcements and facts both use it), **Announcements only** or **Facts only**. Pick it when you add a source, or change it under **Used by** when you edit one. Facts has its own **Data sources** section in Settings now, so it no longer has to send you to the Announcements settings. Everything you already have stays shared.
