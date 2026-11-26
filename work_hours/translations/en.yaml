@@ -51,3 +51,7 @@ configuration:
     name: Wallpaper
     description: >-
       Background image for this add-on's web UI. Leave empty to use your Home Assistant theme's wallpaper, "none" for no wallpaper, or an image: put it in /config/www and enter its file name (pic.jpg) or /local/pic.jpg, or a full https:// link.
+  separate_sensors:
+    name: Keep the separate "at work" and "day off" sensors
+    description: >-
+      Off by default: each person has one sensor (sensor.NAME_hours) that shows everything in its attributes, including whether they are at work and whether today is a day off. Turn this on to also keep the older binary sensors NAME at work and NAME day off.
