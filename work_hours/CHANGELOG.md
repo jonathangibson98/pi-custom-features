@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.11.0 - 2026-11-26
+
+- **Build your work schedule in the add-on.** A new **Work schedule** section: for each person, tick the days you work and set the start and end time (an end earlier than the start is a night shift). **Copy Monday to Tue to Fri** fills a normal week.
+- **The Work Hours Summary sensor knows the schedule.** Each person in `people` now has `schedule_text` (for example "Mon to Fri 6:30 AM to 5:00 PM; Sat, Sun off"), `schedule`, `working_today`, `scheduled_today`, `next_shift`, `next_7_days` (work, off or day off with the reason), `scheduled_hours_this_week`, `scheduled_hours_so_far_this_week`, `scheduled_hours_left_this_week`, `hours_vs_schedule_this_week` and `scheduled_hours_this_period`. Days off cancel that day's shift. The summary's `text` mentions the schedule and the next shift too.
+
 ## 1.10.0 - 2026-11-26
 
 - **One entity with everything: `sensor.work_hours_summary`** (needs MQTT). Its state is how many people are clocked in. All the statistics are in its attributes, so you only need to point a dashboard card, automation or AI at this one entity: `people` has an entry per person (today, this week, this pay period, last period, days left, overtime over 40 h, days worked and average per day, the last 30 days, longest day, typical start and end time, last worked date, clocked in and where, days off today and next, the previous pay periods), plus `clocked_in_now`, `off_today`, `total_hours_today`, `total_hours_this_week`, and `text`: one plain sentence per person that an AI can read as is.

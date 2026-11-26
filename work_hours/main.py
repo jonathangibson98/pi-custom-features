@@ -13,6 +13,7 @@ from flask import Flask, Response, jsonify, request, send_file
 
 import addon_backup
 import days_off
+import schedule
 
 try:
     import paho.mqtt.client as paho
@@ -41,6 +42,7 @@ SESSIONS = os.path.join(DATA_DIR, "sessions.json")
 HISTORY = os.path.join(DATA_DIR, "history.json")
 ANCHOR = os.path.join(DATA_DIR, "anchor.json")
 DAYS_OFF = os.path.join(DATA_DIR, "days_off.json")
+SCHEDULE = os.path.join(DATA_DIR, "schedule.json")
 MQTT_SLUGS = os.path.join(DATA_DIR, "mqtt_slugs.json")
 # created before anything is read, so a queued restore is unpacked first. The hours CSVs in the save folder go too.
 BACKUP = addon_backup.Backup("work_hours", "Work Hours Tracker", VERSION,
@@ -101,6 +103,10 @@ def save_json(path, data):
     with open(tmp, "w") as f:
         json.dump(data, f)
     os.replace(tmp, path)
+
+
+def load_schedule():
+    return schedule.clean(load_json(SCHEDULE, {}))
 
 
 def load_days_off():
@@ -585,7 +591,19 @@ def person_stats(rows, sm, last_hours, per, today, off, hist):
 
 def stats_line(name, st):
     """One plain sentence about a person, for the summary's text attribute."""
-    bits = ["clocked in at %s" % st["current_zone"] if st["clocked_in"] else "not clocked in",
+    bits = []
+    if st.get("has_schedule"):
+        bits.append("schedule: " + st["schedule_text"])
+        if st["day_off_today"]:
+            pass
+        elif st["scheduled_today"]:
+            bits.append("scheduled today %s to %s" % (schedule.label(st["scheduled_today"]["start"]), schedule.label(st["scheduled_today"]["end"])))
+        else:
+            bits.append("not scheduled today")
+        if st["next_shift"] and not (st["scheduled_today"] and st["next_shift"]["days_until"] == 0):
+            ns = st["next_shift"]
+            bits.append("next shift %s %s %s to %s" % (ns["weekday"], ns["date"], schedule.label(ns["start"]), schedule.label(ns["end"])))
+    bits += ["clocked in at %s" % st["current_zone"] if st["clocked_in"] else "not clocked in",
             "%.1f h today" % st["today_hours"], "%.1f h this week" % st["week_hours"],
             "%.1f h this pay period (%d days left)" % (st["period_hours"], st["period_days_left"])]
     if st["week_overtime_hours"]:
@@ -672,6 +690,7 @@ def publish_mqtt():
 
     changed_hist = False
     summary = {}
+    sched_all = load_schedule()
     for slug, p, name in people:
         per = p["period"]
         rows = read_rows(p["file"])
@@ -686,6 +705,10 @@ def publish_mqtt():
         live = sm["live"]
         off = days_off.status(p["id"], off_cfg["items"], today, off_cal)
         summary[name] = person_stats(rows, sm, last_hours, per, today, off, history)
+        wk0 = min(sm["period_start"], today - timedelta(days=today.weekday()))
+        off_map = days_off.days_for(p["id"], off_cfg["items"], wk0, today + timedelta(days=14), off_cal)
+        summary[name].update(schedule.stats(sched_all.get(p["id"]), today, off_map, summary[name]["week_hours"],
+                                            t.hour * 60 + t.minute, sm["period_start"], sm["period_end"]))
         attrs = {
             "person": name,
             "day_off_today": off["off_today"],
@@ -868,6 +891,7 @@ def api_state():
         "default_period": clean_period({}, t.date()),
         "status": status,
         "days_off": off_cfg,
+        "schedule": load_schedule(),
         "calendars": cals,
         "info": {
             "folder": FOLDER,
@@ -917,6 +941,14 @@ def api_settings():
             })
         save_json(SETTINGS, {"people": out})
     return jsonify({"ok": True})
+
+
+@app.post("/api/schedule")
+def api_schedule():
+    data = schedule.clean(request.get_json(force=True, silent=True) or {})
+    with lock:
+        save_json(SCHEDULE, data)
+    return jsonify({"ok": True, "schedule": data})
 
 
 @app.post("/api/days_off")
