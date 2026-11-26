@@ -4,13 +4,15 @@ import os
 import re
 import threading
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import requests
 from flask import Flask, Response, jsonify, request, send_file
 
 import addon_backup
+import days_off
 
 try:
     import paho.mqtt.client as paho
@@ -38,6 +40,7 @@ SETTINGS = os.path.join(DATA_DIR, "settings.json")
 SESSIONS = os.path.join(DATA_DIR, "sessions.json")
 HISTORY = os.path.join(DATA_DIR, "history.json")
 ANCHOR = os.path.join(DATA_DIR, "anchor.json")
+DAYS_OFF = os.path.join(DATA_DIR, "days_off.json")
 MQTT_SLUGS = os.path.join(DATA_DIR, "mqtt_slugs.json")
 # created before anything is read, so a queued restore is unpacked first. The hours CSVs in the save folder go too.
 BACKUP = addon_backup.Backup("work_hours", "Work Hours Tracker", VERSION,
@@ -60,6 +63,7 @@ mq_state = {"ready": False, "resend": True}
 mq_last = {}
 mq_sig = None
 name_cache = {}
+cal_cache = {}
 app = Flask(__name__)
 
 
@@ -97,6 +101,29 @@ def save_json(path, data):
     with open(tmp, "w") as f:
         json.dump(data, f)
     os.replace(tmp, path)
+
+
+def load_days_off():
+    return days_off.clean(load_json(DAYS_OFF, {}))
+
+
+def calendar_events(entity):
+    """All-day events of the optional days-off calendar, as (first, last, name). Cached for 10 minutes."""
+    if not entity:
+        return []
+    hit = cal_cache.get(entity)
+    if hit and time.time() - hit[0] < 600:
+        return hit[1]
+    try:
+        t = now().astimezone(timezone.utc)
+        a = (t - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        b = (t + timedelta(days=days_off.LOOKAHEAD)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        out = days_off.calendar_blocks(ha("/calendars/%s?start=%s&end=%s" % (entity, quote(a), quote(b))))
+    except Exception as e:  # noqa: BLE001
+        print("Days-off calendar failed:", entity, e, flush=True)
+        out = hit[1] if hit else []
+    cal_cache[entity] = (time.time(), out)
+    return out
 
 
 def snap_anchor(raw, start_idx, today):
@@ -494,6 +521,7 @@ def discovery_topics(slug):
     return (
         f"{base}/sensor/work_hours/{slug}_hours/config",
         f"{base}/binary_sensor/work_hours/{slug}_at_work/config",
+        f"{base}/binary_sensor/work_hours/{slug}_day_off/config",
     )
 
 
@@ -510,12 +538,14 @@ def publish_mqtt():
     today = t.date()
 
     people = [(slug_of(p), p, display_name(p)) for p in s["people"]]
+    off_cfg = load_days_off()
+    off_cal = calendar_events(off_cfg["calendar"])
 
     # discovery: (re)announce sensors, and remove ones for people no longer tracked
     sig = json.dumps([(sl, nm) for sl, _, nm in people])
     if mq_state["resend"] or sig != mq_sig:
         for slug, p, name in people:
-            sensor_topic, bin_topic = discovery_topics(slug)
+            sensor_topic, bin_topic, off_topic = discovery_topics(slug)
             mq_pub(sensor_topic, json.dumps({
                 "name": f"{name} hours",
                 "unique_id": f"work_hours_{slug}_hours",
@@ -536,6 +566,17 @@ def publish_mqtt():
                 "payload_on": "ON",
                 "payload_off": "OFF",
                 "icon": "mdi:hard-hat",
+                "device": DEVICE,
+            }))
+            mq_pub(off_topic, json.dumps({
+                "name": f"{name} day off",
+                "unique_id": f"work_hours_{slug}_day_off",
+                "state_topic": f"work_hours/{slug}/day_off",
+                "json_attributes_topic": f"work_hours/{slug}/day_off_attributes",
+                "availability_topic": AVAIL,
+                "payload_on": "ON",
+                "payload_off": "OFF",
+                "icon": "mdi:beach",
                 "device": DEVICE,
             }))
         old = set(load_json(MQTT_SLUGS, []))
@@ -561,8 +602,11 @@ def publish_mqtt():
         prev_start, _ = period_bounds(per, today, 1)
         last_hours = next((h["hours"] for h in history if h["start"] == prev_start.isoformat()), 0)
         live = sm["live"]
+        off = days_off.status(p["id"], off_cfg["items"], today, off_cal)
         attrs = {
             "person": name,
+            "day_off_today": off["off_today"],
+            "next_day_off": off["next_date"] or None,
             "period_label": sm["period_label"],
             "period_start": sm["period_start"].isoformat(),
             "period_end": sm["period_end"].isoformat(),
@@ -581,6 +625,11 @@ def publish_mqtt():
             f"work_hours/{slug}/state": f"{round(sm['period'], 2):.2f}",
             f"work_hours/{slug}/attributes": json.dumps(attrs, ensure_ascii=False),
             f"work_hours/{slug}/at_work": "ON" if live else "OFF",
+            f"work_hours/{slug}/day_off": "ON" if off["off_today"] else "OFF",
+            f"work_hours/{slug}/day_off_attributes": json.dumps({
+                "person": name, "reason": off["today_name"] or None, "next_date": off["next_date"] or None,
+                "next_name": off["next_name"] or None, "days_until_next": off["days_until"],
+                "upcoming": off["upcoming"]}, ensure_ascii=False),
         }
         for topic, payload in topics.items():
             if mq_last.get(topic) != payload:
@@ -642,11 +691,13 @@ def api_ai():
     lines = ["%s (%s): %.2f h, %s" % (d, date.fromisoformat(d).strftime("%a"), sum(float(r["hours"]) for r in days[d]),
              ", ".join("%s %s-%s" % (r["zone"], r["start"], r["end"]) for r in days[d])) for d in recent]
     t = now()
+    off_cfg = load_days_off()
+    off_line = days_off.prompt_text(pid, off_cfg["items"], t.date(), calendar_events(off_cfg["calendar"]))
     try:
-        text = ha_ai.ask("Today is %s. Below is one person's work log from a home time tracker (date: total hours, visits). "
+        text = ha_ai.ask(("Today is %s. " + off_line.replace("%", "%%") + " Below is one person's work log from a home time tracker (date: total hours, visits). "
                          "Their pay period: %s, %d week(s). Answer the question in plain words with the numbers, short. If no "
                          "question, give a quick summary: this week vs usual, longest days, typical start and end times, "
-                         "overtime (over 40 h a week).\n\nQuestion: %s\n\n%s"
+                         "overtime (over 40 h a week).\n\nQuestion: %s\n\n%s")
                          % (t.strftime("%A %Y-%m-%d"), p["period"]["start_day"], p["period"]["weeks"], q or "(none)",
                             "\n".join(lines) or "No hours logged yet."), OPTS.get("ai_task_entity") or "", "Work hours")
     except Exception as e:  # noqa: BLE001
@@ -661,7 +712,7 @@ def api_state():
         sessions = load_json(SESSIONS, {})
 
     err = None
-    people, zones = [], []
+    people, zones, cals = [], [], []
     try:
         for e in ha("/states"):
             eid = e["entity_id"]
@@ -670,6 +721,8 @@ def api_state():
                 people.append({"id": eid, "name": nm})
             elif eid.startswith("zone."):
                 zones.append({"id": eid, "name": nm})
+            elif eid.startswith("calendar."):
+                cals.append({"id": eid, "name": nm})
     except Exception as ex:
         err = f"Can't reach Home Assistant: {ex}"
 
@@ -677,6 +730,8 @@ def api_state():
     zone_names = {z["id"]: z["name"] for z in zones}
     t = now()
 
+    off_cfg = load_days_off()
+    off_cal = calendar_events(off_cfg["calendar"])
     status = []
     for p in s["people"]:
         pid = p["id"]
@@ -696,6 +751,7 @@ def api_state():
             "live": live,
             "file": file_path(p["file"]),
             "recent": rows[-8:][::-1],
+            "day_off": days_off.status(pid, off_cfg["items"], t.date(), off_cal),
         })
 
     mqtt_text = "off"
@@ -711,6 +767,8 @@ def api_state():
         "settings": s,
         "default_period": clean_period({}, t.date()),
         "status": status,
+        "days_off": off_cfg,
+        "calendars": cals,
         "info": {
             "folder": FOLDER,
             "keep_days": KEEP_DAYS,
@@ -759,6 +817,15 @@ def api_settings():
             })
         save_json(SETTINGS, {"people": out})
     return jsonify({"ok": True})
+
+
+@app.post("/api/days_off")
+def api_days_off():
+    data = days_off.clean(request.get_json(force=True, silent=True) or {})
+    with lock:
+        save_json(DAYS_OFF, data)
+    cal_cache.clear()
+    return jsonify({"ok": True, "days_off": data})
 
 
 # ---------- backups (shared module, see addon_backup.py) ----------
