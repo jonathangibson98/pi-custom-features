@@ -34,6 +34,7 @@ KEEP_DAYS = int(OPTS.get("keep_days", 365))
 CHECK = int(OPTS.get("check_seconds", 30))
 GRACE = int(OPTS.get("grace_minutes", 10))
 MIN_MIN = int(OPTS.get("min_minutes", 5))
+SEPARATE = bool(OPTS.get("separate_sensors", False))  # also keep the old "at work" and "day off" sensors
 
 DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -589,6 +590,20 @@ def person_stats(rows, sm, last_hours, per, today, off, hist):
     return out
 
 
+def work_status(st):
+    """The one-line answer to 'what is up with work right now'."""
+    if st["clocked_in"]:
+        return "At work" + (" (%s)" % st["current_zone"] if st["current_zone"] else "")
+    if st["day_off_today"]:
+        return "Day off" + (" (%s)" % st["day_off_reason"] if st["day_off_reason"] else "")
+    if st.get("has_schedule"):
+        sh = st.get("scheduled_today")
+        if sh:
+            return "Scheduled today %s to %s" % (schedule.label(sh["start"]), schedule.label(sh["end"]))
+        return "Not scheduled today"
+    return "Not at work"
+
+
 def stats_line(name, st):
     """One plain sentence about a person, for the summary's text attribute."""
     bits = []
@@ -637,7 +652,7 @@ def publish_mqtt():
         for slug, p, name in people:
             sensor_topic, bin_topic, off_topic = discovery_topics(slug)
             mq_pub(sensor_topic, json.dumps({
-                "name": f"{name} hours",
+                "name": f"{name} work hours",
                 "unique_id": f"work_hours_{slug}_hours",
                 "state_topic": f"work_hours/{slug}/state",
                 "json_attributes_topic": f"work_hours/{slug}/attributes",
@@ -657,7 +672,7 @@ def publish_mqtt():
                 "payload_off": "OFF",
                 "icon": "mdi:hard-hat",
                 "device": DEVICE,
-            }))
+            }) if SEPARATE else "")  # empty retained payload removes the entity: everything is in the one sensor's attributes now
             mq_pub(off_topic, json.dumps({
                 "name": f"{name} day off",
                 "unique_id": f"work_hours_{slug}_day_off",
@@ -668,7 +683,7 @@ def publish_mqtt():
                 "payload_off": "OFF",
                 "icon": "mdi:beach",
                 "device": DEVICE,
-            }))
+            }) if SEPARATE else "")
         mq_pub("homeassistant/sensor/work_hours/summary/config", json.dumps({
             "name": "Work Hours Summary",
             "unique_id": "work_hours_summary",
@@ -727,6 +742,11 @@ def publish_mqtt():
             "file": file_path(p["file"]),
             "history": history,
         }
+        st_all = summary[name]
+        for k, v in st_all.items():   # every statistic, the schedule and the days off: one sensor shows everything
+            attrs.setdefault(k, v)
+        attrs["status"] = work_status(st_all)
+        attrs["text"] = stats_line(name, st_all)
         topics = {
             f"work_hours/{slug}/state": f"{round(sm['period'], 2):.2f}",
             f"work_hours/{slug}/attributes": json.dumps(attrs, ensure_ascii=False),
@@ -737,6 +757,9 @@ def publish_mqtt():
                 "next_name": off["next_name"] or None, "days_until_next": off["days_until"],
                 "upcoming": off["upcoming"]}, ensure_ascii=False),
         }
+        if not SEPARATE:  # the old separate sensors are gone: nothing to send for them
+            for t_ in (f"work_hours/{slug}/at_work", f"work_hours/{slug}/day_off", f"work_hours/{slug}/day_off_attributes"):
+                topics.pop(t_, None)
         for topic, payload in topics.items():
             if mq_last.get(topic) != payload:
                 mq_pub(topic, payload)

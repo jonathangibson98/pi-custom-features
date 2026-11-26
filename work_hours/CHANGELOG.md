@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.13.0 - 2026-11-26
+
+- **One sensor per person that shows everything.** `sensor.<name>_hours` (now called "<Name> work hours") has all of it in its attributes: `status` (At work, Day off, Scheduled today, Not scheduled today), `text` (one plain sentence), whether they are clocked in and where, today / this week / this pay period / last period hours, overtime, averages, typical start and end, the weekly schedule (`schedule_text`, `scheduled_today`, `next_shift`, `next_7_days`, scheduled hours and hours vs schedule), days off (`day_off_today`, `day_off_reason`, `next_day_off`, `upcoming`) and the previous pay periods. The state is still this pay period's hours.
+- **The separate "<Name> at work" and "<Name> day off" sensors are removed**, because their information is now in that one sensor (`clocked_in` and `day_off_today`). If you have automations or dashboards using them, either switch them to the attributes or turn on the new option **Keep the separate "at work" and "day off" sensors**, which brings them back.
+
 ## 1.12.0 - 2026-11-26
 
 - **A checklist of common days off.** In **Days off**, tick the holidays you get off: New Year's Day, Martin Luther King Jr. Day, Presidents' Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Columbus Day, Veterans Day, Thanksgiving, the day after Thanksgiving, Christmas Eve, Christmas Day and New Year's Eve. Each shows when it next falls. Fixed-date ones repeat every year; the "third Monday" kind are added for this year and the next two with the right dates. Untick one to remove it.
