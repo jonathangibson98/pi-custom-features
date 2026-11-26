@@ -2,7 +2,9 @@
 
 ## 1.12.0 - 2026-11-26
 
-- **Add common US holidays in one tap.** In **Days off**, the new **Add common US holidays** button fills the list with New Year's Day, Martin Luther King Jr. Day, Presidents' Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Columbus Day, Veterans Day, Thanksgiving, the day after Thanksgiving, Christmas Eve, Christmas Day and New Year's Eve. Fixed-date ones repeat every year; the "third Monday" kind are added for this year and the next two with the right dates. Holidays already in the list are skipped. Remove the ones your job does not give you, then Save. (Holidays that land on a weekend are not moved to the nearest weekday: edit the date if yours is.)
+- **A checklist of common days off.** In **Days off**, tick the holidays you get off: New Year's Day, Martin Luther King Jr. Day, Presidents' Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Columbus Day, Veterans Day, Thanksgiving, the day after Thanksgiving, Christmas Eve, Christmas Day and New Year's Eve. Each shows when it next falls. Fixed-date ones repeat every year; the "third Monday" kind are added for this year and the next two with the right dates. Untick one to remove it.
+- **An "Other days off" spot** under the checklist for anything else (vacation blocks, sick days, a company day, a birthday): name, first and last day, repeat yearly, and who it applies to.
+- Holidays that land on a weekend are not moved to the nearest weekday; add that day under Other days off if yours is.
 
 ## 1.11.0 - 2026-11-26
 
