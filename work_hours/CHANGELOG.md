@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.0 - 2026-11-26
+
+- **Days off.** A new **Days off** section: add holidays, vacation (a first and last day) and sick days, mark ones that repeat every year, and choose who each applies to (empty = everybody). Optionally also count all-day events from a Home Assistant calendar (timed events are ignored).
+- **A "day off" sensor for each person** (`binary_sensor.<name>_day_off`, needs MQTT): on during a day off, with attributes `reason`, `next_date`, `next_name`, `days_until_next` and `upcoming` (consecutive days are one entry). The hours sensor also gets `day_off_today` and `next_day_off`. Use it as a condition in automations (skip the "you're late" alert on holidays) or hand it to an AI Task.
+- **"Ask about the hours" knows your days off,** so a missing day in the log is not mistaken for a skipped shift.
+
 ## 1.8.2 - 2026-11-17
 
 - **Better on phones** (built around the Home Assistant iPhone app): text fields no longer make iOS zoom in, buttons and switches are finger-sized, rows of tabs swipe sideways instead of getting cut off, and wide content or long error text no longer pushes the page sideways.

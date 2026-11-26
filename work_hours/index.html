@@ -743,6 +743,10 @@ window.__hbAddon = "work_hours";
 
 <button id="save">Save</button>
 
+<h2>Days off</h2>
+<div class="muted" style="margin-bottom:8px">Holidays, vacation and sick days. On those days the <b>day off</b> sensor turns on for that person, so automations and the AI know you are off. Leave "Who" empty for everybody.</div>
+<div id="daysoff"></div>
+
 <h2>Hours</h2>
 <div id="status"></div>
 <div class="muted" id="info"></div>
@@ -931,8 +935,65 @@ function renderStatus(d) {
     ' | Grace ' + i.grace + ' min | Ignoring visits under ' + i.min + ' min | MQTT: ' + i.mqtt;
 }
 
+
+/* ---------- days off ---------- */
+let offModel = { calendar: '', items: [] }, calendars = [];
+const newId = () => Math.random().toString(36).slice(2, 10);
+function renderOff(statusList) {
+  const box = document.getElementById('daysoff');
+  box.replaceChildren();
+  const card = el('div', 'card');
+  (statusList || []).forEach(st => {
+    const d = st.day_off || {};
+    card.appendChild(el('div', 'muted', st.name + ': ' + (d.off_today ? '🏖 off today' + (d.today_name ? ' (' + d.today_name + ')' : '')
+      : 'working day') + (d.next_date ? ' · next: ' + d.next_name + ' ' + d.next_date + (d.upcoming && d.upcoming[0] && d.upcoming[0].days > 1 ? ' to ' + d.upcoming[0].end : '') : '')));
+  });
+  const list = el('div');
+  list.style.marginTop = '10px';
+  offModel.items.forEach((it, i) => {
+    const row = el('div', 'card');
+    const name = el('input'); name.value = it.name; name.placeholder = 'Name, e.g. Thanksgiving'; name.oninput = () => it.name = name.value;
+    const a = el('input'); a.type = 'date'; a.value = it.date; a.onchange = () => { it.date = a.value; if (it.end && it.end < it.date) it.end = ''; renderOff(statusList); };
+    const b = el('input'); b.type = 'date'; b.value = it.end || ''; b.min = it.date; b.onchange = () => it.end = b.value;
+    const y = el('input'); y.type = 'checkbox'; y.checked = !!it.yearly; y.onchange = () => it.yearly = y.checked;
+    const yl = el('label', 'field'); const ys = el('span', null, 'Repeats every year'); yl.append(y, ys);
+    row.append(field('Name', name), field('First day', a), field('Last day (for a block of days, optional)', b), yl);
+    const who = el('div', 'muted', 'Who: ' + (it.people && it.people.length ? it.people.map(pname).join(', ') : 'everybody') + ' ');
+    const sel = el('select'); sel.appendChild(Object.assign(el('option', null, 'Change who…'), { value: '' }));
+    sel.appendChild(Object.assign(el('option', null, 'Everybody'), { value: '*' }));
+    catalog.people.forEach(p => sel.appendChild(Object.assign(el('option', null, (it.people || []).includes(p.id) ? '✓ ' + p.name : p.name), { value: p.id })));
+    sel.onchange = () => {
+      if (sel.value === '*') it.people = [];
+      else if (sel.value) { it.people = it.people || []; const k = it.people.indexOf(sel.value); if (k >= 0) it.people.splice(k, 1); else it.people.push(sel.value); }
+      renderOff(statusList);
+    };
+    who.appendChild(sel);
+    row.append(who, btn('Remove', 'small', () => { offModel.items.splice(i, 1); renderOff(statusList); }));
+    list.appendChild(row);
+  });
+  card.appendChild(list);
+  card.appendChild(btn('Add a day off', 'small', () => { offModel.items.push({ id: newId(), name: '', date: new Date().toISOString().slice(0, 10), end: '', yearly: false, people: [] }); renderOff(statusList); }));
+  const cal = el('select');
+  cal.appendChild(Object.assign(el('option', null, 'No calendar'), { value: '' }));
+  calendars.forEach(c => cal.appendChild(Object.assign(el('option', null, c.name + ' (' + c.id + ')'), { value: c.id })));
+  if (offModel.calendar && !calendars.some(c => c.id === offModel.calendar)) cal.appendChild(Object.assign(el('option', null, offModel.calendar), { value: offModel.calendar }));
+  cal.value = offModel.calendar || '';
+  cal.onchange = () => offModel.calendar = cal.value;
+  const calf = field('Also count all-day events from a calendar (applies to everybody)', cal);
+  calf.style.marginTop = '10px';
+  card.appendChild(calf);
+  const save = btn('Save days off', null, async () => {
+    const r = await (await fetch('api/days_off', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(offModel) })).json();
+    if (r.ok) { offModel = r.days_off; save.textContent = 'Saved ✓'; setTimeout(() => save.textContent = 'Save days off', 2000); load2(); }
+  });
+  save.style.marginTop = '10px';
+  card.appendChild(save);
+  box.appendChild(card);
+}
+async function load2() { const d = await (await fetch('api/state')).json(); calendars = d.calendars || []; offModel = d.days_off || offModel; renderOff(d.status); }
+
 /* ---------- load / save ---------- */
-let first = true;
+let first = true, offLoaded = false;
 async function load() {
   const r = await fetch('api/state');
   const d = await r.json();
@@ -947,6 +1008,7 @@ async function load() {
     first = false;
   }
   renderPeople(); renderAdd(); renderStatus(d);
+  calendars = d.calendars || []; if (!offLoaded) { offModel = d.days_off || offModel; offLoaded = true; } renderOff(d.status);
 }
 
 document.getElementById('save').onclick = async () => {
