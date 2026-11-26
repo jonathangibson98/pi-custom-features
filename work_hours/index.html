@@ -747,6 +747,10 @@ window.__hbAddon = "work_hours";
 <div class="muted" style="margin-bottom:8px">Holidays, vacation and sick days. On those days the <b>day off</b> sensor turns on for that person, so automations and the AI know you are off. Leave "Who" empty for everybody.</div>
 <div id="daysoff"></div>
 
+<h2>Work schedule</h2>
+<div class="muted" style="margin-bottom:8px">Your normal weekly shifts. The Work Hours Summary sensor then knows when you are supposed to work, your next shift, and how your hours compare. Days off from the list above cancel that day's shift. If the end time is earlier than the start, the shift runs past midnight.</div>
+<div id="sched"></div>
+
 <h2>Hours</h2>
 <div id="status"></div>
 <div class="muted" id="info"></div>
@@ -992,6 +996,46 @@ function renderOff(statusList) {
 }
 async function load2() { const d = await (await fetch('api/state')).json(); calendars = d.calendars || []; offModel = d.days_off || offModel; renderOff(d.status); }
 
+
+/* ---------- work schedule ---------- */
+const SDAYS = ['mon','tue','wed','thu','fri','sat','sun'], SLONG = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+let schedModel = {};
+function renderSched() {
+  const box = document.getElementById('sched');
+  box.replaceChildren();
+  const ids = (model ? model.people.map(p => p.id) : []);
+  if (!ids.length) { box.appendChild(el('div', 'muted', 'Add a person above first.')); return; }
+  ids.forEach(pid => {
+    const week = schedModel[pid] = schedModel[pid] || {};
+    const card = el('div', 'card');
+    card.appendChild(el('b', null, pname(pid)));
+    SDAYS.forEach((d, i) => {
+      const sh = week[d];
+      const row = el('div'); row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap';
+      const on = el('input'); on.type = 'checkbox'; on.checked = !!sh;
+      const lab = el('span', null, SLONG[i]); lab.style.cssText = 'min-width:92px';
+      const a = el('input'); a.type = 'time'; a.value = sh ? sh.start : '07:00';
+      const b = el('input'); b.type = 'time'; b.value = sh ? sh.end : '17:00';
+      const sync = () => { week[d] = on.checked ? { start: a.value, end: b.value } : null; a.disabled = b.disabled = !on.checked; };
+      on.onchange = a.onchange = b.onchange = sync; sync();
+      row.append(on, lab, a, el('span', null, 'to'), b);
+      card.appendChild(row);
+    });
+    const copy = btn('Copy Monday to Tue to Fri', 'small', () => {
+      ['tue','wed','thu','fri'].forEach(d => week[d] = week.mon ? Object.assign({}, week.mon) : null); renderSched();
+    });
+    copy.style.marginTop = '10px';
+    card.appendChild(copy);
+    box.appendChild(card);
+  });
+  const save = btn('Save schedule', null, async () => {
+    const r = await (await fetch('api/schedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(schedModel) })).json();
+    if (r.ok) { schedModel = r.schedule; save.textContent = 'Saved ✓'; setTimeout(() => save.textContent = 'Save schedule', 2000); }
+  });
+  save.style.marginTop = '10px';
+  box.appendChild(save);
+}
+
 /* ---------- load / save ---------- */
 let first = true, offLoaded = false;
 async function load() {
@@ -1008,7 +1052,7 @@ async function load() {
     first = false;
   }
   renderPeople(); renderAdd(); renderStatus(d);
-  calendars = d.calendars || []; if (!offLoaded) { offModel = d.days_off || offModel; offLoaded = true; } renderOff(d.status);
+  calendars = d.calendars || []; if (!offLoaded) { offModel = d.days_off || offModel; schedModel = d.schedule || schedModel; offLoaded = true; } renderOff(d.status); renderSched();
 }
 
 document.getElementById('save').onclick = async () => {
