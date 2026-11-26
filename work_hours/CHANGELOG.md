@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.12.0 - 2026-11-26
+
+- **Add common US holidays in one tap.** In **Days off**, the new **Add common US holidays** button fills the list with New Year's Day, Martin Luther King Jr. Day, Presidents' Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Columbus Day, Veterans Day, Thanksgiving, the day after Thanksgiving, Christmas Eve, Christmas Day and New Year's Eve. Fixed-date ones repeat every year; the "third Monday" kind are added for this year and the next two with the right dates. Holidays already in the list are skipped. Remove the ones your job does not give you, then Save. (Holidays that land on a weekend are not moved to the nearest weekday: edit the date if yours is.)
+
 ## 1.11.0 - 2026-11-26
 
 - **Build your work schedule in the add-on.** A new **Work schedule** section: for each person, tick the days you work and set the start and end time (an end earlier than the start is a night shift). **Copy Monday to Tue to Fri** fills a normal week.
