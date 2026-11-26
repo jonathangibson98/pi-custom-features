@@ -941,30 +941,45 @@ function renderStatus(d) {
 
 
 
-/* ---------- common US holidays (quick add) ---------- */
-function commonHolidays() {
-  const y0 = new Date().getFullYear(), out = [];
-  const iso = (y, m, d) => y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-  const nth = (y, m, wd, n) => { const first = new Date(y, m - 1, 1).getDay(); return 1 + ((wd - first + 7) % 7) + 7 * (n - 1); };
-  const last = (y, m, wd) => { const e = new Date(y, m, 0); return e.getDate() - ((e.getDay() - wd + 7) % 7); };
-  [['New Year\'s Day', 1, 1], ['Juneteenth', 6, 19], ['Independence Day', 7, 4], ['Veterans Day', 11, 11],
-   ['Christmas Eve', 12, 24], ['Christmas Day', 12, 25], ['New Year\'s Eve', 12, 31]]
-    .forEach(([n, m, d]) => out.push({ name: n, date: iso(y0, m, d), yearly: true }));
-  for (let y = y0; y <= y0 + 2; y++) {
-    out.push({ name: 'Martin Luther King Jr. Day', date: iso(y, 1, nth(y, 1, 1, 3)) });
-    out.push({ name: 'Presidents\' Day', date: iso(y, 2, nth(y, 2, 1, 3)) });
-    out.push({ name: 'Memorial Day', date: iso(y, 5, last(y, 5, 1)) });
-    out.push({ name: 'Labor Day', date: iso(y, 9, nth(y, 9, 1, 1)) });
-    out.push({ name: 'Columbus Day', date: iso(y, 10, nth(y, 10, 1, 2)) });
-    const t = nth(y, 11, 4, 4);
-    out.push({ name: 'Thanksgiving', date: iso(y, 11, t) });
-    out.push({ name: 'Day after Thanksgiving', date: iso(y, 11, t + 1) });
-  }
-  return out;
+/* ---------- common US holidays (a checklist) ---------- */
+const isoDay = (y, m, d) => y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+const nthDay = (y, m, wd, n) => 1 + ((wd - new Date(y, m - 1, 1).getDay() + 7) % 7) + 7 * (n - 1);
+const lastDay = (y, m, wd) => { const e = new Date(y, m, 0); return e.getDate() - ((e.getDay() - wd + 7) % 7); };
+const fixed = (name, m, d) => ({ name, yearly: true, on: y => isoDay(y, m, d) });
+const HOLIDAYS = [
+  fixed('New Year\'s Day', 1, 1),
+  { name: 'Martin Luther King Jr. Day', on: y => isoDay(y, 1, nthDay(y, 1, 1, 3)) },
+  { name: 'Presidents\' Day', on: y => isoDay(y, 2, nthDay(y, 2, 1, 3)) },
+  { name: 'Memorial Day', on: y => isoDay(y, 5, lastDay(y, 5, 1)) },
+  fixed('Juneteenth', 6, 19),
+  fixed('Independence Day', 7, 4),
+  { name: 'Labor Day', on: y => isoDay(y, 9, nthDay(y, 9, 1, 1)) },
+  { name: 'Columbus Day', on: y => isoDay(y, 10, nthDay(y, 10, 1, 2)) },
+  fixed('Veterans Day', 11, 11),
+  { name: 'Thanksgiving', on: y => isoDay(y, 11, nthDay(y, 11, 4, 4)) },
+  { name: 'Day after Thanksgiving', on: y => isoDay(y, 11, nthDay(y, 11, 4, 4) + 1) },
+  fixed('Christmas Eve', 12, 24),
+  fixed('Christmas Day', 12, 25),
+  fixed('New Year\'s Eve', 12, 31),
+];
+const HOLIDAY_NAMES = new Set(HOLIDAYS.map(h => h.name));
+function nextHoliday(h) {   // the next date it falls on, as text
+  const t = new Date().toISOString().slice(0, 10);
+  let y = new Date().getFullYear(), d = h.on(y);
+  if (d < t) d = h.on(++y);
+  return new Date(d + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+}
+function toggleHoliday(h, on) {
+  offModel.items = offModel.items.filter(i => i.name !== h.name);
+  if (!on) return;
+  const t = new Date().toISOString().slice(0, 10), y0 = new Date().getFullYear();
+  if (h.yearly) { offModel.items.push({ id: newId(), name: h.name, date: h.on(y0), end: '', yearly: true, people: [] }); return; }
+  for (let y = y0; y <= y0 + 2; y++) if (h.on(y) >= t) offModel.items.push({ id: newId(), name: h.name, date: h.on(y), end: '', yearly: false, people: [] });
+  if (!offModel.items.some(i => i.name === h.name)) offModel.items.push({ id: newId(), name: h.name, date: h.on(y0 + 1), end: '', yearly: false, people: [] });
 }
 
 /* ---------- days off ---------- */
-let offModel = { calendar: '', items: [] }, calendars = [], holidayMsg = '';
+let offModel = { calendar: '', items: [] }, calendars = [];
 const newId = () => Math.random().toString(36).slice(2, 10);
 function renderOff(statusList) {
   const box = document.getElementById('daysoff');
@@ -975,9 +990,23 @@ function renderOff(statusList) {
     card.appendChild(el('div', 'muted', st.name + ': ' + (d.off_today ? '🏖 off today' + (d.today_name ? ' (' + d.today_name + ')' : '')
       : 'working day') + (d.next_date ? ' · next: ' + d.next_name + ' ' + d.next_date + (d.upcoming && d.upcoming[0] && d.upcoming[0].days > 1 ? ' to ' + d.upcoming[0].end : '') : '')));
   });
+  const ch = el('div'); ch.style.marginTop = '10px';
+  ch.appendChild(el('b', null, 'Common days off'));
+  ch.appendChild(el('div', 'muted', 'Tick the ones you get off.'));
+  HOLIDAYS.forEach(h => {
+    const l = el('label', 'field'); l.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:6px';
+    const c = el('input'); c.type = 'checkbox'; c.checked = offModel.items.some(i => i.name === h.name);
+    c.onchange = () => { toggleHoliday(h, c.checked); renderOff(statusList); };
+    const sp = el('span', null, h.name); const when = el('span', 'muted', ' · ' + nextHoliday(h));
+    l.append(c, sp, when); ch.appendChild(l);
+  });
+  card.appendChild(ch);
+  const oh = el('b', null, 'Other days off'); oh.style.cssText = 'display:block;margin-top:14px';
+  card.appendChild(oh);
+  card.appendChild(el('div', 'muted', 'Vacation, sick days, a company day, a birthday: anything not above.'));
   const list = el('div');
   list.style.marginTop = '10px';
-  offModel.items.forEach((it, i) => {
+  offModel.items.filter(it => !HOLIDAY_NAMES.has(it.name)).forEach(it => {
     const row = el('div', 'card');
     const name = el('input'); name.value = it.name; name.placeholder = 'Name, e.g. Thanksgiving'; name.oninput = () => it.name = name.value;
     const a = el('input'); a.type = 'date'; a.value = it.date; a.onchange = () => { it.date = a.value; if (it.end && it.end < it.date) it.end = ''; renderOff(statusList); };
@@ -995,23 +1024,11 @@ function renderOff(statusList) {
       renderOff(statusList);
     };
     who.appendChild(sel);
-    row.append(who, btn('Remove', 'small', () => { offModel.items.splice(i, 1); renderOff(statusList); }));
+    row.append(who, btn('Remove', 'small', () => { offModel.items.splice(offModel.items.indexOf(it), 1); renderOff(statusList); }));
     list.appendChild(row);
   });
   card.appendChild(list);
-  card.appendChild(btn('Add a day off', 'small', () => { offModel.items.push({ id: newId(), name: '', date: new Date().toISOString().slice(0, 10), end: '', yearly: false, people: [] }); renderOff(statusList); }));
-  card.appendChild(btn('Add common US holidays', 'small', () => {
-    const have = new Set(offModel.items.map(x => x.name + '|' + x.date)), today = new Date().toISOString().slice(0, 10);
-    let n = 0;
-    commonHolidays().filter(h => h.yearly || h.date >= today).forEach(h => {
-      if (have.has(h.name + '|' + h.date)) return;
-      offModel.items.push({ id: newId(), name: h.name, date: h.date, end: '', yearly: !!h.yearly, people: [] }); n++;
-    });
-    offModel.items.sort((a, b) => a.date.localeCompare(b.date));
-    holidayMsg = n ? 'Added ' + n + ' holidays. Remove the ones you do not get off, then tap Save days off.' : 'They are already in the list.';
-    renderOff(statusList);
-  }));
-  if (holidayMsg) { const hm = el('div', 'muted', holidayMsg); hm.style.marginTop = '6px'; card.appendChild(hm); }
+  card.appendChild(btn('Add another day off', 'small', () => { offModel.items.push({ id: newId(), name: '', date: new Date().toISOString().slice(0, 10), end: '', yearly: false, people: [] }); renderOff(statusList); }));
   const cal = el('select');
   cal.appendChild(Object.assign(el('option', null, 'No calendar'), { value: '' }));
   calendars.forEach(c => cal.appendChild(Object.assign(el('option', null, c.name + ' (' + c.id + ')'), { value: c.id })));
