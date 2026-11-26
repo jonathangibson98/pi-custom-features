@@ -525,6 +525,78 @@ def discovery_topics(slug):
     )
 
 
+def _hm(v):
+    """'08:30' -> minutes since midnight (24:00 = 1440), or None."""
+    try:
+        h, m = str(v).split(":")
+        return int(h) * 60 + int(m)
+    except Exception:
+        return None
+
+
+def _hm_text(mins):
+    mins = int(round(mins))
+    return "%d:%02d %s" % ((mins // 60) % 12 or 12, mins % 60, "AM" if (mins // 60) % 24 < 12 else "PM")
+
+
+def _median(vals):
+    vals = sorted(vals)
+    return vals[len(vals) // 2] if vals else None
+
+
+def person_stats(rows, sm, last_hours, per, today, off, hist):
+    """Everything worth knowing about one person's hours, as small plain values for the summary entity."""
+    by_day = {}
+    for r in rows:
+        by_day.setdefault(r["date"], []).append(r)
+    totals = {d: sum(float(r["hours"]) for r in rs) for d, rs in by_day.items()}
+    a30 = (today - timedelta(days=29)).isoformat()
+    recent = {d: h for d, h in totals.items() if d >= a30}
+    ps, pe = sm["period_start"].isoformat(), sm["period_end"].isoformat()
+    in_period = {d: h for d, h in totals.items() if ps <= d <= pe}
+    starts = [m for d, rs in by_day.items() if d >= a30 for m in [min((_hm(r["start"]) for r in rs if _hm(r["start"]) is not None), default=None)] if m is not None]
+    ends = [m for d, rs in by_day.items() if d >= a30 for m in [max((_hm(r["end"]) for r in rs if _hm(r["end"]) is not None), default=None)] if m is not None]
+    longest = max(recent.items(), key=lambda kv: kv[1], default=None)
+    worked_dates = sorted(totals)
+    live = sm["live"]
+    out = {
+        "today_hours": round(sm["today"], 2), "week_hours": round(sm["week"], 2),
+        "week_overtime_hours": round(max(0.0, sm["week"] - 40), 2),
+        "period_hours": round(sm["period"], 2), "last_period_hours": last_hours,
+        "period_label": sm["period_label"], "period_start": ps, "period_end": pe,
+        "period_days_left": (sm["period_end"] - today).days + 1, "pay_period_weeks": per["weeks"], "pay_period_starts_on": per["start_day"],
+        "period_days_worked": len(in_period),
+        "period_avg_hours_per_day_worked": round(sum(in_period.values()) / len(in_period), 2) if in_period else 0,
+        "last_30_days_hours": round(sum(recent.values()), 2), "last_30_days_days_worked": len(recent),
+        "last_30_days_avg_hours_per_day_worked": round(sum(recent.values()) / len(recent), 2) if recent else 0,
+        "longest_day_last_30_days": {"date": longest[0], "hours": round(longest[1], 2)} if longest else None,
+        "typical_start": _hm_text(_median(starts)) if starts else None,
+        "typical_end": _hm_text(_median(ends)) if ends else None,
+        "last_worked_date": worked_dates[-1] if worked_dates else None,
+        "clocked_in": bool(live), "current_zone": live["zone"] if live else None,
+        "clocked_in_since": live["since"].isoformat() if live else None,
+        "day_off_today": off["off_today"], "day_off_reason": off["today_name"] or None,
+        "next_day_off": off["next_date"] or None, "next_day_off_name": off["next_name"] or None,
+        "days_until_next_day_off": off["days_until"],
+        "previous_periods": [{"start": h["start"], "end": h["end"], "hours": h["hours"]} for h in (hist or [])[:8]],
+    }
+    return out
+
+
+def stats_line(name, st):
+    """One plain sentence about a person, for the summary's text attribute."""
+    bits = ["clocked in at %s" % st["current_zone"] if st["clocked_in"] else "not clocked in",
+            "%.1f h today" % st["today_hours"], "%.1f h this week" % st["week_hours"],
+            "%.1f h this pay period (%d days left)" % (st["period_hours"], st["period_days_left"])]
+    if st["week_overtime_hours"]:
+        bits.append("%.1f h overtime this week" % st["week_overtime_hours"])
+    if st["day_off_today"]:
+        bits.append("off today" + (" (%s)" % st["day_off_reason"] if st["day_off_reason"] else ""))
+    elif st["next_day_off"]:
+        bits.append("next day off %s on %s" % (st["next_day_off_name"] or "", st["next_day_off"]))
+    return "%s: %s" % (name, ", ".join(bits))
+
+
 def publish_mqtt():
     global mq_sig
     if not mq or not mq_state["ready"]:
@@ -579,6 +651,15 @@ def publish_mqtt():
                 "icon": "mdi:beach",
                 "device": DEVICE,
             }))
+        mq_pub("homeassistant/sensor/work_hours/summary/config", json.dumps({
+            "name": "Work Hours Summary",
+            "unique_id": "work_hours_summary",
+            "state_topic": "work_hours/summary/state",
+            "json_attributes_topic": "work_hours/summary/attributes",
+            "availability_topic": AVAIL,
+            "icon": "mdi:briefcase-clock-outline",
+            "device": DEVICE,
+        }))
         old = set(load_json(MQTT_SLUGS, []))
         now_slugs = {sl for sl, _, _ in people}
         for gone in old - now_slugs:
@@ -590,6 +671,7 @@ def publish_mqtt():
         mq_state["resend"] = False
 
     changed_hist = False
+    summary = {}
     for slug, p, name in people:
         per = p["period"]
         rows = read_rows(p["file"])
@@ -603,6 +685,7 @@ def publish_mqtt():
         last_hours = next((h["hours"] for h in history if h["start"] == prev_start.isoformat()), 0)
         live = sm["live"]
         off = days_off.status(p["id"], off_cfg["items"], today, off_cal)
+        summary[name] = person_stats(rows, sm, last_hours, per, today, off, history)
         attrs = {
             "person": name,
             "day_off_today": off["off_today"],
@@ -635,6 +718,23 @@ def publish_mqtt():
             if mq_last.get(topic) != payload:
                 mq_pub(topic, payload)
                 mq_last[topic] = payload
+
+    clocked = [n for n, st in summary.items() if st["clocked_in"]]
+    off_now = [n for n, st in summary.items() if st["day_off_today"]]
+    sum_attrs = {
+        "people": summary, "people_names": list(summary),
+        "clocked_in_now": clocked, "off_today": off_now,
+        "total_hours_today": round(sum(st["today_hours"] for st in summary.values()), 2),
+        "total_hours_this_week": round(sum(st["week_hours"] for st in summary.values()), 2),
+        "text": "\n".join(stats_line(n, st) for n, st in summary.items()),
+        "updated": t.isoformat(timespec="seconds"),
+    }
+    sum_topics = {"work_hours/summary/state": str(len(clocked)),
+                  "work_hours/summary/attributes": json.dumps(sum_attrs, ensure_ascii=False)}
+    for topic, payload in sum_topics.items():
+        if mq_last.get(topic) != payload:
+            mq_pub(topic, payload)
+            mq_last[topic] = payload
 
     if changed_hist:
         with lock:

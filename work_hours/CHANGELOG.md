@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.10.0 - 2026-11-26
+
+- **One entity with everything: `sensor.work_hours_summary`** (needs MQTT). Its state is how many people are clocked in. All the statistics are in its attributes, so you only need to point a dashboard card, automation or AI at this one entity: `people` has an entry per person (today, this week, this pay period, last period, days left, overtime over 40 h, days worked and average per day, the last 30 days, longest day, typical start and end time, last worked date, clocked in and where, days off today and next, the previous pay periods), plus `clocked_in_now`, `off_today`, `total_hours_today`, `total_hours_this_week`, and `text`: one plain sentence per person that an AI can read as is.
+
 ## 1.9.0 - 2026-11-26
 
 - **Days off.** A new **Days off** section: add holidays, vacation (a first and last day) and sick days, mark ones that repeat every year, and choose who each applies to (empty = everybody). Optionally also count all-day events from a Home Assistant calendar (timed events are ignored).
