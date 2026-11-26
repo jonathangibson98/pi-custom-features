@@ -1,5 +1,5 @@
 name: Work Hours Tracker
-version: "1.9.0"
+version: "1.10.0"
 slug: work_hours
 image: "ghcr.io/jonathangibson98/{arch}-addon-work_hours"
 description: Logs time spent in chosen zones, one file per person, with MQTT sensors
