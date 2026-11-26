@@ -940,8 +940,31 @@ function renderStatus(d) {
 }
 
 
+
+/* ---------- common US holidays (quick add) ---------- */
+function commonHolidays() {
+  const y0 = new Date().getFullYear(), out = [];
+  const iso = (y, m, d) => y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  const nth = (y, m, wd, n) => { const first = new Date(y, m - 1, 1).getDay(); return 1 + ((wd - first + 7) % 7) + 7 * (n - 1); };
+  const last = (y, m, wd) => { const e = new Date(y, m, 0); return e.getDate() - ((e.getDay() - wd + 7) % 7); };
+  [['New Year\'s Day', 1, 1], ['Juneteenth', 6, 19], ['Independence Day', 7, 4], ['Veterans Day', 11, 11],
+   ['Christmas Eve', 12, 24], ['Christmas Day', 12, 25], ['New Year\'s Eve', 12, 31]]
+    .forEach(([n, m, d]) => out.push({ name: n, date: iso(y0, m, d), yearly: true }));
+  for (let y = y0; y <= y0 + 2; y++) {
+    out.push({ name: 'Martin Luther King Jr. Day', date: iso(y, 1, nth(y, 1, 1, 3)) });
+    out.push({ name: 'Presidents\' Day', date: iso(y, 2, nth(y, 2, 1, 3)) });
+    out.push({ name: 'Memorial Day', date: iso(y, 5, last(y, 5, 1)) });
+    out.push({ name: 'Labor Day', date: iso(y, 9, nth(y, 9, 1, 1)) });
+    out.push({ name: 'Columbus Day', date: iso(y, 10, nth(y, 10, 1, 2)) });
+    const t = nth(y, 11, 4, 4);
+    out.push({ name: 'Thanksgiving', date: iso(y, 11, t) });
+    out.push({ name: 'Day after Thanksgiving', date: iso(y, 11, t + 1) });
+  }
+  return out;
+}
+
 /* ---------- days off ---------- */
-let offModel = { calendar: '', items: [] }, calendars = [];
+let offModel = { calendar: '', items: [] }, calendars = [], holidayMsg = '';
 const newId = () => Math.random().toString(36).slice(2, 10);
 function renderOff(statusList) {
   const box = document.getElementById('daysoff');
@@ -977,6 +1000,18 @@ function renderOff(statusList) {
   });
   card.appendChild(list);
   card.appendChild(btn('Add a day off', 'small', () => { offModel.items.push({ id: newId(), name: '', date: new Date().toISOString().slice(0, 10), end: '', yearly: false, people: [] }); renderOff(statusList); }));
+  card.appendChild(btn('Add common US holidays', 'small', () => {
+    const have = new Set(offModel.items.map(x => x.name + '|' + x.date)), today = new Date().toISOString().slice(0, 10);
+    let n = 0;
+    commonHolidays().filter(h => h.yearly || h.date >= today).forEach(h => {
+      if (have.has(h.name + '|' + h.date)) return;
+      offModel.items.push({ id: newId(), name: h.name, date: h.date, end: '', yearly: !!h.yearly, people: [] }); n++;
+    });
+    offModel.items.sort((a, b) => a.date.localeCompare(b.date));
+    holidayMsg = n ? 'Added ' + n + ' holidays. Remove the ones you do not get off, then tap Save days off.' : 'They are already in the list.';
+    renderOff(statusList);
+  }));
+  if (holidayMsg) { const hm = el('div', 'muted', holidayMsg); hm.style.marginTop = '6px'; card.appendChild(hm); }
   const cal = el('select');
   cal.appendChild(Object.assign(el('option', null, 'No calendar'), { value: '' }));
   calendars.forEach(c => cal.appendChild(Object.assign(el('option', null, c.name + ' (' + c.id + ')'), { value: c.id })));
