@@ -19,7 +19,7 @@ THE SCHEDULE (setting "auto", same for announcements and facts)
 """
 
 ANNOUNCEMENT = """HOW AN ANNOUNCEMENT RUNS
-The script does these steps in order: set current_time; load each ticked data source into src_<id>; if it will speak and "pause" is true, pause any music player that is playing; set the optional "talking" flag on; wait 3 seconds and set the speaker volume (setting "vol", 0 to 1); ask the AI Task to write the text; read the answer; optionally save the text to an MQTT file for a dashboard card; optionally turn on a dashboard-card switch; deliver (speak with text-to-speech, send to Alexa devices, send phone notifications); wait for the speech to finish; turn the talking flag off and resume paused music; optionally hide the card.
+The script does these steps in order: set current_time; load each ticked data source into src_<id>; ask the AI Task to write the text; read the answer (music keeps playing until this point); if it will speak and "pause" is true, pause any music player that is playing; set the optional "talking" flag on; wait 3 seconds and set the speaker volume (setting "vol", 0 to 1); optionally save the text to an MQTT file for a dashboard card; optionally turn on a dashboard-card switch; deliver (speak with text-to-speech, send to Alexa devices, send phone notifications); wait for the speech to finish; turn the talking flag off and resume paused music; optionally hide the card.
 ANNOUNCEMENT SETTINGS (use exactly these names)
 - name: the script's name (never change it).
 - src: list of data source ids that are ticked.
