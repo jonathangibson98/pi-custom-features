@@ -744,7 +744,7 @@ window.__hbAddon = "work_hours";
 <button id="save">Save</button>
 
 <h2>Days off</h2>
-<div class="muted" style="margin-bottom:8px">Holidays, vacation and sick days. On those days the <b>day off</b> sensor turns on for that person, so automations and the AI know you are off. Leave "Who" empty for everybody.</div>
+<div class="muted" style="margin-bottom:8px">Holidays, vacation and sick days. Set each person's own days off under their name, and put days everybody gets (a company holiday) under <b>Shared days off</b>. On those days the person's work hours sensor shows a day off, so automations and the AI know they are off.</div>
 <div id="daysoff"></div>
 
 <h2>Work schedule</h2>
@@ -969,13 +969,20 @@ function nextHoliday(h) {   // the next date it falls on, as text
   if (d < t) d = h.on(++y);
   return new Date(d + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 }
-function toggleHoliday(h, on) {
-  offModel.items = offModel.items.filter(i => i.name !== h.name);
+// scope: null = the shared list (everybody, or a group picked on the day), or one person's id = only that person
+const trackedIds = () => new Set(((model && model.people) || []).map(p => p.id));
+const onlyOne = (i, pid) => (i.people || []).length === 1 && i.people[0] === pid;
+const inScope = (i, scope) => scope ? onlyOne(i, scope) : !(i.people || []).some(id => trackedIds().has(id)) || (i.people || []).length !== 1;
+const isTick = (i, h, scope) => i.name === h.name && (scope ? onlyOne(i, scope) : !(i.people || []).length);   // the checklist row for this holiday
+function toggleHoliday(h, on, scope) {
+  offModel.items = offModel.items.filter(i => !isTick(i, h, scope));
   if (!on) return;
+  const who = scope ? [scope] : [];
   const t = new Date().toISOString().slice(0, 10), y0 = new Date().getFullYear();
-  if (h.yearly) { offModel.items.push({ id: newId(), name: h.name, date: h.on(y0), end: '', yearly: true, people: [] }); return; }
-  for (let y = y0; y <= y0 + 2; y++) if (h.on(y) >= t) offModel.items.push({ id: newId(), name: h.name, date: h.on(y), end: '', yearly: false, people: [] });
-  if (!offModel.items.some(i => i.name === h.name)) offModel.items.push({ id: newId(), name: h.name, date: h.on(y0 + 1), end: '', yearly: false, people: [] });
+  if (h.yearly) { offModel.items.push({ id: newId(), name: h.name, date: h.on(y0), end: '', yearly: true, people: who.slice() }); return; }
+  let added = false;
+  for (let y = y0; y <= y0 + 2; y++) if (h.on(y) >= t) { offModel.items.push({ id: newId(), name: h.name, date: h.on(y), end: '', yearly: false, people: who.slice() }); added = true; }
+  if (!added) offModel.items.push({ id: newId(), name: h.name, date: h.on(y0 + 1), end: '', yearly: false, people: who.slice() });
 }
 
 /* ---------- days off ---------- */
@@ -984,51 +991,63 @@ const newId = () => Math.random().toString(36).slice(2, 10);
 function renderOff(statusList) {
   const box = document.getElementById('daysoff');
   box.replaceChildren();
-  const card = el('div', 'card');
-  (statusList || []).forEach(st => {
-    const d = st.day_off || {};
-    card.appendChild(el('div', 'muted', st.name + ': ' + (d.off_today ? '🏖 off today' + (d.today_name ? ' (' + d.today_name + ')' : '')
-      : 'working day') + (d.next_date ? ' · next: ' + d.next_name + ' ' + d.next_date + (d.upcoming && d.upcoming[0] && d.upcoming[0].days > 1 ? ' to ' + d.upcoming[0].end : '') : '')));
-  });
-  const ch = el('div'); ch.style.marginTop = '10px';
-  ch.appendChild(el('b', null, 'Common days off'));
-  ch.appendChild(el('div', 'muted', 'Tick the ones you get off.'));
-  HOLIDAYS.forEach(h => {
-    const l = el('label', 'field'); l.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:6px';
-    const c = el('input'); c.type = 'checkbox'; c.checked = offModel.items.some(i => i.name === h.name);
-    c.onchange = () => { toggleHoliday(h, c.checked); renderOff(statusList); };
-    const sp = el('span', null, h.name); const when = el('span', 'muted', ' · ' + nextHoliday(h));
-    l.append(c, sp, when); ch.appendChild(l);
-  });
-  card.appendChild(ch);
-  const oh = el('b', null, 'Other days off'); oh.style.cssText = 'display:block;margin-top:14px';
-  card.appendChild(oh);
-  card.appendChild(el('div', 'muted', 'Vacation, sick days, a company day, a birthday: anything not above.'));
-  const list = el('div');
-  list.style.marginTop = '10px';
-  offModel.items.filter(it => !HOLIDAY_NAMES.has(it.name)).forEach(it => {
-    const row = el('div', 'card');
-    const name = el('input'); name.value = it.name; name.placeholder = 'Name, e.g. Thanksgiving'; name.oninput = () => it.name = name.value;
-    const a = el('input'); a.type = 'date'; a.value = it.date; a.onchange = () => { it.date = a.value; if (it.end && it.end < it.date) it.end = ''; renderOff(statusList); };
-    const b = el('input'); b.type = 'date'; b.value = it.end || ''; b.min = it.date; b.onchange = () => it.end = b.value;
-    const y = el('input'); y.type = 'checkbox'; y.checked = !!it.yearly; y.onchange = () => it.yearly = y.checked;
-    const yl = el('label', 'field'); const ys = el('span', null, 'Repeats every year'); yl.append(y, ys);
-    row.append(field('Name', name), field('First day', a), field('Last day (for a block of days, optional)', b), yl);
-    const who = el('div', 'muted', 'Who: ' + (it.people && it.people.length ? it.people.map(pname).join(', ') : 'everybody') + ' ');
-    const sel = el('select'); sel.appendChild(Object.assign(el('option', null, 'Change who…'), { value: '' }));
-    sel.appendChild(Object.assign(el('option', null, 'Everybody'), { value: '*' }));
-    catalog.people.forEach(p => sel.appendChild(Object.assign(el('option', null, (it.people || []).includes(p.id) ? '✓ ' + p.name : p.name), { value: p.id })));
-    sel.onchange = () => {
-      if (sel.value === '*') it.people = [];
-      else if (sel.value) { it.people = it.people || []; const k = it.people.indexOf(sel.value); if (k >= 0) it.people.splice(k, 1); else it.people.push(sel.value); }
-      renderOff(statusList);
-    };
-    who.appendChild(sel);
-    row.append(who, btn('Remove', 'small', () => { offModel.items.splice(offModel.items.indexOf(it), 1); renderOff(statusList); }));
-    list.appendChild(row);
-  });
-  card.appendChild(list);
-  card.appendChild(btn('Add another day off', 'small', () => { offModel.items.push({ id: newId(), name: '', date: new Date().toISOString().slice(0, 10), end: '', yearly: false, people: [] }); renderOff(statusList); }));
+  const redraw = () => renderOff(statusList);
+  const stOf = id => (statusList || []).find(x => x.id === id || x.person === id) || null;
+  const line = st => {
+    const d = (st && st.day_off) || {};
+    return (d.off_today ? '🏖 off today' + (d.today_name ? ' (' + d.today_name + ')' : '') : 'working day') +
+      (d.next_date ? ' · next: ' + d.next_name + ' ' + d.next_date + (d.upcoming && d.upcoming[0] && d.upcoming[0].days > 1 ? ' to ' + d.upcoming[0].end : '') : '');
+  };
+  // one block: the common-holidays checklist plus "other days off" for a scope (null = shared, or a person id)
+  const block = scope => {
+    const wrap = el('div');
+    const ch = el('div'); ch.style.marginTop = '10px';
+    ch.appendChild(el('b', null, 'Common days off'));
+    ch.appendChild(el('div', 'muted', scope ? 'Tick the ones ' + pname(scope) + ' gets off.' : 'Tick the ones everybody gets off.'));
+    HOLIDAYS.forEach(h => {
+      const l = el('label', 'field'); l.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:6px';
+      const c = el('input'); c.type = 'checkbox'; c.checked = offModel.items.some(i => isTick(i, h, scope));
+      c.onchange = () => { toggleHoliday(h, c.checked, scope); redraw(); };
+      l.append(c, el('span', null, h.name), el('span', 'muted', ' · ' + nextHoliday(h)));
+      ch.appendChild(l);
+    });
+    wrap.appendChild(ch);
+    const oh = el('b', null, 'Other days off'); oh.style.cssText = 'display:block;margin-top:14px';
+    wrap.appendChild(oh);
+    wrap.appendChild(el('div', 'muted', scope ? 'Vacation, sick days, a birthday: anything not above.' : 'A company day, a shutdown, anything not above that applies to everybody.'));
+    const list = el('div'); list.style.marginTop = '10px';
+    offModel.items.filter(it => inScope(it, scope) && !HOLIDAYS.some(h => isTick(it, h, scope))).forEach(it => {
+      const row = el('div', 'card');
+      const name = el('input'); name.value = it.name; name.placeholder = 'Name, e.g. Vacation'; name.oninput = () => it.name = name.value;
+      const a = el('input'); a.type = 'date'; a.value = it.date; a.onchange = () => { it.date = a.value; if (it.end && it.end < it.date) it.end = ''; redraw(); };
+      const b = el('input'); b.type = 'date'; b.value = it.end || ''; b.min = it.date; b.onchange = () => it.end = b.value;
+      const y = el('input'); y.type = 'checkbox'; y.checked = !!it.yearly; y.onchange = () => it.yearly = y.checked;
+      const yl = el('label', 'field'); yl.append(y, el('span', null, 'Repeats every year'));
+      row.append(field('Name', name), field('First day', a), field('Last day (for a block of days, optional)', b), yl);
+      if (!scope) {   // a shared day can be narrowed to a group
+        const who = el('div', 'muted', 'Who: ' + (it.people && it.people.length ? it.people.map(pname).join(', ') : 'everybody') + ' ');
+        const sel = el('select'); sel.appendChild(Object.assign(el('option', null, 'Change who…'), { value: '' }));
+        sel.appendChild(Object.assign(el('option', null, 'Everybody'), { value: '*' }));
+        catalog.people.forEach(p => sel.appendChild(Object.assign(el('option', null, (it.people || []).includes(p.id) ? '✓ ' + p.name : p.name), { value: p.id })));
+        sel.onchange = () => {
+          if (sel.value === '*') it.people = [];
+          else if (sel.value) { it.people = it.people || []; const k = it.people.indexOf(sel.value); if (k >= 0) it.people.splice(k, 1); else it.people.push(sel.value); }
+          redraw();
+        };
+        who.appendChild(sel); row.appendChild(who);
+      }
+      row.appendChild(btn('Remove', 'small', () => { offModel.items.splice(offModel.items.indexOf(it), 1); redraw(); }));
+      list.appendChild(row);
+    });
+    wrap.appendChild(list);
+    wrap.appendChild(btn('Add another day off', 'small', () => { offModel.items.push({ id: newId(), name: '', date: new Date().toISOString().slice(0, 10), end: '', yearly: false, people: scope ? [scope] : [] }); redraw(); }));
+    return wrap;
+  };
+  // shared days off
+  const shared = el('div', 'card');
+  shared.appendChild(el('b', null, '🤝 Shared days off'));
+  shared.appendChild(el('div', 'muted', 'Days that apply to everybody, like company holidays. Each person can also have their own days off below.'));
+  shared.appendChild(block(null));
   const cal = el('select');
   cal.appendChild(Object.assign(el('option', null, 'No calendar'), { value: '' }));
   calendars.forEach(c => cal.appendChild(Object.assign(el('option', null, c.name + ' (' + c.id + ')'), { value: c.id })));
@@ -1037,15 +1056,28 @@ function renderOff(statusList) {
   cal.onchange = () => offModel.calendar = cal.value;
   const calf = field('Also count all-day events from a calendar (applies to everybody)', cal);
   calf.style.marginTop = '10px';
-  card.appendChild(calf);
+  shared.appendChild(calf);
+  box.appendChild(shared);
+  // each person's own days off
+  const people = (model && model.people) || [];
+  if (!people.length) box.appendChild(el('div', 'muted', 'Add people under Tracked people above, then each gets their own days off here.'));
+  people.forEach(p => {
+    const mine = offModel.items.filter(i => onlyOne(i, p.id)).length;
+    const det = el('details', 'card'); det.open = openOff.has(p.id);
+    det.ontoggle = () => { det.open ? openOff.add(p.id) : openOff.delete(p.id); };
+    det.appendChild(el('summary', null, '👤 ' + pname(p.id) + "'s days off (" + mine + ')'));
+    det.appendChild(el('div', 'muted', line(stOf(p.id))));
+    det.appendChild(block(p.id));
+    box.appendChild(det);
+  });
   const save = btn('Save days off', null, async () => {
     const r = await (await fetch('api/days_off', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(offModel) })).json();
     if (r.ok) { offModel = r.days_off; save.textContent = 'Saved ✓'; setTimeout(() => save.textContent = 'Save days off', 2000); load2(); }
   });
   save.style.marginTop = '10px';
-  card.appendChild(save);
-  box.appendChild(card);
+  box.appendChild(save);
 }
+const openOff = new Set();
 async function load2() { const d = await (await fetch('api/state')).json(); calendars = d.calendars || []; offModel = d.days_off || offModel; renderOff(d.status); }
 
 

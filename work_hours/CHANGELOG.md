@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.14.0 - 2026-11-26
+
+- **Days off are now set for each person.** Under Days off, every tracked person has their own section with their own checklist of common holidays and their own other days off (vacation, sick days, a birthday). Ticking Christmas Day for Jon no longer gives it to MJ.
+- **New "Shared days off" section** for days that apply to everybody, like company holidays, with the same checklist and an "Other days off" list. A shared day can still be narrowed to a group with "Who". The "count all-day events from a calendar" option lives here too.
+- Nothing you saved changes: days that were for everybody stay in Shared days off, and days that were for one person show under that person. A person's own list shows only their own days; the sensors still add the shared days on top.
+
 ## 1.13.0 - 2026-11-26
 
 - **One sensor per person that shows everything.** `sensor.<name>_hours` (now called "<Name> work hours") has all of it in its attributes: `status` (At work, Day off, Scheduled today, Not scheduled today), `text` (one plain sentence), whether they are clocked in and where, today / this week / this pay period / last period hours, overtime, averages, typical start and end, the weekly schedule (`schedule_text`, `scheduled_today`, `next_shift`, `next_7_days`, scheduled hours and hours vs schedule), days off (`day_off_today`, `day_off_reason`, `next_day_off`, `upcoming`) and the previous pay periods. The state is still this pay period's hours.

@@ -158,6 +158,10 @@ The add-on reads each person entity's state. If it matches the name of one of
 the zones ticked for that person, the person is in that zone. If the person's
 state is `unavailable` or `unknown`, nothing changes until a real state returns.
 
+## Days off
+
+Open **Days off** in the add-on page. Each tracked person has their own section with a checklist of common US holidays and an "Other days off" list for vacation, sick days or a birthday, so one person's days never land on another's. **Shared days off** is for days everybody gets, like company holidays, and can also count the all-day events of a Home Assistant calendar. On a day off the person's work hours sensor shows `day_off_today`, with `day_off_reason` and the next days off.
+
 ## Tips
 
 - Make each zone at least **150 m** in radius, otherwise GPS drift will bounce
