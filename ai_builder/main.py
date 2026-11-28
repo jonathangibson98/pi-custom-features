@@ -1614,6 +1614,146 @@ async def review_item(request):
 
 
 
+# ---------------------------------------------------------------- "Check & ask AI" (every section)
+# One box on Build, Announcements, Facts, Cards, Dashboards and Files: check what is on screen for errors, ask for
+# suggestions, or type any question about it. Nothing is changed, saved or run.
+ASK_SECTIONS = {
+    "builder": "the Build page, where the owner types what they want in plain English and an AI Task writes a Home Assistant automation, "
+               "scene, script, template sensor, helper, AppDaemon app, pyscript or add-on, which they read and then create",
+    "announcements": "the Announcements editor, which builds a Home Assistant script (and an optional schedule automation) that has an AI Task write "
+                     "a short spoken announcement from live data",
+    "facts": "the Facts editor, which builds a Home Assistant automation or script that asks an AI Task for one short fact or a small JSON "
+             "object and saves it to a text file that dashboard cards read",
+    "cards": "the Cards page, where an AI Task writes a Home Assistant dashboard card (YAML) from a plain-English description; the owner pastes it "
+             "into a Manual card on a dashboard",
+    "dashboards": "the Dashboards page, where the owner edits a whole Home Assistant dashboard (Lovelace config) with AI, sized for a TV or tablet",
+    "files": "the Files page, where text files are also Home Assistant sensors (automations add lines or replace the text over MQTT)",
+}
+ASK_ENT_FN_RE = re.compile(r"""(?:states|state_attr|is_state|is_state_attr|has_value|device_attr|expand)\(\s*['"]([a-z_]+\.[a-z0-9_]+)['"]|"""
+                           r"""states\[\s*['"]([a-z_]+\.[a-z0-9_]+)['"]\s*\]""")
+ASK_ENT_KEYS = {"entity", "entity_id", "entities", "camera_image", "tap_entity", "icon_entity"}
+
+
+def ask_entity_ids(obj, text):
+    """Entity ids a card, dashboard or script points at: entity-ish keys (including list items) and ids used inside templates."""
+    found = set()
+
+    def add(v):
+        if isinstance(v, str) and ANN_ENT_RE.match(v):
+            found.add(v)
+        elif isinstance(v, list):
+            for x in v:
+                if isinstance(x, dict):
+                    walk(x)
+                else:
+                    add(x)
+
+    def walk(o):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if k in ASK_ENT_KEYS:
+                    add(v)
+                walk(v)
+        elif isinstance(o, list):
+            for x in o:
+                walk(x)
+    walk(obj)
+    for m in ASK_ENT_FN_RE.findall(text):
+        found.add(m[0] or m[1])
+    return found
+
+
+async def ask_basic_checks(app, docs):
+    """Checks that need no AI: the YAML parses, placeholders are filled, and every entity id it uses exists right now."""
+    issues, ents = [], set()
+    for label, text in docs:
+        if not text.strip() or len(text) > 30000:  # too big to have been sent whole, so a parse error would be false
+            continue
+        try:
+            obj = yaml.safe_load(text)
+        except yaml.YAMLError as e:
+            issues.append({"level": "problem", "where": label, "message": "The YAML does not parse: %s" % str(e).replace("\n", " ")[:200], "fix": ""})
+            continue
+        if "SET_ME" in text:
+            issues.append({"level": "problem", "where": label, "message": "A placeholder (SET_ME) is still in it.", "fix": "Fill it in or pick the right setting."})
+        if isinstance(obj, (dict, list)):
+            ents |= ask_entity_ids(obj, text)
+    if ents:
+        code, states = await ha(app, "GET", "/states")
+        if code == 200 and isinstance(states, list):
+            known = {e.get("entity_id") for e in states}
+            code2, svc = await ha(app, "GET", "/services")
+            notify = {"notify." + n for d in (svc if code2 == 200 and isinstance(svc, list) else []) if d.get("domain") == "notify" for n in (d.get("services") or {})}
+            for e in sorted(ents):
+                if e not in known and e not in notify:
+                    issues.append({"level": "problem", "where": e, "message": "Home Assistant has no entity called %s right now." % e,
+                                   "fix": "Pick one that exists, or fix the spelling."})
+    return issues[:20]
+
+
+async def ask_route(request):
+    """The Check & ask AI box. mode check = look for errors, suggest = ideas to make it better, ask = answer the owner's own question."""
+    body = await ann_body(request)
+    section = body.get("section") if body.get("section") in ASK_SECTIONS else "builder"
+    mode = body.get("mode") if body.get("mode") in ("check", "suggest", "ask") else "ask"
+    question = str(body.get("question", "")).strip()[:2000]
+    name = str(body.get("name", ""))[:80]
+    content = str(body.get("content", ""))[:30000]
+    yamls = [(str(l)[:40] or "YAML", str(t)) for l, t in ((x.get("label", "YAML"), x.get("text", "")) for x in (body.get("yamls") or [])[:6] if isinstance(x, dict))]
+    if mode == "ask" and not question:
+        return web.json_response({"ok": False, "error": "Type your question first."})
+    if mode == "check" and not (content.strip() or any(t.strip() for _, t in yamls)):
+        return web.json_response({"ok": False, "error": "There is nothing here to check yet."})
+    ai = str(body.get("ai", "")).strip()
+    if not (ANN_ENT_RE.match(ai) and ai.startswith("ai_task.")):
+        ai = ann_settings().get("helper_ai_task_entity") or ann_settings().get("ai_task_entity") or ENTITY
+    out = {"ok": True, "mode": mode, "issues": [], "answer": "", "summary": "", "ai": ai, "ai_error": ""}
+    if mode == "check":
+        out["issues"] = await ask_basic_checks(request.app, yamls)
+    kind = "fact" if section == "facts" else "announcement"
+    know = ""
+    if section in ("announcements", "facts"):
+        know = "\n\n%s\n\n%s" % (knowledge.briefing(kind), knowledge.context_text(body.get("sources"), ann_settings()))
+    hist = []
+    for h in (body.get("history") or [])[-4:]:
+        if isinstance(h, dict) and h.get("q"):
+            hist.append("Owner asked: %s\nYou answered: %s" % (str(h["q"])[:500], str(h.get("a") or "")[:1200]))
+    task = {
+        "check": "Look for real errors: things that are wrong, will not work, or will break. Be sure before you report one, report at most 8, and do not repeat "
+                 "the problems already found by simple checks. If the owner also typed something to focus on, put that first. Only use level \"tip\" for a small thing.",
+        "suggest": "Give up to 6 specific, useful suggestions to make this better, simpler, more reliable or more fun. Say exactly what to change. "
+                   "Skip generic advice. Every item has level \"tip\".",
+        "ask": "Answer the owner's question about this, in plain words, as a friend who knows Home Assistant well. Be direct and honest, say so when "
+               "you are not sure, and say exactly what to click or change when it helps. Put the whole answer in \"answer\" as plain text with short "
+               "paragraphs (no markdown symbols), and leave \"issues\" empty unless the question was about problems.",
+    }[mode]
+    prompt = ("You are the helper built into a Home Assistant add-on called Creator & AI Builder. The owner is on %s.%s\n\n"
+              "Name: %s\n\nWHAT IS ON THEIR SCREEN RIGHT NOW:\n%s\n\n%s%s%s"
+              "YOUR JOB: %s\n\n"
+              "Reply with ONLY JSON, no code fences: {\"summary\": \"one or two plain sentences\", \"answer\": \"plain text, used for questions\", "
+              "\"issues\": [{\"level\": \"problem\" or \"tip\", \"where\": \"short place name\", \"message\": \"what and why\", \"fix\": \"what to change, in plain words\"}]}"
+              % (ASK_SECTIONS[section], know, name or "(unnamed)", content or "(empty)",
+                 ("Problems already found by simple checks (do not repeat them): %s\n\n" % "; ".join(i["message"] for i in out["issues"])) if out["issues"] else "",
+                 ("EARLIER IN THIS CHAT:\n%s\n\n" % "\n\n".join(hist)) if hist else "",
+                 ("THE OWNER'S QUESTION OR FOCUS: %s\n\n" % question) if question else "", task))
+    j, err = await ann_ai_json(request.app, ai, "Ask about %s" % section, prompt)
+    if err:
+        out["ai_error"] = err.replace("Try rewording.", "Try again.")
+        if mode != "check":
+            return web.json_response({"ok": False, "error": out["ai_error"]})
+    else:
+        out["summary"] = str(j.get("summary") or "")[:500]
+        out["answer"] = str(j.get("answer") or "")[:6000]
+        if mode == "ask" and not out["answer"]:
+            out["answer"] = out["summary"] or "The AI had nothing to say about that. Try asking it another way."
+        for i in (j.get("issues") or [])[:8]:
+            if isinstance(i, dict) and i.get("message"):
+                lvl = "problem" if (i.get("level") == "problem" and mode == "check") else "tip"
+                out["issues"].append({"level": lvl, "where": str(i.get("where") or "")[:60], "message": str(i["message"])[:500], "fix": str(i.get("fix") or "")[:400]})
+    out["verdict"] = "needs_work" if any(i["level"] == "problem" for i in out["issues"]) else "good"
+    return web.json_response(out)
+
+
 # "Fix selected with AI": the AI Task proposes changes to the editor's own settings (not to the generated YAML), they are
 # checked here against what the editor already holds, and the browser shows them for review. Nothing is saved or pushed.
 FIX_SKIP = {"name", "id", "original", "originalAuto", "replaces", "replacedDone", "autoRaw", "autoId", "autoOnly", "asAuto", "cardSw"}
@@ -4015,6 +4155,7 @@ def main():
         web.get("/announcements.js", asset("announcements.js", "application/javascript")),
         web.get("/ann-file.js", asset("ann-file.js", "application/javascript")),
         web.get("/sources.js", asset("sources.js", "application/javascript")),
+        web.get("/ask-ai.js", asset("ask-ai.js", "application/javascript")),
         web.get("/facts.js", asset("facts.js", "application/javascript")),
         web.get("/cards.js", asset("cards.js", "application/javascript")),
         web.get("/autoform.js", asset("autoform.js", "application/javascript")),
@@ -4047,6 +4188,7 @@ def main():
         web.post("/api/ann/helper", ann_helper),
         web.post("/api/review", review_item),
         web.post("/api/review/fix", review_fix),
+        web.post("/api/ask", ask_route),
         web.post("/api/ann/push", ann_push),
         web.post("/api/ann/run", ann_run),
         web.post("/api/ann/card_switch", ann_card_switch),

@@ -14,6 +14,7 @@ Describe what you want in plain English and your Home Assistant AI builds it: au
 - **Cards**: make and edit single cards with a preview
 - **Voice & facts**: AI announcements on a schedule or a dashboard switch, and rotating facts saved to sensors
 - **Files** (formerly File Reader): text files as sensors over MQTT, updated from automations or the REST API
+- **Check & ask AI**: on Build, Announcements, Facts, Cards, Dashboards and Files, check what you made for errors, get suggestions, or type your own question about it
 - **Backup**: one-click and scheduled backups of everything the add-on made
 
 ## What you need

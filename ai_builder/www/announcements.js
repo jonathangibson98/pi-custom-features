@@ -620,6 +620,10 @@ async function runTest(mode) {
     for (let i = 0; i < 200; i++) { const t = await (await fetch("./api/ann/test")).json(); showTest(t); if (t.status !== "running") break; await sleep(2500); }
   } catch (e) { $("#tres").textContent = "Failed: " + e; } finally { btns.forEach(x => x.disabled = false); }
 }
+askAI($("#askhost"), () => { const s = st(), id = cur.id || slug(s.name); return {section: "announcements", kind: "announcement", name: s.name, ai: s.ai || aiName(),
+  content: "THE EDITOR SETTINGS (JSON):\n" + JSON.stringify(s) + "\n\nTHE SCRIPT YAML IT BUILDS:\n" + makeYaml(s) + "\n\nTHE SCHEDULE AUTOMATION YAML (may be empty):\n" + (makeAuto(s, id) || ""),
+  yamls: [{label: "Script", text: makeYaml(s)}, {label: "Schedule", text: makeAuto(s, id) || ""}],
+  sources: usable().map(x => ({id: x.id, label: x.label, type: x.type}))}; });
 aiReview($("#ai-check"), $("#check-res"), () => { const s = st(), id = cur.id || slug(s.name); return {kind: "announcement", name: s.name, id, yaml: makeYaml(s), auto_yaml: makeAuto(s, id) || "", ai: s.ai || aiName(), sources: usable().map(x => ({id: x.id, label: x.label, type: x.type}))}; },
   {state: () => st(), apply: s => { applyState(s); gen(); markDirty(); }, sourceIds: () => usable().map(x => x.id)});
 $("#t-data").onclick = () => runTest("data"); $("#t-text").onclick = () => runTest("text"); $("#t-full").onclick = () => runTest("full");

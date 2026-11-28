@@ -932,6 +932,11 @@ function gen() {
   const t = $("#topicshow"); if (t) t.textContent = topicOf(E);
   paintState();
 }
+askAI($("#askhost"), () => { const id = cur.id || fslug(E.name), auto = isAsAuto(E);
+  const ys = auto ? [{label: "Automation", text: makeAutomation(E, id)}] : [{label: "Script", text: makeYaml(E)}, {label: "Schedule", text: makeAuto(E, id) || ""}];
+  return {section: "facts", kind: "fact", name: E.name, ai: E.ai || aiName(),
+    content: "THE EDITOR SETTINGS (JSON):\n" + JSON.stringify(E) + "\n\nTHE YAML IT BUILDS:\n" + ys.map(y => "# " + y.label + "\n" + y.text).join("\n\n"),
+    yamls: ys, sources: usable().map(x => ({id: x.id, label: x.label, type: x.type}))}; });
 aiReview($("#ai-check"), $("#check-res"), () => { const id = cur.id || fslug(E.name); return {kind: "fact", name: E.name, id, yaml: isAsAuto(E) ? makeAutomation(E, id) : makeYaml(E), auto_yaml: isAsAuto(E) ? "" : (makeAuto(E, id) || ""), ai: E.ai || aiName(), sources: usable().map(x => ({id: x.id, label: x.label, type: x.type}))}; },
   {state: () => E, apply: s => { E = full(s); drawForm(); changed(); }, sourceIds: () => usable().map(x => x.id)});
 $("#run").onclick = async () => {

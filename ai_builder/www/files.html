@@ -739,6 +739,10 @@ window.__hbAddon = "ai_builder";
           <div class="row"><button class="btn sm" id="aiuse" hidden>Put it in the editor</button><button class="btn sm quiet" id="aicopy">Copy</button></div>
         </div>
       </section>
+      <section class="card">
+        <div class="ch"><h2>✨ Check &amp; ask AI</h2></div>
+        <div id="askhost"></div>
+      </section>
     </div>
     <div class="side stack">
       <section class="card">
@@ -760,8 +764,12 @@ data:
   </div>
 </main>
 <script src="ui.js"></script>
+<script src="ask-ai.js"></script>
 <script>
 let cur = "", info = null;
+askAI($("#askhost"), () => ({section: "files", name: $("#fname").value.trim(),
+  content: "FILE NAME: " + $("#fname").value + "\nWHEN SAVING: " + $("#mode").value + "\n\nTHE TEXT:\n" + $("#text").value}),
+  {placeholder: "Ask anything about this file, e.g. \"how do I add a line from an automation?\" or \"is this the right format for a card?\" (optional when you press Check or Suggest)"});
 const msg = (id, t, c) => { const e = $(id); e.textContent = t || ""; e.className = "msg" + (c ? " " + c : ""); };
 async function call(path, opts) {
   try { const r = await fetch(new URL("api/files/" + path, document.baseURI), opts); const j = await r.json().catch(() => ({})); if (!r.ok && !j.error) j.error = "Error " + r.status; return j; }
