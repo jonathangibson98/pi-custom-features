@@ -294,3 +294,8 @@ Promise.all([api("ann/options"), api("ann/entities").then(r => Array.isArray(r) 
   if (o && !o.error) S = o; ENT = e; setupNote(); await loadLib(); showView("lib");
   await takeHandoff();
 });
+
+askAI($("#askhost"), () => ({section: "cards", name: $("#name").value.trim(), ai: S.ai_task_entity || "",
+  content: "WHAT THE OWNER ASKED FOR:\n" + $("#request").value + "\n\nLOOK: " + $("#style").value + "\n\nTHE CARD YAML:\n" + $("#yaml").value,
+  yamls: [{label: "Card", text: $("#yaml").value}]}),
+  {placeholder: "Ask anything about this card, e.g. \"why is the text cut off?\" or \"how do I make it scroll?\" (optional when you press Check or Suggest)"});

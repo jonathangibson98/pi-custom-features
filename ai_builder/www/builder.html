@@ -726,12 +726,17 @@ window.__hbAddon = "ai_builder";
       <button class="btn primary wide" id="go" style="margin-top:16px">Build it</button>
     </div>
     <div id="out" class="stack"></div>
+    <section class="card" id="askcard">
+      <div class="ch"><h2>✨ Check &amp; ask AI</h2></div>
+      <div id="askhost"></div>
+    </section>
   </section>
 
   <section id="mine" class="stack" hidden></section>
 </main>
 
 <script src="ui.js"></script>
+<script src="ask-ai.js"></script>
 <script>
 const KINDS = [["auto","Let AI decide"],["automation","Automation"],["scene","Scene"],["script","Script"],["template","Template sensor"],["helper","Helper"],["appdaemon","AppDaemon app"],["pyscript","Pyscript"],["blueprint","Blueprint"],["addon","Add-on"]];
 const KIND_LABEL = {automation:"Automation", scene:"Scene", script:"Script", template:"Template entity", helper:"Helper", appdaemon:"AppDaemon app", pyscript:"Pyscript", blueprint:"Blueprint", addon:"Add-on", announcement:"Announcement", fact:"Fact", answer:"Answer"};
@@ -741,6 +746,15 @@ function renderChips() {
   const box = $("#kinds"); box.replaceChildren();
   for (const [k, label] of KINDS) box.append(el("button", {class: "chip" + (k === kind ? " on" : ""), onclick: () => { kind = k; renderChips(); }}, label));
 }
+
+const YAML_KINDS = ["automation", "scene", "script", "template", "helper", "blueprint"];
+askAI($("#askhost"), () => {
+  const items = (current && current.items) || [];
+  return {section: "builder", name: "",
+    content: "WHAT THE OWNER TYPED:\n" + $("#req").value + "\n\nMAKE IT AS: " + (KIND_LABEL[kind] || kind) + "\n\n" +
+      (items.length ? "WHAT THE AI BUILT SO FAR:\n" + items.map(i => "## " + (KIND_LABEL[i.kind] || i.kind) + " - " + (i.summary || "") + "\n" + (i.yaml || "")).join("\n\n") : "(nothing built yet)"),
+    yamls: items.filter(i => YAML_KINDS.includes(i.kind) && i.yaml).map(i => ({label: KIND_LABEL[i.kind] || i.kind, text: i.yaml}))};
+}, {placeholder: "Ask anything, e.g. \"will this run when nobody is home?\" or \"what else could I add to this?\" (optional when you press Check or Suggest)"});
 
 async function init() {
   renderChips();

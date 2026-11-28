@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.7.0 - 2026-11-28
+
+- **A "Check & ask AI" box on every page that makes something: Build, Announcements, Facts, Cards, Dashboards and Files.** Your AI Task reads what is on the page and you pick what you want from it:
+  - **Check for errors**: first a quick check with no AI (the YAML parses, no placeholder is left in, every entity it uses really exists in Home Assistant), then the AI looks for things that are wrong or will not work.
+  - **Suggest improvements**: up to 6 specific ideas to make it simpler, more reliable or better.
+  - **Ask a question**: type anything about what is on screen (\"why would this never run?\", \"will this fit my TV?\") and get a plain answer. Follow-up questions remember the earlier ones until you press **Clear chat**.
+- Announcements and Facts keep their **Check with AI** button (with tick boxes and **Fix selected with AI**). The new box sits under it and also knows the editor's settings, so its answers use the real setting names.
+- Nothing is changed, saved or run by this box. It only reads and answers.
+- Uses the same AI Task as the rest of the add-on (the one picked for the item, else the helper AI Task, else the default).
+- New route `POST /api/ask` and a new shared file `www/ask-ai.js`.
+
 ## 3.6.1 - 2026-11-25
 
 - **Music keeps playing while the AI writes.** The script now asks the AI Task for the text first, and only pauses your music (and sets the talking flag and speaker volume) once the answer is ready, right before it speaks. No more silence while it thinks. If the AI answer is unusable, the music is never paused. Scripts you already pushed keep the old order until you push them again.

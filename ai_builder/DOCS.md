@@ -62,6 +62,7 @@
 - [Preview](#preview)
 - [Notes](#notes)
 - [Start from an announcement or fact](#start-from-an-announcement-or-fact)
+- [Check & ask AI](#check--ask-ai)
 - [Backup](#backup)
 - [Choosing where backups go](#choosing-where-backups-go)
 - [Importing](#importing)
@@ -265,6 +266,7 @@ Already have an announcement script or automation? Tap **Import my script or aut
 
 ## Announcement tabs
 
+- **Check & ask AI:** the box under it adds **Suggest improvements** and a question box (see [Check & ask AI](#check--ask-ai)).
 - **Check with AI:** the button above **Try it first** checks the script and its schedule (entities exist, nothing left unfilled), then asks your AI Task to point out problems and tips. Facts has the same button. Tick items and press **Fix selected with AI** to have the AI change the editor's settings for them; review the Was/Now list, then Save (or **Undo these changes**).
 - **Editor:** pick data, personality, then type **What should it do?** in plain words. Every data source is loaded into a variable (`src_<name>`) in the script, and the AI Task reads those variables.
 - **Test before saving:** runs a temporary copy of the script and deletes it afterward, so nothing lands in your Scripts list. *Preview data only* skips the AI and speaking, and shows what each source rendered. *Test (text only)* also runs the AI and shows what it would say. *Test with sound* speaks it too. If a step fails, the error from Home Assistant is shown.
@@ -413,6 +415,18 @@ An AI dashboard card creator. It sits beside Facts and uses the same AI Task as 
 **Start from something made here** lists every announcement and fact that saves to a file. Picking one fills in its sensor and its show / hide switch, writes a starting description, and tells the AI exactly what is in the file (each field and what it is for), so it can build the card before the file has anything in it. The **Design a custom card in Cards** buttons in Announcements and Facts do the same thing from there.
 
 When you open a saved card later and the announcement or fact it came from now writes a different sensor, uses a different switch, or has different fields, the card tells you and offers **Update this card's setup**.
+
+# Check & ask AI
+
+Build, Announcements, Facts, Cards, Dashboards and Files each have a **Check & ask AI** box. It reads what is on that page right now and never changes, saves or runs anything.
+
+- **Check for errors:** a quick check with no AI first (the YAML parses, no `SET_ME` placeholder is left, every entity id it uses exists in Home Assistant right now), then your AI Task looks for things that are wrong or will not work. Items marked **Fix** are real errors; **Tip** items are smaller.
+- **Suggest improvements:** up to 6 specific ideas. Type something in the question box first to point it at what you care about.
+- **Ask a question:** type anything about what is on the page and press **Ask** (or Ctrl/Cmd+Enter). It answers in plain words. Follow-ups remember the earlier questions until you press **Clear chat**.
+
+On Announcements and Facts the AI is also told how this add-on builds them, so it talks about the real settings. The existing **Check with AI** button there still has the tick boxes and **Fix selected with AI**.
+
+It uses the AI Task picked for the item, otherwise the helper AI Task, otherwise the default one. If none is set, **Check for errors** still runs the basic checks and tells you the AI part was skipped.
 
 # Backup
 

@@ -764,6 +764,10 @@ window.__hbAddon = "ai_builder";
         <div class="ch"><h2>Health check</h2><p>Runs on the draft.</p></div>
         <div id="check" class="small"></div>
       </section>
+      <section class="card">
+        <div class="ch"><h2>✨ Check &amp; ask AI</h2></div>
+        <div id="askhost"></div>
+      </section>
       <details class="card">
         <summary>YAML (edit by hand)</summary>
         <textarea id="yaml" class="code" style="min-height:360px;white-space:pre;margin-top:10px" spellcheck="false"></textarea>
@@ -812,6 +816,7 @@ window.__hbAddon = "ai_builder";
   </div>
 </div>
 <script src="ui.js"></script>
+<script src="ask-ai.js"></script>
 <script src="js-yaml.min.js"></script>
 <script>
 const QUICK = [
@@ -952,6 +957,11 @@ async function runAi(extra) {
   $("#changes").replaceChildren(...(r.changes || []).map(c => el("div", {class: "small dim"}, "• " + c)));
 }
 $("#go").onclick = () => runAi();
+askAI($("#askhost"), () => {
+  const y = $("#yaml").value;
+  return {section: "dashboards", name: url || "", content: "DASHBOARD: " + (url || "(none picked)") + "\n\nTHE DRAFT CONFIG:\n" + y,
+    yamls: y.length <= 30000 ? [{label: "Dashboard", text: y}] : []};
+}, {placeholder: "Ask anything about this dashboard, e.g. \"will this fit my TV?\" or \"what is the clutter here?\" (optional when you press Check or Suggest)"});
 $("#undo").onclick = () => { if (!hist.length) return; fut.push(draft); const c = hist.pop(); draft = null; setDraft(c, false); };
 $("#redo").onclick = () => { if (!fut.length) return; hist.push(draft); const c = fut.pop(); draft = null; setDraft(c, false); };
 /* ---------- YAML ---------- */
